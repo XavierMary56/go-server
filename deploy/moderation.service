@@ -1,0 +1,26 @@
+[Unit]
+Description=AI 内容审核服务 (Go)
+After=network.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=www-data
+Group=www-data
+WorkingDirectory=/opt/moderation
+ExecStart=/opt/moderation/moderation-server
+EnvironmentFile=/opt/moderation/.env
+Restart=on-failure
+RestartSec=5s
+
+# 安全限制
+NoNewPrivileges=true
+PrivateTmp=true
+
+# 日志
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=moderation
+
+[Install]
+WantedBy=multi-user.target
