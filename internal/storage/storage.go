@@ -2,6 +2,7 @@ package storage
 
 import (
 	"database/sql"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -28,10 +29,10 @@ type ProjectKey struct {
 
 // AnthropicKey Anthropic API Key
 type AnthropicKey struct {
-	ID        int64
-	Name      string
-	Key       string
-	Enabled   bool
+	ID         int64
+	Name       string
+	Key        string
+	Enabled    bool
 	UsageCount int64
 	LastUsedAt *time.Time
 	CreatedAt  time.Time
@@ -122,6 +123,36 @@ func (s *DB) ListProjectKeys() ([]*ProjectKey, error) {
 		keys = append(keys, k)
 	}
 	return keys, nil
+}
+
+func (s *DB) GetEnabledProjectKey(key string) (*ProjectKey, error) {
+	row := s.db.QueryRow(`
+		SELECT id, project_id, key, rate_limit, enabled, created_at, updated_at
+		FROM project_keys
+		WHERE key=? AND enabled=1
+		LIMIT 1
+	`, key)
+
+	projectKey := &ProjectKey{}
+	var enabled int
+	err := row.Scan(
+		&projectKey.ID,
+		&projectKey.ProjectID,
+		&projectKey.Key,
+		&projectKey.RateLimit,
+		&enabled,
+		&projectKey.CreatedAt,
+		&projectKey.UpdatedAt,
+	)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, err
+	}
+
+	projectKey.Enabled = enabled == 1
+	return projectKey, nil
 }
 
 func (s *DB) AddProjectKey(projectID, key string, rateLimit int) (*ProjectKey, error) {

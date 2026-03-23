@@ -285,7 +285,7 @@ if (!$service->ping()) {
 | `CACHE_TTL` | `60` | 缓存时长（秒），`0` 禁用 |
 | `REDIS_ADDR` | `127.0.0.1:6379` | Redis 地址 |
 | `ENABLE_AUTH` | `false` | 是否启用 API 鉴权 |
-| `ALLOWED_KEYS` | — | 项目密钥列表（逗号分隔） |
+| `ALLOWED_KEYS` | — | 兼容兜底配置；正常情况下请在后台 Project Keys 中维护 |
 | `LOG_LEVEL` | `info` | 日志级别 |
 | `LOG_DIR` | `./logs` | 日志目录 |
 

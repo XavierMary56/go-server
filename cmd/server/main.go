@@ -20,44 +20,43 @@ import (
 )
 
 func main() {
-	// 加载配置
 	cfg, err := config.Load()
 	if err != nil {
-		log.Fatalf("加载配置失败: %v", err)
+		log.Fatalf("failed to load config: %v", err)
 	}
 
-	// 初始化日志
 	lg := logger.New(cfg.LogDir, cfg.LogLevel)
-	lg.Info("系统启动", map[string]interface{}{
+	lg.Info("system starting", map[string]interface{}{
 		"version": "2.0.0",
 		"port":    cfg.Port,
 		"models":  len(cfg.Models),
 	})
 
-	// 初始化审核服务
 	svc := service.NewModerationService(cfg, lg)
 
-	// 注册路由
-	mux := http.NewServeMux()
-	h := handler.New(svc, lg, cfg)
-	h.RegisterRoutes(mux)
-
-	// 注册 Admin 路由
-	if cfg.EnableAdminAPI {
-		auditLogger := audit.New(cfg.AuditLogDir, cfg.EnableAudit)
-		db, err := storage.New("/data")
+	var db *storage.DB
+	if cfg.EnableAuth || cfg.EnableAdminAPI {
+		db, err = storage.New("/data")
 		if err != nil {
-			lg.Error("数据库初始化失败: " + err.Error())
+			lg.Error("database init failed: " + err.Error())
 			db = nil
-		}
-		adminHandler := admin.New(cfg, lg, auditLogger, db)
-		adminHandler.RegisterRoutes(mux)
-		if db != nil {
+		} else {
+			// When DB is available, project key auth is sourced from SQLite at runtime.
+			cfg.AllowedKeys = nil
 			defer db.Close()
 		}
 	}
 
-	// 启动 HTTP 服务器
+	mux := http.NewServeMux()
+	h := handler.New(svc, lg, cfg, db)
+	h.RegisterRoutes(mux)
+
+	if cfg.EnableAdminAPI {
+		auditLogger := audit.New(cfg.AuditLogDir, cfg.EnableAudit)
+		adminHandler := admin.New(cfg, lg, auditLogger, db)
+		adminHandler.RegisterRoutes(mux)
+	}
+
 	srv := &http.Server{
 		Addr:         fmt.Sprintf(":%d", cfg.Port),
 		Handler:      mux,
@@ -66,26 +65,26 @@ func main() {
 		IdleTimeout:  60 * time.Second,
 	}
 
-	// 优雅退出
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 
 	go func() {
-		lg.Info(fmt.Sprintf("服务器启动，监听端口 %d", cfg.Port), nil)
+		lg.Info(fmt.Sprintf("server listening on %d", cfg.Port), nil)
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			lg.Error("服务器启动失败: " + err.Error())
+			lg.Error("server start failed: " + err.Error())
 			os.Exit(1)
 		}
 	}()
 
 	<-quit
-	lg.Info("正在关闭服务器...", nil)
+	lg.Info("shutting down server", nil)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
 	if err := srv.Shutdown(ctx); err != nil {
-		lg.Error("服务器强制关闭: " + err.Error())
+		lg.Error("server forced shutdown: " + err.Error())
 	}
-	lg.Info("服务器已退出", nil)
+
+	lg.Info("server exited", nil)
 }
