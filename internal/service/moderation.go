@@ -16,6 +16,7 @@ import (
 
 	"github.com/XavierMary56/automatic_review/go-server/internal/config"
 	"github.com/XavierMary56/automatic_review/go-server/internal/logger"
+	"github.com/XavierMary56/automatic_review/go-server/internal/storage"
 )
 
 // ── 请求 / 响应结构体 ──────────────────────────────────────
@@ -75,6 +76,31 @@ type aiResult struct {
 	Reason     string  `json:"reason"`
 }
 
+// openAIRequest OpenAI / Grok 请求体（兼容格式）
+type openAIRequest struct {
+	Model     string          `json:"model"`
+	MaxTokens int             `json:"max_tokens"`
+	Messages  []openAIMessage `json:"messages"`
+}
+
+type openAIMessage struct {
+	Role    string `json:"role"`
+	Content string `json:"content"`
+}
+
+// openAIResponse OpenAI / Grok 响应体
+type openAIResponse struct {
+	Choices []struct {
+		Message struct {
+			Content string `json:"content"`
+		} `json:"message"`
+	} `json:"choices"`
+	Error *struct {
+		Message string `json:"message"`
+		Type    string `json:"type"`
+	} `json:"error,omitempty"`
+}
+
 // ── 服务结构体 ─────────────────────────────────────────────
 
 // ModerationService 核心审核服务
@@ -85,6 +111,7 @@ type ModerationService struct {
 	client *http.Client
 	stats  *Stats
 	mu     sync.RWMutex
+	db     *storage.DB // 可选，用于从数据库获取 Provider Keys
 }
 
 // Stats 运行时统计
@@ -133,15 +160,65 @@ func (s *Stats) snapshot() map[string]interface{} {
 }
 
 // NewModerationService 创建服务实例
-func NewModerationService(cfg *config.Config, log *logger.Logger) *ModerationService {
+func NewModerationService(cfg *config.Config, log *logger.Logger, db *storage.DB) *ModerationService {
 	return &ModerationService{
 		cfg:   cfg,
 		log:   log,
+		db:    db,
 		cache: newMemoryCache(cfg.CacheTTL),
 		client: &http.Client{
 			Timeout: time.Duration(cfg.APITimeout) * time.Second,
 		},
 		stats: newStats(),
+	}
+}
+
+// providerOf 根据模型 ID 前缀判断所属 provider
+func providerOf(modelID string, cfg *config.Config) string {
+	// 优先使用模型配置里显式声明的 provider
+	for _, m := range cfg.Models {
+		if m.ID == modelID && m.Provider != "" {
+			return m.Provider
+		}
+	}
+	// 按 ID 前缀自动识别
+	switch {
+	case strings.HasPrefix(modelID, "gpt-"), strings.HasPrefix(modelID, "o1-"),
+		strings.HasPrefix(modelID, "o3-"), strings.HasPrefix(modelID, "o4-"):
+		return "openai"
+	case strings.HasPrefix(modelID, "grok-"):
+		return "grok"
+	default:
+		return "anthropic"
+	}
+}
+
+// getProviderKey 获取指定 provider 的 API Key（优先 DB，回退 env var）
+func (s *ModerationService) getProviderKey(provider string) (apiKey string, keyID int64) {
+	if s.db != nil {
+		switch provider {
+		case "openai", "grok":
+			keys, _ := s.db.GetEnabledProviderKeys(provider)
+			if len(keys) > 0 {
+				k := keys[0] // usage_count ASC，取最少使用的
+				return k.Key, k.ID
+			}
+		case "anthropic":
+			keys, _ := s.db.GetEnabledAnthropicKeys()
+			if len(keys) > 0 {
+				k := keys[0]
+				return k.Key, k.ID
+			}
+		}
+	}
+	// fallback 到环境变量
+	switch provider {
+	case "openai":
+		return s.cfg.OpenAIAPIKey, 0
+	case "grok":
+		return s.cfg.GrokAPIKey, 0
+	default:
+		return s.cfg.AnthropicAPIKey, 0
 	}
 }
 
@@ -271,7 +348,7 @@ func (s *ModerationService) weightedRandom() config.ModelConfig {
 	return s.cfg.Models[0]
 }
 
-// ── Anthropic API 调用 ─────────────────────────────────────
+// ── API 调用路由 ───────────────────────────────────────────
 
 var strictnessPrompts = map[string]string{
 	"strict":   "严格模式：对轻微违规也要标记（flagged），宁可误判不可漏判。",
@@ -280,12 +357,22 @@ var strictnessPrompts = map[string]string{
 }
 
 func (s *ModerationService) callAPI(req *ModerateRequest, modelID string) (*ModerateResult, error) {
+	provider := providerOf(modelID, s.cfg)
+	switch provider {
+	case "openai", "grok":
+		return s.callOpenAICompatible(req, modelID, provider)
+	default:
+		return s.callAnthropic(req, modelID)
+	}
+}
+
+// buildSystemPrompt 构建统一的审核系统提示词
+func (s *ModerationService) buildSystemPrompt(req *ModerateRequest) string {
 	strictHint := strictnessPrompts[req.Strictness]
 	if strictHint == "" {
 		strictHint = strictnessPrompts["standard"]
 	}
-
-	systemPrompt := fmt.Sprintf(`你是一个专业的中文社区内容审核 AI。%s
+	return fmt.Sprintf(`你是一个专业的中文社区内容审核 AI。%s
 
 审核分类（category 字段）：
 - none     : 正常内容
@@ -303,19 +390,35 @@ func (s *ModerationService) callAPI(req *ModerateRequest, modelID string) (*Mode
 
 只返回以下 JSON，不要任何其他文字：
 {"verdict":"approved|flagged|rejected","category":"none|spam|abuse|politics|adult|fraud|violence","confidence":0.95,"reason":"简短原因15字内"}`, strictHint)
+}
+
+// parseAIText 解析 AI 返回的文本为 aiResult
+func parseAIText(text string) (*aiResult, error) {
+	text = strings.ReplaceAll(text, "```json", "")
+	text = strings.ReplaceAll(text, "```", "")
+	text = strings.TrimSpace(text)
+	var ai aiResult
+	if err := json.Unmarshal([]byte(text), &ai); err != nil {
+		return nil, fmt.Errorf("解析 AI 结果失败: %w (原始: %s)", err, text)
+	}
+	return &ai, nil
+}
+
+// callAnthropic 调用 Anthropic API
+func (s *ModerationService) callAnthropic(req *ModerateRequest, modelID string) (*ModerateResult, error) {
+	apiKey, keyID := s.getProviderKey("anthropic")
+	if apiKey == "" {
+		return nil, fmt.Errorf("未配置 Anthropic API Key")
+	}
 
 	payload := anthropicRequest{
 		Model:     modelID,
 		MaxTokens: 200,
-		System:    systemPrompt,
+		System:    s.buildSystemPrompt(req),
 		Messages: []anthropicMessage{
-			{
-				Role:    "user",
-				Content: fmt.Sprintf("内容类型：%s\n\n待审内容：\n%s", req.Type, req.Content),
-			},
+			{Role: "user", Content: fmt.Sprintf("内容类型：%s\n\n待审内容：\n%s", req.Type, req.Content)},
 		},
 	}
-
 	body, _ := json.Marshal(payload)
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(s.cfg.APITimeout)*time.Second)
@@ -326,7 +429,7 @@ func (s *ModerationService) callAPI(req *ModerateRequest, modelID string) (*Mode
 		return nil, fmt.Errorf("创建请求失败: %w", err)
 	}
 	httpReq.Header.Set("Content-Type", "application/json")
-	httpReq.Header.Set("x-api-key", s.cfg.AnthropicAPIKey)
+	httpReq.Header.Set("x-api-key", apiKey)
 	httpReq.Header.Set("anthropic-version", s.cfg.AnthropicVer)
 
 	resp, err := s.client.Do(httpReq)
@@ -334,11 +437,7 @@ func (s *ModerationService) callAPI(req *ModerateRequest, modelID string) (*Mode
 		return nil, fmt.Errorf("HTTP 请求失败: %w", err)
 	}
 	defer resp.Body.Close()
-
-	respBody, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("读取响应失败: %w", err)
-	}
+	respBody, _ := io.ReadAll(resp.Body)
 
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("API 返回 HTTP %d: %s", resp.StatusCode, string(respBody))
@@ -346,7 +445,7 @@ func (s *ModerationService) callAPI(req *ModerateRequest, modelID string) (*Mode
 
 	var apiResp anthropicResponse
 	if err := json.Unmarshal(respBody, &apiResp); err != nil {
-		return nil, fmt.Errorf("解析响应 JSON 失败: %w", err)
+		return nil, fmt.Errorf("解析响应失败: %w", err)
 	}
 	if apiResp.Error != nil {
 		return nil, fmt.Errorf("API 错误 [%s]: %s", apiResp.Error.Type, apiResp.Error.Message)
@@ -355,24 +454,83 @@ func (s *ModerationService) callAPI(req *ModerateRequest, modelID string) (*Mode
 		return nil, fmt.Errorf("API 返回空内容")
 	}
 
-	// 解析 AI 返回的 JSON
-	text := apiResp.Content[0].Text
-	text = strings.ReplaceAll(text, "```json", "")
-	text = strings.ReplaceAll(text, "```", "")
-	text = strings.TrimSpace(text)
-
-	var ai aiResult
-	if err := json.Unmarshal([]byte(text), &ai); err != nil {
-		return nil, fmt.Errorf("解析 AI 结果失败: %w (原始: %s)", err, text)
+	if keyID > 0 && s.db != nil {
+		s.db.IncrAnthropicKeyUsage(keyID)
 	}
 
-	return &ModerateResult{
-		Verdict:    ai.Verdict,
-		Category:   ai.Category,
-		Confidence: ai.Confidence,
-		Reason:     ai.Reason,
-		ModelUsed:  modelID,
-	}, nil
+	ai, err := parseAIText(apiResp.Content[0].Text)
+	if err != nil {
+		return nil, err
+	}
+	return &ModerateResult{Verdict: ai.Verdict, Category: ai.Category, Confidence: ai.Confidence, Reason: ai.Reason, ModelUsed: modelID}, nil
+}
+
+// callOpenAICompatible 调用 OpenAI / Grok API（兼容格式相同）
+func (s *ModerationService) callOpenAICompatible(req *ModerateRequest, modelID, provider string) (*ModerateResult, error) {
+	apiKey, keyID := s.getProviderKey(provider)
+	if apiKey == "" {
+		return nil, fmt.Errorf("未配置 %s API Key", provider)
+	}
+
+	var apiURL string
+	switch provider {
+	case "grok":
+		apiURL = s.cfg.GrokAPIURL
+	default:
+		apiURL = s.cfg.OpenAIAPIURL
+	}
+
+	payload := openAIRequest{
+		Model:     modelID,
+		MaxTokens: 200,
+		Messages: []openAIMessage{
+			{Role: "system", Content: s.buildSystemPrompt(req)},
+			{Role: "user", Content: fmt.Sprintf("内容类型：%s\n\n待审内容：\n%s", req.Type, req.Content)},
+		},
+	}
+	body, _ := json.Marshal(payload)
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(s.cfg.APITimeout)*time.Second)
+	defer cancel()
+
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, apiURL, bytes.NewReader(body))
+	if err != nil {
+		return nil, fmt.Errorf("创建请求失败: %w", err)
+	}
+	httpReq.Header.Set("Content-Type", "application/json")
+	httpReq.Header.Set("Authorization", "Bearer "+apiKey)
+
+	resp, err := s.client.Do(httpReq)
+	if err != nil {
+		return nil, fmt.Errorf("HTTP 请求失败: %w", err)
+	}
+	defer resp.Body.Close()
+	respBody, _ := io.ReadAll(resp.Body)
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("API 返回 HTTP %d: %s", resp.StatusCode, string(respBody))
+	}
+
+	var apiResp openAIResponse
+	if err := json.Unmarshal(respBody, &apiResp); err != nil {
+		return nil, fmt.Errorf("解析响应失败: %w", err)
+	}
+	if apiResp.Error != nil {
+		return nil, fmt.Errorf("API 错误 [%s]: %s", apiResp.Error.Type, apiResp.Error.Message)
+	}
+	if len(apiResp.Choices) == 0 {
+		return nil, fmt.Errorf("API 返回空 choices")
+	}
+
+	if keyID > 0 && s.db != nil {
+		s.db.IncrProviderKeyUsage(keyID)
+	}
+
+	ai, err := parseAIText(apiResp.Choices[0].Message.Content)
+	if err != nil {
+		return nil, err
+	}
+	return &ModerateResult{Verdict: ai.Verdict, Category: ai.Category, Confidence: ai.Confidence, Reason: ai.Reason, ModelUsed: modelID}, nil
 }
 
 // ── 工具函数 ───────────────────────────────────────────────

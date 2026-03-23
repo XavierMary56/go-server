@@ -97,6 +97,10 @@ func (ah *AdminHandler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/v1/admin/anthropic-keys/", ah.withAdminAuth(ah.handleAnthropicKeyDetail))
 	mux.HandleFunc("/v1/admin/anthropic-keys/verify", ah.withAdminAuth(ah.handleVerifyAnthropicKey))
 
+	// Provider Keys 管理 (OpenAI / Grok)
+	mux.HandleFunc("/v1/admin/provider-keys", ah.withAdminAuth(ah.handleProviderKeys))
+	mux.HandleFunc("/v1/admin/provider-keys/", ah.withAdminAuth(ah.handleProviderKeyDetail))
+
 	// 模型管理
 	mux.HandleFunc("/v1/admin/models", ah.withAdminAuth(ah.handleModels))
 	mux.HandleFunc("/v1/admin/models/", ah.withAdminAuth(ah.handleModelDetail))
@@ -218,8 +222,8 @@ func (ah *AdminHandler) addKey(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if req.RateLimit <= 0 {
-		ah.jsonError(w, http.StatusBadRequest, "速率限制必须大于 0")
+	if req.RateLimit < 0 {
+		ah.jsonError(w, http.StatusBadRequest, "速率限制不能为负数")
 		return
 	}
 
@@ -299,8 +303,8 @@ func (ah *AdminHandler) updateKey(w http.ResponseWriter, r *http.Request, key st
 
 	// 更新字段
 	if req.RateLimit != nil {
-		if *req.RateLimit <= 0 {
-			ah.jsonError(w, http.StatusBadRequest, "速率限制必须大于 0")
+		if *req.RateLimit < 0 {
+			ah.jsonError(w, http.StatusBadRequest, "速率限制不能为负数")
 			return
 		}
 		keyInfo.RateLimit = *req.RateLimit
@@ -794,6 +798,128 @@ func (ah *AdminHandler) handleModelDetail(w http.ResponseWriter, r *http.Request
 		ah.jsonOK(w, http.StatusOK, map[string]interface{}{"code": 200, "message": "已更新"})
 	case http.MethodDelete:
 		ah.db.DeleteModel(id)
+		ah.jsonOK(w, http.StatusOK, map[string]interface{}{"code": 200, "message": "已删除"})
+	default:
+		ah.jsonError(w, http.StatusMethodNotAllowed, "方法不允许")
+	}
+}
+
+// ── Provider Keys (OpenAI / Grok) 管理 ──────────────────────
+
+func (ah *AdminHandler) handleProviderKeys(w http.ResponseWriter, r *http.Request) {
+	if ah.db == nil {
+		ah.jsonError(w, http.StatusServiceUnavailable, "数据库未初始化")
+		return
+	}
+	// 从查询参数获取 provider，默认列出所有
+	provider := r.URL.Query().Get("provider")
+
+	switch r.Method {
+	case http.MethodGet:
+		var keys []*storage.ProviderKey
+		var err error
+		if provider != "" {
+			keys, err = ah.db.ListProviderKeys(provider)
+		} else {
+			oaiKeys, e1 := ah.db.ListProviderKeys("openai")
+			grokKeys, e2 := ah.db.ListProviderKeys("grok")
+			if e1 != nil {
+				err = e1
+			} else if e2 != nil {
+				err = e2
+			} else {
+				keys = append(oaiKeys, grokKeys...)
+			}
+		}
+		if err != nil {
+			ah.jsonError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		type safeKey struct {
+			ID         int64      `json:"id"`
+			Provider   string     `json:"provider"`
+			Name       string     `json:"name"`
+			KeyMasked  string     `json:"key_masked"`
+			Enabled    bool       `json:"enabled"`
+			UsageCount int64      `json:"usage_count"`
+			LastUsedAt *time.Time `json:"last_used_at"`
+			CreatedAt  time.Time  `json:"created_at"`
+		}
+		var safe []safeKey
+		for _, k := range keys {
+			safe = append(safe, safeKey{
+				ID:         k.ID,
+				Provider:   k.Provider,
+				Name:       k.Name,
+				KeyMasked:  ah.maskKey(k.Key),
+				Enabled:    k.Enabled,
+				UsageCount: k.UsageCount,
+				LastUsedAt: k.LastUsedAt,
+				CreatedAt:  k.CreatedAt,
+			})
+		}
+		if safe == nil {
+			safe = []safeKey{}
+		}
+		ah.jsonOK(w, http.StatusOK, map[string]interface{}{"code": 200, "data": safe})
+
+	case http.MethodPost:
+		var req struct {
+			Provider string `json:"provider"`
+			Name     string `json:"name"`
+			Key      string `json:"key"`
+		}
+		body, _ := io.ReadAll(r.Body)
+		json.Unmarshal(body, &req)
+		if req.Provider != "openai" && req.Provider != "grok" {
+			ah.jsonError(w, http.StatusBadRequest, "provider 必须是 openai 或 grok")
+			return
+		}
+		if req.Name == "" || req.Key == "" {
+			ah.jsonError(w, http.StatusBadRequest, "名称和 Key 不能为空")
+			return
+		}
+		k, err := ah.db.AddProviderKey(req.Provider, req.Name, req.Key)
+		if err != nil {
+			ah.jsonError(w, http.StatusConflict, "Key 已存在或保存失败: "+err.Error())
+			return
+		}
+		ah.jsonOK(w, http.StatusCreated, map[string]interface{}{"code": 201, "data": k})
+	default:
+		ah.jsonError(w, http.StatusMethodNotAllowed, "方法不允许")
+	}
+}
+
+func (ah *AdminHandler) handleProviderKeyDetail(w http.ResponseWriter, r *http.Request) {
+	if ah.db == nil {
+		ah.jsonError(w, http.StatusServiceUnavailable, "数据库未初始化")
+		return
+	}
+	parts := strings.Split(r.URL.Path, "/")
+	idStr := parts[len(parts)-1]
+	id, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil {
+		ah.jsonError(w, http.StatusBadRequest, "无效的 ID")
+		return
+	}
+
+	switch r.Method {
+	case http.MethodPut:
+		var req struct {
+			Enabled bool `json:"enabled"`
+		}
+		body, _ := io.ReadAll(r.Body)
+		json.Unmarshal(body, &req)
+		if err := ah.db.UpdateProviderKey(id, req.Enabled); err != nil {
+			ah.jsonError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		ah.jsonOK(w, http.StatusOK, map[string]interface{}{"code": 200, "message": "已更新"})
+	case http.MethodDelete:
+		if err := ah.db.DeleteProviderKey(id); err != nil {
+			ah.jsonError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
 		ah.jsonOK(w, http.StatusOK, map[string]interface{}{"code": 200, "message": "已删除"})
 	default:
 		ah.jsonError(w, http.StatusMethodNotAllowed, "方法不允许")

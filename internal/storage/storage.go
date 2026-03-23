@@ -38,6 +38,18 @@ type AnthropicKey struct {
 	CreatedAt  time.Time
 }
 
+// ProviderKey OpenAI / Grok API Key
+type ProviderKey struct {
+	ID         int64
+	Provider   string // openai | grok
+	Name       string
+	Key        string
+	Enabled    bool
+	UsageCount int64
+	LastUsedAt *time.Time
+	CreatedAt  time.Time
+}
+
 // ModelConfig 模型配置
 type ModelConfig struct {
 	ID       int64
@@ -82,6 +94,17 @@ func (s *DB) migrate() error {
 
 		CREATE TABLE IF NOT EXISTS anthropic_keys (
 			id           INTEGER PRIMARY KEY AUTOINCREMENT,
+			name         TEXT NOT NULL,
+			key          TEXT NOT NULL UNIQUE,
+			enabled      INTEGER NOT NULL DEFAULT 1,
+			usage_count  INTEGER NOT NULL DEFAULT 0,
+			last_used_at DATETIME,
+			created_at   DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+		);
+
+		CREATE TABLE IF NOT EXISTS provider_keys (
+			id           INTEGER PRIMARY KEY AUTOINCREMENT,
+			provider     TEXT NOT NULL,
 			name         TEXT NOT NULL,
 			key          TEXT NOT NULL UNIQUE,
 			enabled      INTEGER NOT NULL DEFAULT 1,
@@ -292,6 +315,70 @@ func (s *DB) GetEnabledAnthropicKeys() ([]*AnthropicKey, error) {
 		keys = append(keys, k)
 	}
 	return keys, nil
+}
+
+// ── Provider Keys (OpenAI / Grok) ─────────────────────────
+
+func (s *DB) ListProviderKeys(provider string) ([]*ProviderKey, error) {
+	rows, err := s.db.Query(`SELECT id, provider, name, key, enabled, usage_count, last_used_at, created_at FROM provider_keys WHERE provider=? ORDER BY created_at DESC`, provider)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var keys []*ProviderKey
+	for rows.Next() {
+		k := &ProviderKey{}
+		var enabled int
+		rows.Scan(&k.ID, &k.Provider, &k.Name, &k.Key, &enabled, &k.UsageCount, &k.LastUsedAt, &k.CreatedAt)
+		k.Enabled = enabled == 1
+		keys = append(keys, k)
+	}
+	return keys, nil
+}
+
+func (s *DB) GetEnabledProviderKeys(provider string) ([]*ProviderKey, error) {
+	rows, err := s.db.Query(`SELECT id, provider, name, key, enabled, usage_count, last_used_at, created_at FROM provider_keys WHERE provider=? AND enabled=1 ORDER BY usage_count ASC`, provider)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var keys []*ProviderKey
+	for rows.Next() {
+		k := &ProviderKey{}
+		var enabled int
+		rows.Scan(&k.ID, &k.Provider, &k.Name, &k.Key, &enabled, &k.UsageCount, &k.LastUsedAt, &k.CreatedAt)
+		k.Enabled = enabled == 1
+		keys = append(keys, k)
+	}
+	return keys, nil
+}
+
+func (s *DB) AddProviderKey(provider, name, key string) (*ProviderKey, error) {
+	now := time.Now()
+	result, err := s.db.Exec(`INSERT INTO provider_keys (provider, name, key, enabled, created_at) VALUES (?, ?, ?, 1, ?)`, provider, name, key, now)
+	if err != nil {
+		return nil, err
+	}
+	id, _ := result.LastInsertId()
+	return &ProviderKey{ID: id, Provider: provider, Name: name, Key: key, Enabled: true, CreatedAt: now}, nil
+}
+
+func (s *DB) UpdateProviderKey(id int64, enabled bool) error {
+	e := 0
+	if enabled {
+		e = 1
+	}
+	_, err := s.db.Exec(`UPDATE provider_keys SET enabled=? WHERE id=?`, e, id)
+	return err
+}
+
+func (s *DB) DeleteProviderKey(id int64) error {
+	_, err := s.db.Exec(`DELETE FROM provider_keys WHERE id=?`, id)
+	return err
+}
+
+func (s *DB) IncrProviderKeyUsage(id int64) {
+	s.db.Exec(`UPDATE provider_keys SET usage_count=usage_count+1, last_used_at=? WHERE id=?`, time.Now(), id)
 }
 
 // ── Model Configs ─────────────────────────────────────────

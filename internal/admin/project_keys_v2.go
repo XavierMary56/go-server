@@ -86,8 +86,8 @@ func (ah *AdminHandler) addProjectKeyV2(w http.ResponseWriter, r *http.Request) 
 		ah.jsonError(w, http.StatusBadRequest, "椤圭洰 ID 涓嶈兘涓虹┖")
 		return
 	}
-	if req.RateLimit <= 0 {
-		ah.jsonError(w, http.StatusBadRequest, "閫熺巼闄愬埗蹇呴』澶т簬 0")
+	if req.RateLimit < 0 {
+		ah.jsonError(w, http.StatusBadRequest, "閫熺巼闄愬埗涓嶈兘涓鸿礋鏁?")
 		return
 	}
 	if req.Key == "" {
@@ -204,8 +204,8 @@ func (ah *AdminHandler) updateProjectKeyV2(w http.ResponseWriter, r *http.Reques
 		newKey = value
 	}
 	if req.RateLimit != nil {
-		if *req.RateLimit <= 0 {
-			ah.jsonError(w, http.StatusBadRequest, "閫熺巼闄愬埗蹇呴』澶т簬 0")
+		if *req.RateLimit < 0 {
+			ah.jsonError(w, http.StatusBadRequest, "閫熺巼闄愬埗涓嶈兘涓鸿礋鏁?")
 			return
 		}
 		newRateLimit = *req.RateLimit
