@@ -69,8 +69,8 @@ go-server/
 
 **第 1 步：克隆并配置**
 ```bash
-git clone https://github.com/XavierMary56/automatic_review.git
-cd automatic_review/go-server
+git clone https://github.com/XavierMary56/go-server.git
+cd go-server
 
 # 复制配置模板
 cp .env.example .env
