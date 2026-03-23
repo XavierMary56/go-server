@@ -45,7 +45,15 @@ strictness  = "standard"
 | webhook_url | 异步时审核服务回调你项目的地址，需公网可访问 |
 | strictness | 审核严格度：`standard` / `strict` / `loose` |
 
----
+```ini
+[moderation]
+endpoint = "https://ai.a889.cloud"
+api_key  = "your_project_key"
+timeout  = 5
+async    = false
+webhook_url = "http://your-domain.com/moderation/callback"
+strictness = "standard"
+```
 
 ## 三、路由注册
 
