@@ -1,2 +1,5 @@
 /.env
 /logs/*.log
+/server.log
+/moderation-server
+/moderation-server~
