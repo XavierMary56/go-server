@@ -12,22 +12,36 @@ import (
 	"github.com/XavierMary56/automatic_review/go-server/internal/config"
 	"github.com/XavierMary56/automatic_review/go-server/internal/logger"
 	"github.com/XavierMary56/automatic_review/go-server/internal/service"
+	"github.com/XavierMary56/automatic_review/go-server/internal/storage"
 )
 
-// Handler HTTP 处理器
+// Handler handles all HTTP requests.
 type Handler struct {
 	svc   *service.ModerationService
 	log   *logger.Logger
 	cfg   *config.Config
-	tasks sync.Map // 存储异步任务结果
+	db    *storage.DB
+	tasks sync.Map
+	usage sync.Map // key -> *rateCounter
 }
 
-// New 创建 Handler 实例
-func New(svc *service.ModerationService, log *logger.Logger, cfg *config.Config) *Handler {
-	return &Handler{svc: svc, log: log, cfg: cfg}
+type rateCounter struct {
+	mu      sync.Mutex
+	count   int
+	resetAt time.Time
 }
 
-// RegisterRoutes 注册所有路由
+// New creates a new handler instance.
+func New(svc *service.ModerationService, log *logger.Logger, cfg *config.Config, db *storage.DB) *Handler {
+	return &Handler{
+		svc: svc,
+		log: log,
+		cfg: cfg,
+		db:  db,
+	}
+}
+
+// RegisterRoutes registers all public API routes.
 func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/v1/moderate", h.withMiddleware(h.handleModerate))
 	mux.HandleFunc("/v1/moderate/async", h.withMiddleware(h.handleModerateAsync))
@@ -37,11 +51,8 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/v1/health", h.handleHealth)
 }
 
-// ── 中间件 ─────────────────────────────────────────────────
-
 func (h *Handler) withMiddleware(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		// CORS
 		w.Header().Set("Access-Control-Allow-Origin", "*")
 		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Project-Key")
 		w.Header().Set("Access-Control-Allow-Methods", "POST, GET, OPTIONS")
@@ -52,11 +63,14 @@ func (h *Handler) withMiddleware(next http.HandlerFunc) http.HandlerFunc {
 			return
 		}
 
-		// 鉴权
 		if h.cfg.EnableAuth {
-			key := r.Header.Get("X-Project-Key")
-			if !h.isValidKey(key) {
-				h.jsonError(w, http.StatusUnauthorized, "无效的项目密钥")
+			projectKey, err := h.validateProjectKey(r.Header.Get("X-Project-Key"))
+			if err != nil {
+				h.jsonError(w, http.StatusUnauthorized, "invalid project key")
+				return
+			}
+			if err := h.checkRateLimit(projectKey); err != nil {
+				h.jsonError(w, http.StatusTooManyRequests, err.Error())
 				return
 			}
 		}
@@ -65,31 +79,77 @@ func (h *Handler) withMiddleware(next http.HandlerFunc) http.HandlerFunc {
 	}
 }
 
-func (h *Handler) isValidKey(key string) bool {
-	for _, k := range h.cfg.AllowedKeys {
-		if k == key {
-			return true
+func (h *Handler) validateProjectKey(key string) (*storage.ProjectKey, error) {
+	key = strings.TrimSpace(key)
+	if key == "" {
+		return nil, fmt.Errorf("empty project key")
+	}
+
+	if h.db != nil {
+		projectKey, err := h.db.GetEnabledProjectKey(key)
+		if err != nil {
+			h.log.Error("database project key lookup failed: " + err.Error())
+			return nil, err
+		}
+		if projectKey != nil {
+			return projectKey, nil
 		}
 	}
-	return false
+
+	for _, allowed := range h.cfg.AllowedKeys {
+		if strings.TrimSpace(allowed) == key {
+			return &storage.ProjectKey{
+				ProjectID: key,
+				Key:       key,
+				Enabled:   true,
+			}, nil
+		}
+	}
+
+	return nil, fmt.Errorf("project key not found")
 }
 
-// ── 路由处理器 ─────────────────────────────────────────────
+func (h *Handler) checkRateLimit(projectKey *storage.ProjectKey) error {
+	if projectKey == nil || projectKey.RateLimit <= 0 {
+		return nil
+	}
 
-// POST /v1/moderate  同步审核
+	value, _ := h.usage.LoadOrStore(projectKey.Key, &rateCounter{
+		resetAt: time.Now().Add(time.Minute),
+	})
+	counter := value.(*rateCounter)
+
+	counter.mu.Lock()
+	defer counter.mu.Unlock()
+
+	now := time.Now()
+	if now.After(counter.resetAt) {
+		counter.count = 0
+		counter.resetAt = now.Add(time.Minute)
+	}
+
+	if counter.count >= projectKey.RateLimit {
+		return fmt.Errorf("rate limit exceeded for project %s", projectKey.ProjectID)
+	}
+
+	counter.count++
+	return nil
+}
+
+// POST /v1/moderate
 func (h *Handler) handleModerate(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
-		h.jsonError(w, http.StatusMethodNotAllowed, "仅支持 POST 请求")
+		h.jsonError(w, http.StatusMethodNotAllowed, "only POST is supported")
 		return
 	}
 
 	var req service.ModerateRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		h.jsonError(w, http.StatusBadRequest, "请求体解析失败: "+err.Error())
+		h.jsonError(w, http.StatusBadRequest, "invalid request body: "+err.Error())
 		return
 	}
 	if strings.TrimSpace(req.Content) == "" {
-		h.jsonError(w, http.StatusBadRequest, "content 不能为空")
+		h.jsonError(w, http.StatusBadRequest, "content cannot be empty")
 		return
 	}
 
@@ -106,27 +166,29 @@ func (h *Handler) handleModerate(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// POST /v1/moderate/async  异步审核
+// POST /v1/moderate/async
 func (h *Handler) handleModerateAsync(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
-		h.jsonError(w, http.StatusMethodNotAllowed, "仅支持 POST 请求")
+		h.jsonError(w, http.StatusMethodNotAllowed, "only POST is supported")
 		return
 	}
 
 	var req service.ModerateRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		h.jsonError(w, http.StatusBadRequest, "请求体解析失败: "+err.Error())
+		h.jsonError(w, http.StatusBadRequest, "invalid request body: "+err.Error())
 		return
 	}
 	if strings.TrimSpace(req.Content) == "" {
-		h.jsonError(w, http.StatusBadRequest, "content 不能为空")
+		h.jsonError(w, http.StatusBadRequest, "content cannot be empty")
 		return
 	}
 
 	taskID := fmt.Sprintf("task_%d", time.Now().UnixNano())
-	h.tasks.Store(taskID, map[string]interface{}{"status": "pending", "created_at": time.Now().Unix()})
+	h.tasks.Store(taskID, map[string]interface{}{
+		"status":     "pending",
+		"created_at": time.Now().Unix(),
+	})
 
-	// 异步执行
 	go func() {
 		result := h.svc.Moderate(&req)
 		taskData := map[string]interface{}{
@@ -141,7 +203,6 @@ func (h *Handler) handleModerateAsync(w http.ResponseWriter, r *http.Request) {
 		}
 		h.tasks.Store(taskID, taskData)
 
-		// Webhook 回调
 		if req.WebhookURL != "" {
 			go triggerWebhook(req.WebhookURL, taskData)
 		}
@@ -150,34 +211,34 @@ func (h *Handler) handleModerateAsync(w http.ResponseWriter, r *http.Request) {
 	h.jsonOK(w, http.StatusAccepted, map[string]interface{}{
 		"code":    202,
 		"task_id": taskID,
-		"message": "任务已接受，请通过 task_id 查询结果或等待 Webhook 回调",
+		"message": "task accepted",
 	})
 }
 
-// GET /v1/task/{id}  查询异步任务
+// GET /v1/task/{id}
 func (h *Handler) handleTaskQuery(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
-		h.jsonError(w, http.StatusMethodNotAllowed, "仅支持 GET 请求")
+		h.jsonError(w, http.StatusMethodNotAllowed, "only GET is supported")
 		return
 	}
 
 	re := regexp.MustCompile(`^/v1/task/(.+)$`)
 	matches := re.FindStringSubmatch(r.URL.Path)
 	if len(matches) < 2 {
-		h.jsonError(w, http.StatusBadRequest, "缺少 task_id")
+		h.jsonError(w, http.StatusBadRequest, "missing task_id")
 		return
 	}
 	taskID := matches[1]
 
 	val, ok := h.tasks.Load(taskID)
 	if !ok {
-		h.jsonError(w, http.StatusNotFound, "任务不存在: "+taskID)
+		h.jsonError(w, http.StatusNotFound, "task not found: "+taskID)
 		return
 	}
 	h.jsonOK(w, http.StatusOK, map[string]interface{}{"code": 200, "data": val})
 }
 
-// GET /v1/models  查询模型列表
+// GET /v1/models
 func (h *Handler) handleModels(w http.ResponseWriter, r *http.Request) {
 	models := h.svc.GetModels()
 	list := make([]map[string]interface{}, 0, len(models))
@@ -193,12 +254,12 @@ func (h *Handler) handleModels(w http.ResponseWriter, r *http.Request) {
 	h.jsonOK(w, http.StatusOK, map[string]interface{}{"code": 200, "models": list})
 }
 
-// GET /v1/stats  统计数据
+// GET /v1/stats
 func (h *Handler) handleStats(w http.ResponseWriter, r *http.Request) {
 	h.jsonOK(w, http.StatusOK, map[string]interface{}{"code": 200, "data": h.svc.GetStats()})
 }
 
-// GET /v1/health  健康检查
+// GET /v1/health
 func (h *Handler) handleHealth(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	h.jsonOK(w, http.StatusOK, map[string]interface{}{
@@ -208,16 +269,14 @@ func (h *Handler) handleHealth(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// ── 工具函数 ───────────────────────────────────────────────
-
 func (h *Handler) jsonOK(w http.ResponseWriter, status int, data interface{}) {
 	w.WriteHeader(status)
-	json.NewEncoder(w).Encode(data)
+	_ = json.NewEncoder(w).Encode(data)
 }
 
 func (h *Handler) jsonError(w http.ResponseWriter, status int, msg string) {
 	w.WriteHeader(status)
-	json.NewEncoder(w).Encode(map[string]interface{}{"code": status, "error": msg})
+	_ = json.NewEncoder(w).Encode(map[string]interface{}{"code": status, "error": msg})
 }
 
 func triggerWebhook(url string, data map[string]interface{}) {

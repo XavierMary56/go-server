@@ -136,9 +136,16 @@
   .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 1000; display: none; align-items: center; justify-content: center; }
   .modal-overlay.show { display: flex; }
   .modal { background: #fff; border-radius: 12px; padding: 32px; width: 420px; box-shadow: 0 20px 60px rgba(0,0,0,0.2); }
+  .modal-lg { width: 560px; max-width: calc(100vw - 32px); }
   .modal h3 { font-size: 16px; font-weight: 700; margin-bottom: 12px; }
   .modal p { font-size: 14px; color: #64748b; margin-bottom: 24px; }
   .modal-actions { display: flex; gap: 10px; justify-content: flex-end; }
+  .modal-form { display: grid; gap: 14px; }
+  .modal-form .form-group { margin-bottom: 0; }
+  .modal-form label { display: block; font-size: 12px; font-weight: 600; color: #64748b; margin-bottom: 6px; }
+  .modal-form input { width: 100%; padding: 10px 12px; border: 1.5px solid #e2e8f0; border-radius: 7px; font-size: 13px; outline: none; }
+  .modal-form input:focus { border-color: #4f46e5; }
+  .modal-form input[readonly] { background: #f8fafc; color: #475569; }
 
   /* ── Usage bar ── */
   .usage-num { font-variant-numeric: tabular-nums; }
@@ -316,6 +323,43 @@
   </div>
 </div>
 
+<div class="modal-overlay" id="project-key-modal">
+  <div class="modal modal-lg">
+    <h3 id="project-key-modal-title">项目密钥</h3>
+    <p id="project-key-modal-desc">查看或编辑项目密钥信息。</p>
+    <div class="modal-form">
+      <div class="form-group">
+        <label>项目 ID</label>
+        <input type="text" id="project-key-project-id" />
+      </div>
+      <div class="form-group">
+        <label>密钥（Key）</label>
+        <input type="text" id="project-key-value" />
+      </div>
+      <div class="form-group">
+        <label>速率限制（次/分钟）</label>
+        <input type="number" id="project-key-rate-limit" min="1" />
+      </div>
+      <div class="form-group">
+        <label>状态</label>
+        <input type="text" id="project-key-status" readonly />
+      </div>
+      <div class="form-group">
+        <label>创建时间</label>
+        <input type="text" id="project-key-created-at" readonly />
+      </div>
+      <div class="form-group">
+        <label>更新时间</label>
+        <input type="text" id="project-key-updated-at" readonly />
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeProjectKeyModal()">关闭</button>
+      <button class="btn btn-primary" id="project-key-save-btn" onclick="saveProjectKeyModal()">保存修改</button>
+    </div>
+  </div>
+</div>
+
 <script>
 // ── 工具 ──────────────────────────────────────────────
 const getToken = () => sessionStorage.getItem('adminToken');
@@ -462,6 +506,7 @@ async function toggleProjectKey(enc, enable) {
 
 // ── Anthropic Keys ────────────────────────────────────
 let projectKeysData = [];
+let activeProjectKey = null;
 
 function buildProjectKeyDraft(projectId) {
   const slug = (projectId || '').trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'project';
@@ -480,6 +525,55 @@ function syncProjectKeyDraft(force = false) {
 
 function regenerateProjectKey() {
   syncProjectKeyDraft(true);
+}
+
+function setProjectKeyModalMode(mode, info) {
+  activeProjectKey = info || null;
+  const isEdit = mode === 'edit';
+  document.getElementById('project-key-modal-title').textContent = isEdit ? '编辑项目密钥' : '查看项目密钥';
+  document.getElementById('project-key-modal-desc').textContent = isEdit ? '修改后会立即同步到后台配置。' : '这里显示当前项目密钥的完整信息。';
+  document.getElementById('project-key-project-id').value = info?.project_id || '';
+  document.getElementById('project-key-value').value = info?.key || '';
+  document.getElementById('project-key-rate-limit').value = info?.rate_limit || '';
+  document.getElementById('project-key-status').value = info?.enabled ? 'Enabled' : 'Disabled';
+  document.getElementById('project-key-created-at').value = formatDate(info?.created_at);
+  document.getElementById('project-key-updated-at').value = formatDate(info?.updated_at);
+  document.getElementById('project-key-project-id').readOnly = !isEdit;
+  document.getElementById('project-key-value').readOnly = !isEdit;
+  document.getElementById('project-key-rate-limit').readOnly = !isEdit;
+  document.getElementById('project-key-save-btn').style.display = isEdit ? 'inline-flex' : 'none';
+  document.getElementById('project-key-modal').classList.add('show');
+}
+
+function closeProjectKeyModal() {
+  activeProjectKey = null;
+  closeModal('project-key-modal');
+}
+
+async function saveProjectKeyModal() {
+  if (!activeProjectKey?.key) return;
+  const projectId = document.getElementById('project-key-project-id').value.trim();
+  const key = document.getElementById('project-key-value').value.trim();
+  const rateLimit = parseInt(document.getElementById('project-key-rate-limit').value, 10);
+  if (!projectId || !key || !(rateLimit > 0)) {
+    toast('Invalid input', 'error');
+    return;
+  }
+
+  const resp = await api('PUT', '/v1/admin/keys/' + encodeURIComponent(activeProjectKey.key), {
+    project_id: projectId,
+    key,
+    rate_limit: rateLimit,
+    enabled: !!activeProjectKey.enabled
+  });
+  if (resp?.ok) {
+    toast('Key updated');
+    closeProjectKeyModal();
+    loadProjectKeys();
+  } else {
+    const j = await resp.json();
+    toast(j.error || 'Update failed', 'error');
+  }
 }
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -556,41 +650,14 @@ async function viewProjectKey(enc) {
   const resp = await api('GET', '/v1/admin/keys/' + enc);
   if (!resp?.ok) { toast('Query failed', 'error'); return; }
   const json = await resp.json();
-  const info = json.data || {};
-  alert(`Project ID: ${info.project_id || '-'}\nKey: ${info.key || '-'}\nRate limit: ${info.rate_limit || '-'}\nStatus: ${info.enabled ? 'Enabled' : 'Disabled'}`);
+  setProjectKeyModalMode('view', json.data || {});
 }
 
 async function editProjectKey(enc) {
   const resp = await api('GET', '/v1/admin/keys/' + enc);
   if (!resp?.ok) { toast('Read key failed', 'error'); return; }
   const json = await resp.json();
-  const info = json.data || {};
-
-  const projectId = prompt('Project ID', info.project_id || '');
-  if (projectId === null) return;
-  const key = prompt('Key', info.key || '');
-  if (key === null) return;
-  const rateValue = prompt('Rate limit (req/min)', String(info.rate_limit || 60));
-  if (rateValue === null) return;
-  const rateLimit = parseInt(rateValue, 10);
-  if (!projectId.trim() || !key.trim() || !(rateLimit > 0)) {
-    toast('Invalid input', 'error');
-    return;
-  }
-
-  const updateResp = await api('PUT', '/v1/admin/keys/' + enc, {
-    project_id: projectId.trim(),
-    key: key.trim(),
-    rate_limit: rateLimit,
-    enabled: !!info.enabled
-  });
-  if (updateResp?.ok) {
-    toast('Key updated');
-    loadProjectKeys();
-  } else {
-    const j = await updateResp.json();
-    toast(j.error || 'Update failed', 'error');
-  }
+  setProjectKeyModalMode('edit', json.data || {});
 }
 
 async function toggleProjectKey(enc, enable) {

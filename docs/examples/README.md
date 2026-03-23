@@ -17,13 +17,13 @@ nano .env
 
 # 3. 填入真实的配置项：
 #    - ANTHROPIC_API_KEY：你的 Anthropic API 密钥
-#    - ALLOWED_KEYS：各项目的密钥和配置
+#    - ALLOWED_KEYS：兼容兜底配置（正常维护走后台）
 #    - REDIS_PASS：Redis 密码（如果有的话）
 ```
 
 **关键配置项**：
 - `ANTHROPIC_API_KEY` - **必填**，从 console.anthropic.com 获取
-- `ALLOWED_KEYS` - 格式：`项目ID|密钥|限流数`，多个项目用逗号分隔
+- `ALLOWED_KEYS` - 兼容兜底配置；正常情况下请在后台 Project Keys 中维护
 - `ENABLE_AUTH` - 是否启用鉴权（生产环境推荐 true）
 - `ENABLE_AUDIT` - 是否启用审计日志记录
 - `CACHE_DRIVER` - 缓存驱动（production 推荐 redis）
@@ -242,4 +242,3 @@ A：取决于你的操作系统：
 - 🔐 [鉴权和监控](../AUTH_AND_MONITORING.md)
 - 💡 [代码集成指南](../INTEGRATION_GUIDE.md)
 - 📋 [部署检查清单](../DEPLOYMENT_CHECKLIST.md)
-
