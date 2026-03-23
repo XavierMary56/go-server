@@ -19,7 +19,10 @@ services:
       - CACHE_TTL=60
       - REDIS_ADDR=redis:6379
       - REDIS_PREFIX=mod
-      - ENABLE_AUTH=false
+      - ENABLE_AUTH=${ENABLE_AUTH:-false}
+      - ALLOWED_KEYS=${ALLOWED_KEYS}
+      - ENABLE_ADMIN_API=${ENABLE_ADMIN_API:-true}
+      - ADMIN_TOKEN=${ADMIN_TOKEN}
     volumes:
       - ./logs:/logs
     depends_on:
