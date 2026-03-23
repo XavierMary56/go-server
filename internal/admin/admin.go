@@ -394,18 +394,42 @@ func (ah *AdminHandler) loadKeysFromEnv() {
 	ah.keysMu.Lock()
 	defer ah.keysMu.Unlock()
 
-	if ah.cfg.AllowedKeys == nil {
+	if ah.cfg.AllowedKeys == nil || len(ah.cfg.AllowedKeys) == 0 {
 		return
 	}
 
 	for _, entry := range ah.cfg.AllowedKeys {
-		parts := strings.Split(entry, "|")
-		if len(parts) >= 3 {
-			projectID := strings.TrimSpace(parts[0])
-			key := strings.TrimSpace(parts[1])
-			rateLimit := 0
-			fmt.Sscanf(strings.TrimSpace(parts[2]), "%d", &rateLimit)
+		entry = strings.TrimSpace(entry)
+		if entry == "" {
+			continue
+		}
 
+		// 支持两种格式：
+		// 1. 新格式：projectID|key|rateLimit
+		// 2. 简化格式：key（从密钥本身提取项目ID）
+		parts := strings.Split(entry, "|")
+
+		var projectID, key string
+		var rateLimit int
+
+		if len(parts) >= 3 {
+			// 新格式：projectID|key|rateLimit
+			projectID = strings.TrimSpace(parts[0])
+			key = strings.TrimSpace(parts[1])
+			fmt.Sscanf(strings.TrimSpace(parts[2]), "%d", &rateLimit)
+		} else if len(parts) >= 2 {
+			// 过渡格式：key|rateLimit
+			key = strings.TrimSpace(parts[0])
+			fmt.Sscanf(strings.TrimSpace(parts[1]), "%d", &rateLimit)
+			projectID = ah.extractProjectIDFromKey(key)
+		} else {
+			// 简化格式：仅有密钥
+			key = entry
+			rateLimit = 1000 // 默认速率限制
+			projectID = ah.extractProjectIDFromKey(key)
+		}
+
+		if key != "" {
 			ah.keys[key] = &KeyInfo{
 				ProjectID: projectID,
 				Key:       key,
@@ -414,8 +438,21 @@ func (ah *AdminHandler) loadKeysFromEnv() {
 				UpdatedAt: time.Now(),
 				Enabled:   true,
 			}
+			ah.log.Info(fmt.Sprintf("已加载密钥: %s (项目: %s, 限制: %d/分钟)", key, projectID, rateLimit), nil)
 		}
 	}
+}
+
+// extractProjectIDFromKey 从密钥中提取项目ID
+func (ah *AdminHandler) extractProjectIDFromKey(key string) string {
+	// 格式可能是 proj_forum_xxx，提取 forum
+	if strings.HasPrefix(key, "proj_") {
+		parts := strings.Split(key, "_")
+		if len(parts) >= 2 {
+			return parts[1]
+		}
+	}
+	return key
 }
 
 // updateEnvFile 更新 .env 文件中的 ALLOWED_KEYS
