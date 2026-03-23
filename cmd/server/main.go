@@ -32,8 +32,6 @@ func main() {
 		"models":  len(cfg.Models),
 	})
 
-	svc := service.NewModerationService(cfg, lg)
-
 	var db *storage.DB
 	if cfg.EnableAuth || cfg.EnableAdminAPI {
 		db, err = storage.New("/data")
@@ -46,6 +44,8 @@ func main() {
 			defer db.Close()
 		}
 	}
+
+	svc := service.NewModerationService(cfg, lg, db)
 
 	mux := http.NewServeMux()
 	h := handler.New(svc, lg, cfg, db)

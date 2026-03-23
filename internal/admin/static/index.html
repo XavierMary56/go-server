@@ -191,6 +191,8 @@
     <div class="tabs">
       <button class="tab-btn active" onclick="switchTab('keys',this)">🔑 项目密钥</button>
       <button class="tab-btn" onclick="switchTab('anthropic',this)">🤖 Anthropic Keys</button>
+      <button class="tab-btn" onclick="switchTab('openai',this)">🟢 OpenAI Keys</button>
+      <button class="tab-btn" onclick="switchTab('grok',this)">⚡ Grok Keys</button>
       <button class="tab-btn" onclick="switchTab('models',this)">⚙️ 模型管理</button>
       <button class="tab-btn" onclick="switchTab('stats',this)">📊 项目统计</button>
     </div>
@@ -253,6 +255,66 @@
           <table>
             <thead><tr><th>备注名称</th><th>Key（脱敏）</th><th>用量（次）</th><th>最后使用</th><th>有效性</th><th>状态</th><th>操作</th></tr></thead>
             <tbody id="ak-tbody"><tr class="empty-row"><td colspan="7">加载中...</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Tab: OpenAI Keys ── -->
+    <div id="tab-openai" class="tab-panel">
+      <div class="card">
+        <div class="card-header">
+          <div>
+            <h2>OpenAI API Key 管理</h2>
+            <div class="sub">多个 Key 按用量最少优先分配，实现负载均衡</div>
+          </div>
+          <button class="btn btn-primary" onclick="toggleAddForm('add-oai-form')">＋ 添加 Key</button>
+        </div>
+        <div class="add-form" id="add-oai-form">
+          <div class="add-form-title">添加 OpenAI API Key</div>
+          <div class="form-grid-2 add-form-grid">
+            <div class="form-group"><label>备注名称</label><input type="text" id="new-oai-name" placeholder="如：主账号Key" /></div>
+            <div class="form-group"><label>API Key</label><input type="text" id="new-oai-key" placeholder="sk-..." /></div>
+          </div>
+          <div class="add-form-actions">
+            <button class="btn btn-primary" onclick="addProviderKey('openai')">确认添加</button>
+            <button class="btn btn-ghost" onclick="toggleAddForm('add-oai-form')">取消</button>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>备注名称</th><th>Key（脱敏）</th><th>用量（次）</th><th>最后使用</th><th>状态</th><th>操作</th></tr></thead>
+            <tbody id="oai-tbody"><tr class="empty-row"><td colspan="6">加载中...</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Tab: Grok Keys ── -->
+    <div id="tab-grok" class="tab-panel">
+      <div class="card">
+        <div class="card-header">
+          <div>
+            <h2>Grok (xAI) API Key 管理</h2>
+            <div class="sub">多个 Key 按用量最少优先分配，实现负载均衡</div>
+          </div>
+          <button class="btn btn-primary" onclick="toggleAddForm('add-grok-form')">＋ 添加 Key</button>
+        </div>
+        <div class="add-form" id="add-grok-form">
+          <div class="add-form-title">添加 Grok API Key</div>
+          <div class="form-grid-2 add-form-grid">
+            <div class="form-group"><label>备注名称</label><input type="text" id="new-grok-name" placeholder="如：主账号Key" /></div>
+            <div class="form-group"><label>API Key</label><input type="text" id="new-grok-key" placeholder="xai-..." /></div>
+          </div>
+          <div class="add-form-actions">
+            <button class="btn btn-primary" onclick="addProviderKey('grok')">确认添加</button>
+            <button class="btn btn-ghost" onclick="toggleAddForm('add-grok-form')">取消</button>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>备注名称</th><th>Key（脱敏）</th><th>用量（次）</th><th>最后使用</th><th>状态</th><th>操作</th></tr></thead>
+            <tbody id="grok-tbody"><tr class="empty-row"><td colspan="6">加载中...</td></tr></tbody>
           </table>
         </div>
       </div>
@@ -450,6 +512,8 @@ function switchTab(name, btn) {
   btn.classList.add('active');
   if (name === 'stats') loadStats();
   if (name === 'anthropic') loadAnthropicKeys();
+  if (name === 'openai') loadProviderKeys('openai');
+  if (name === 'grok') loadProviderKeys('grok');
   if (name === 'models') loadModels();
 }
 
@@ -734,6 +798,64 @@ async function verifyAK(id) {
 async function toggleAK(id, enable) {
   const resp = await api('PUT','/v1/admin/anthropic-keys/'+id,{enabled:enable});
   if (resp?.ok) { toast(enable?'已启用':'已停用'); loadAnthropicKeys(); }
+  else toast('操作失败','error');
+}
+
+// ── Provider Keys (OpenAI / Grok) ─────────────────────
+let providerKeyData = { openai: [], grok: [] };
+
+async function loadProviderKeys(provider) {
+  const tbodyId = provider === 'openai' ? 'oai-tbody' : 'grok-tbody';
+  document.getElementById(tbodyId).innerHTML = '<tr class="empty-row"><td colspan="6"><span class="spinner"></span> 加载中...</td></tr>';
+  const resp = await api('GET', '/v1/admin/provider-keys?provider=' + provider);
+  if (!resp) return;
+  const json = await resp.json();
+  providerKeyData[provider] = json.data || [];
+  renderProviderKeys(provider);
+}
+
+function renderProviderKeys(provider) {
+  const tbodyId = provider === 'openai' ? 'oai-tbody' : 'grok-tbody';
+  const tbody = document.getElementById(tbodyId);
+  const data = providerKeyData[provider] || [];
+  if (!data.length) { tbody.innerHTML = '<tr class="empty-row"><td colspan="6">暂无 Key，点击右上角添加</td></tr>'; return; }
+  tbody.innerHTML = data.map(k => `
+    <tr>
+      <td><strong>${k.name}</strong></td>
+      <td><span class="key-cell">${k.key_masked}</span></td>
+      <td><span class="usage-num">${(k.usage_count||0).toLocaleString()}</span></td>
+      <td>${formatDate(k.last_used_at)}</td>
+      <td><span class="badge ${k.enabled?'badge-active':'badge-inactive'}">${k.enabled?'● 启用':'○ 停用'}</span></td>
+      <td><div class="actions">
+        <button class="btn btn-sm ${k.enabled?'btn-warning':'btn-success'}"
+          onclick="toggleProviderKey('${provider}',${k.id},${!k.enabled})">${k.enabled?'停用':'启用'}</button>
+        <button class="btn btn-sm btn-danger"
+          onclick="confirmDelete('/v1/admin/provider-keys/${k.id}','${k.name} 的 Key',()=>loadProviderKeys('${provider}'))">删除</button>
+      </div></td>
+    </tr>`).join('');
+}
+
+async function addProviderKey(provider) {
+  const nameId = provider === 'openai' ? 'new-oai-name' : 'new-grok-name';
+  const keyId  = provider === 'openai' ? 'new-oai-key'  : 'new-grok-key';
+  const formId = provider === 'openai' ? 'add-oai-form'  : 'add-grok-form';
+  const name = document.getElementById(nameId).value.trim();
+  const key  = document.getElementById(keyId).value.trim();
+  if (!name||!key) { toast('名称和 Key 不能为空','error'); return; }
+  const resp = await api('POST','/v1/admin/provider-keys',{provider,name,key});
+  if (!resp) return;
+  if (resp.status===201) {
+    toast('Key 已添加');
+    document.getElementById(nameId).value='';
+    document.getElementById(keyId).value='';
+    document.getElementById(formId).classList.remove('show');
+    loadProviderKeys(provider);
+  } else { const j=await resp.json(); toast(j.error||'添加失败','error'); }
+}
+
+async function toggleProviderKey(provider, id, enable) {
+  const resp = await api('PUT','/v1/admin/provider-keys/'+id,{enabled:enable});
+  if (resp?.ok) { toast(enable?'已启用':'已停用'); loadProviderKeys(provider); }
   else toast('操作失败','error');
 }
 

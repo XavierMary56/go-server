@@ -9,10 +9,11 @@ import (
 
 // ModelConfig 单个模型配置
 type ModelConfig struct {
-	ID       string // 模型 ID，如 claude-sonnet-4-20250514
+	ID       string // 模型 ID，如 claude-sonnet-4-20250514 / gpt-4o / grok-2
 	Name     string // 显示名称
 	Weight   int    // 调度权重 (0-100)
 	Priority int    // 故障转移优先级（数字越小越优先）
+	Provider string // anthropic | openai | grok（留空则按 ID 前缀自动识别）
 }
 
 // Config 全局配置
@@ -25,6 +26,14 @@ type Config struct {
 	AnthropicAPIKey string
 	AnthropicAPIURL string
 	AnthropicVer    string
+
+	// OpenAI API
+	OpenAIAPIKey string
+	OpenAIAPIURL string
+
+	// Grok (xAI) API
+	GrokAPIKey string
+	GrokAPIURL string
 
 	// 模型池
 	Models []ModelConfig
@@ -71,6 +80,10 @@ func Load() (*Config, error) {
 		AnthropicAPIKey: getEnv("ANTHROPIC_API_KEY", ""),
 		AnthropicAPIURL: getEnv("ANTHROPIC_API_URL", "https://api.anthropic.com/v1/messages"),
 		AnthropicVer:    getEnv("ANTHROPIC_VERSION", "2023-06-01"),
+		OpenAIAPIKey:    getEnv("OPENAI_API_KEY", ""),
+		OpenAIAPIURL:    getEnv("OPENAI_API_URL", "https://api.openai.com/v1/chat/completions"),
+		GrokAPIKey:      getEnv("GROK_API_KEY", ""),
+		GrokAPIURL:      getEnv("GROK_API_URL", "https://api.x.ai/v1/chat/completions"),
 		APITimeout:      getEnvInt("API_TIMEOUT", 10),
 		MaxRetries:      getEnvInt("MAX_RETRIES", 2),
 		CacheDriver:     getEnv("CACHE_DRIVER", "memory"),
@@ -90,9 +103,9 @@ func Load() (*Config, error) {
 		LogLevel:        getEnv("LOG_LEVEL", "info"),
 	}
 
-	// 校验必填项
-	if cfg.AnthropicAPIKey == "" {
-		return nil, fmt.Errorf("ANTHROPIC_API_KEY 未配置，请在 .env 文件或环境变量中设置")
+	// 校验必填项：至少配置一个 Provider 的 Key
+	if cfg.AnthropicAPIKey == "" && cfg.OpenAIAPIKey == "" && cfg.GrokAPIKey == "" {
+		return nil, fmt.Errorf("至少需要配置一个 API Key: ANTHROPIC_API_KEY / OPENAI_API_KEY / GROK_API_KEY")
 	}
 
 	// 解析项目密钥列表
@@ -103,33 +116,41 @@ func Load() (*Config, error) {
 		}
 	}
 
-	// 默认模型池（可通过 MODELS_CONFIG 环境变量覆盖）
-	cfg.Models = defaultModels()
+	// 默认模型池（按已配置的 Key 动态生成）
+	cfg.Models = defaultModels(cfg)
 
 	return cfg, nil
 }
 
-func defaultModels() []ModelConfig {
-	return []ModelConfig{
-		{
-			ID:       "claude-sonnet-4-20250514",
-			Name:     "Claude Sonnet 4",
-			Weight:   60, // 主力：精度与速度均衡
-			Priority: 1,
-		},
-		{
-			ID:       "claude-haiku-4-5-20251001",
-			Name:     "Claude Haiku 4.5",
-			Weight:   30, // 快速：低延迟高并发
-			Priority: 2,
-		},
-		{
-			ID:       "claude-opus-4-20250514",
-			Name:     "Claude Opus 4",
-			Weight:   10, // 精准：复杂内容兜底
-			Priority: 3,
-		},
+func defaultModels(cfg *Config) []ModelConfig {
+	var models []ModelConfig
+	priority := 1
+
+	if cfg.AnthropicAPIKey != "" {
+		models = append(models,
+			ModelConfig{ID: "claude-sonnet-4-20250514", Name: "Claude Sonnet 4", Weight: 60, Priority: priority, Provider: "anthropic"},
+			ModelConfig{ID: "claude-haiku-4-5-20251001", Name: "Claude Haiku 4.5", Weight: 30, Priority: priority + 1, Provider: "anthropic"},
+			ModelConfig{ID: "claude-opus-4-20250514", Name: "Claude Opus 4", Weight: 10, Priority: priority + 2, Provider: "anthropic"},
+		)
+		priority += 3
 	}
+
+	if cfg.OpenAIAPIKey != "" {
+		models = append(models,
+			ModelConfig{ID: "gpt-4o", Name: "GPT-4o", Weight: 50, Priority: priority, Provider: "openai"},
+			ModelConfig{ID: "gpt-4o-mini", Name: "GPT-4o Mini", Weight: 30, Priority: priority + 1, Provider: "openai"},
+		)
+		priority += 2
+	}
+
+	if cfg.GrokAPIKey != "" {
+		models = append(models,
+			ModelConfig{ID: "grok-3", Name: "Grok 3", Weight: 50, Priority: priority, Provider: "grok"},
+			ModelConfig{ID: "grok-3-mini", Name: "Grok 3 Mini", Weight: 30, Priority: priority + 1, Provider: "grok"},
+		)
+	}
+
+	return models
 }
 
 // ── 环境变量读取工具 ─────────────────────────────────────────
