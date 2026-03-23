@@ -629,7 +629,7 @@ async function addProjectKey() {
   const key = document.getElementById('new-proj-key').value.trim();
   const rate = parseInt(document.getElementById('new-proj-rate').value, 10) || 0;
   if (!pid) { toast('Project ID is required', 'error'); return; }
-  if (rate <= 0) { toast('Rate limit must be greater than 0', 'error'); return; }
+  if (rate < 0) { toast('Rate limit must be 0 (unlimited) or greater', 'error'); return; }
   const resp = await api('POST', '/v1/admin/keys', { project_id: pid, key, rate_limit: rate });
   if (!resp) return;
   if (resp.status === 201) {
