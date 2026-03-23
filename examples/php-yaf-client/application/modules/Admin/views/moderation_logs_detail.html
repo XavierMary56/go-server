@@ -1,0 +1,15 @@
+<!-- 管理后台审核记录详情模板示例 -->
+<div>
+  <h3>审核记录详情</h3>
+  <ul>
+    <li>ID: {$log.id}</li>
+    <li>内容ID: {$log.content_id}</li>
+    <li>类型: {$log.content_type}</li>
+    <li>状态: {$log.status}</li>
+    <li>违规类型: {$log.violation_type}</li>
+    <li>审核结果: {$log.result}</li>
+    <li>创建时间: {$log.created_at}</li>
+    <li>更新时间: {$log.updated_at}</li>
+  </ul>
+  <a href="/admin/moderation-logs">返回列表</a>
+</div>
