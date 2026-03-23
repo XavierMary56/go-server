@@ -29,7 +29,6 @@ func main() {
 	lg.Info("system starting", map[string]interface{}{
 		"version": "2.0.0",
 		"port":    cfg.Port,
-		"models":  len(cfg.Models),
 	})
 
 	var db *storage.DB
@@ -51,9 +50,14 @@ func main() {
 	h := handler.New(svc, lg, cfg, db)
 	h.RegisterRoutes(mux)
 
+	// 启动后台 Key 健康检测（每 5 分钟一次）
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	svc.StartHealthChecker(ctx, 5*time.Minute)
+
 	if cfg.EnableAdminAPI {
 		auditLogger := audit.New(cfg.AuditLogDir, cfg.EnableAudit)
-		adminHandler := admin.New(cfg, lg, auditLogger, db)
+		adminHandler := admin.New(cfg, lg, auditLogger, db, svc)
 		adminHandler.RegisterRoutes(mux)
 	}
 
@@ -79,10 +83,10 @@ func main() {
 	<-quit
 	lg.Info("shutting down server", nil)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
+	shutCtx, shutCancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer shutCancel()
 
-	if err := srv.Shutdown(ctx); err != nil {
+	if err := srv.Shutdown(shutCtx); err != nil {
 		lg.Error("server forced shutdown: " + err.Error())
 	}
 
