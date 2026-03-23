@@ -55,6 +55,7 @@ type ModelConfig struct {
 	ID       int64
 	ModelID  string
 	Name     string
+	Provider string // anthropic | openai | grok
 	Weight   int
 	Priority int
 	Enabled  bool
@@ -76,8 +77,14 @@ func New(dataDir string) (*DB, error) {
 	if err := s.migrate(); err != nil {
 		return nil, fmt.Errorf("数据库迁移失败: %w", err)
 	}
+	s.migrateV2() // 追加列，忽略错误（列已存在时会报错）
 
 	return s, nil
+}
+
+// migrateV2 为已有表追加新列（幂等，失败静默忽略）
+func (s *DB) migrateV2() {
+	s.db.Exec(`ALTER TABLE model_configs ADD COLUMN provider TEXT NOT NULL DEFAULT ''`)
 }
 
 func (s *DB) migrate() error {
@@ -117,6 +124,7 @@ func (s *DB) migrate() error {
 			id       INTEGER PRIMARY KEY AUTOINCREMENT,
 			model_id TEXT NOT NULL UNIQUE,
 			name     TEXT NOT NULL,
+			provider TEXT NOT NULL DEFAULT '',
 			weight   INTEGER NOT NULL DEFAULT 50,
 			priority INTEGER NOT NULL DEFAULT 1,
 			enabled  INTEGER NOT NULL DEFAULT 1
@@ -384,7 +392,7 @@ func (s *DB) IncrProviderKeyUsage(id int64) {
 // ── Model Configs ─────────────────────────────────────────
 
 func (s *DB) ListModels() ([]*ModelConfig, error) {
-	rows, err := s.db.Query(`SELECT id, model_id, name, weight, priority, enabled FROM model_configs ORDER BY priority ASC`)
+	rows, err := s.db.Query(`SELECT id, model_id, name, provider, weight, priority, enabled FROM model_configs ORDER BY priority ASC`)
 	if err != nil {
 		return nil, err
 	}
@@ -394,23 +402,23 @@ func (s *DB) ListModels() ([]*ModelConfig, error) {
 	for rows.Next() {
 		m := &ModelConfig{}
 		var enabled int
-		rows.Scan(&m.ID, &m.ModelID, &m.Name, &m.Weight, &m.Priority, &enabled)
+		rows.Scan(&m.ID, &m.ModelID, &m.Name, &m.Provider, &m.Weight, &m.Priority, &enabled)
 		m.Enabled = enabled == 1
 		models = append(models, m)
 	}
 	return models, nil
 }
 
-func (s *DB) UpsertModel(modelID, name string, weight, priority int, enabled bool) error {
+func (s *DB) UpsertModel(modelID, name, provider string, weight, priority int, enabled bool) error {
 	e := 0
 	if enabled {
 		e = 1
 	}
 	_, err := s.db.Exec(`
-		INSERT INTO model_configs (model_id, name, weight, priority, enabled)
-		VALUES (?, ?, ?, ?, ?)
-		ON CONFLICT(model_id) DO UPDATE SET name=excluded.name, weight=excluded.weight, priority=excluded.priority, enabled=excluded.enabled
-	`, modelID, name, weight, priority, e)
+		INSERT INTO model_configs (model_id, name, provider, weight, priority, enabled)
+		VALUES (?, ?, ?, ?, ?, ?)
+		ON CONFLICT(model_id) DO UPDATE SET name=excluded.name, provider=excluded.provider, weight=excluded.weight, priority=excluded.priority, enabled=excluded.enabled
+	`, modelID, name, provider, weight, priority, e)
 	return err
 }
 

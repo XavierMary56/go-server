@@ -1,7 +1,6 @@
 package config
 
 import (
-	"fmt"
 	"os"
 	"strconv"
 	"strings"
@@ -103,11 +102,6 @@ func Load() (*Config, error) {
 		LogLevel:        getEnv("LOG_LEVEL", "info"),
 	}
 
-	// 校验必填项：至少配置一个 Provider 的 Key
-	if cfg.AnthropicAPIKey == "" && cfg.OpenAIAPIKey == "" && cfg.GrokAPIKey == "" {
-		return nil, fmt.Errorf("至少需要配置一个 API Key: ANTHROPIC_API_KEY / OPENAI_API_KEY / GROK_API_KEY")
-	}
-
 	// 解析项目密钥列表
 	if keys := getEnv("ALLOWED_KEYS", ""); keys != "" {
 		cfg.AllowedKeys = strings.Split(keys, ",")
@@ -116,41 +110,7 @@ func Load() (*Config, error) {
 		}
 	}
 
-	// 默认模型池（按已配置的 Key 动态生成）
-	cfg.Models = defaultModels(cfg)
-
 	return cfg, nil
-}
-
-func defaultModels(cfg *Config) []ModelConfig {
-	var models []ModelConfig
-	priority := 1
-
-	if cfg.AnthropicAPIKey != "" {
-		models = append(models,
-			ModelConfig{ID: "claude-sonnet-4-20250514", Name: "Claude Sonnet 4", Weight: 60, Priority: priority, Provider: "anthropic"},
-			ModelConfig{ID: "claude-haiku-4-5-20251001", Name: "Claude Haiku 4.5", Weight: 30, Priority: priority + 1, Provider: "anthropic"},
-			ModelConfig{ID: "claude-opus-4-20250514", Name: "Claude Opus 4", Weight: 10, Priority: priority + 2, Provider: "anthropic"},
-		)
-		priority += 3
-	}
-
-	if cfg.OpenAIAPIKey != "" {
-		models = append(models,
-			ModelConfig{ID: "gpt-4o", Name: "GPT-4o", Weight: 50, Priority: priority, Provider: "openai"},
-			ModelConfig{ID: "gpt-4o-mini", Name: "GPT-4o Mini", Weight: 30, Priority: priority + 1, Provider: "openai"},
-		)
-		priority += 2
-	}
-
-	if cfg.GrokAPIKey != "" {
-		models = append(models,
-			ModelConfig{ID: "grok-3", Name: "Grok 3", Weight: 50, Priority: priority, Provider: "grok"},
-			ModelConfig{ID: "grok-3-mini", Name: "Grok 3 Mini", Weight: 30, Priority: priority + 1, Provider: "grok"},
-		)
-	}
-
-	return models
 }
 
 // ── 环境变量读取工具 ─────────────────────────────────────────

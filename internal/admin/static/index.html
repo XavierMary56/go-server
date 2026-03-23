@@ -333,8 +333,15 @@
         <div class="add-form" id="add-model-form">
           <div class="add-form-title">添加模型</div>
           <div class="form-grid-4 add-form-grid">
-            <div class="form-group"><label>模型 ID</label><input type="text" id="new-model-id" placeholder="claude-sonnet-4-20250514" /></div>
+            <div class="form-group"><label>模型 ID</label><input type="text" id="new-model-id" placeholder="claude-sonnet-4-20250514" oninput="inferModelProvider()" /></div>
             <div class="form-group"><label>显示名称</label><input type="text" id="new-model-name" placeholder="Claude Sonnet 4" /></div>
+            <div class="form-group"><label>Provider</label>
+              <select id="new-model-provider">
+                <option value="anthropic">anthropic</option>
+                <option value="openai">openai</option>
+                <option value="grok">grok</option>
+              </select>
+            </div>
             <div class="form-group"><label>权重 (1-100)</label><input type="number" id="new-model-weight" value="50" min="1" max="100" /></div>
             <div class="form-group"><label>优先级 (1=最高)</label><input type="number" id="new-model-priority" value="1" min="1" /></div>
           </div>
@@ -345,8 +352,8 @@
         </div>
         <div class="table-wrap">
           <table>
-            <thead><tr><th>模型 ID</th><th>显示名称</th><th>权重</th><th>优先级</th><th>状态</th><th>操作</th></tr></thead>
-            <tbody id="models-tbody"><tr class="empty-row"><td colspan="6">加载中...</td></tr></tbody>
+            <thead><tr><th>模型 ID</th><th>显示名称</th><th>Provider</th><th>权重</th><th>优先级</th><th>状态</th><th>操作</th></tr></thead>
+            <tbody id="models-tbody"><tr class="empty-row"><td colspan="7">加载中...</td></tr></tbody>
           </table>
         </div>
       </div>
@@ -867,12 +874,16 @@ async function loadModels() {
   const json = await resp.json();
   const models = json.data || [];
   const tbody = document.getElementById('models-tbody');
-  if (!models.length) { tbody.innerHTML = '<tr class="empty-row"><td colspan="6">暂无模型配置</td></tr>'; return; }
+  if (!models.length) { tbody.innerHTML = '<tr class="empty-row"><td colspan="7">暂无模型配置，请点击右上角添加</td></tr>'; return; }
   const maxW = Math.max(...models.map(m=>m.weight||1), 1);
-  tbody.innerHTML = models.map(m => `
+  tbody.innerHTML = models.map(m => {
+    const prov = m.provider || inferProvider(m.model_id);
+    const provBadge = {'anthropic':'badge-active','openai':'badge-checking','grok':'badge-valid'}[prov] || 'badge-inactive';
+    return `
     <tr>
       <td><span class="model-id-cell">${m.model_id}</span></td>
       <td>${m.name}</td>
+      <td><span class="badge ${provBadge}">${prov||'-'}</span></td>
       <td>
         <div class="weight-bar">
           <input class="inline-num" type="number" value="${m.weight}" min="1" max="100"
@@ -893,16 +904,30 @@ async function loadModels() {
         <button class="btn btn-sm btn-danger"
           onclick="confirmDelete('/v1/admin/models/${m.id}','模型 ${m.name}',loadModels)">删除</button>
       </div></td>
-    </tr>`).join('');
+    </tr>`;
+  }).join('');
+}
+
+function inferProvider(modelId) {
+  if (!modelId) return 'anthropic';
+  if (/^(gpt-|o1-|o3-|o4-)/.test(modelId)) return 'openai';
+  if (/^grok-/.test(modelId)) return 'grok';
+  return 'anthropic';
+}
+
+function inferModelProvider() {
+  const id = document.getElementById('new-model-id').value.trim();
+  document.getElementById('new-model-provider').value = inferProvider(id);
 }
 
 async function addModel() {
   const modelId = document.getElementById('new-model-id').value.trim();
   const name = document.getElementById('new-model-name').value.trim();
+  const provider = document.getElementById('new-model-provider').value;
   const weight = parseInt(document.getElementById('new-model-weight').value)||50;
   const priority = parseInt(document.getElementById('new-model-priority').value)||1;
   if (!modelId||!name) { toast('模型 ID 和名称不能为空','error'); return; }
-  const resp = await api('POST','/v1/admin/models',{model_id:modelId,name,weight,priority,enabled:true});
+  const resp = await api('POST','/v1/admin/models',{model_id:modelId,name,provider,weight,priority,enabled:true});
   if (!resp) return;
   if (resp.status===201) {
     toast('模型已添加');
