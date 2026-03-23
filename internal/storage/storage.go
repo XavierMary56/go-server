@@ -137,19 +137,32 @@ func (s *DB) AddProjectKey(projectID, key string, rateLimit int) (*ProjectKey, e
 	return &ProjectKey{ID: id, ProjectID: projectID, Key: key, RateLimit: rateLimit, Enabled: true, CreatedAt: now, UpdatedAt: now}, nil
 }
 
-func (s *DB) UpdateProjectKey(key string, enabled *bool, rateLimit *int) error {
+func (s *DB) UpdateProjectKey(currentKey string, projectID *string, newKey *string, enabled *bool, rateLimit *int) error {
+	if projectID != nil {
+		_, err := s.db.Exec(`UPDATE project_keys SET project_id=?, updated_at=? WHERE key=?`, *projectID, time.Now(), currentKey)
+		if err != nil {
+			return err
+		}
+	}
+	if newKey != nil {
+		_, err := s.db.Exec(`UPDATE project_keys SET key=?, updated_at=? WHERE key=?`, *newKey, time.Now(), currentKey)
+		if err != nil {
+			return err
+		}
+		currentKey = *newKey
+	}
 	if enabled != nil {
 		e := 0
 		if *enabled {
 			e = 1
 		}
-		_, err := s.db.Exec(`UPDATE project_keys SET enabled=?, updated_at=? WHERE key=?`, e, time.Now(), key)
+		_, err := s.db.Exec(`UPDATE project_keys SET enabled=?, updated_at=? WHERE key=?`, e, time.Now(), currentKey)
 		if err != nil {
 			return err
 		}
 	}
 	if rateLimit != nil {
-		_, err := s.db.Exec(`UPDATE project_keys SET rate_limit=?, updated_at=? WHERE key=?`, *rateLimit, time.Now(), key)
+		_, err := s.db.Exec(`UPDATE project_keys SET rate_limit=?, updated_at=? WHERE key=?`, *rateLimit, time.Now(), currentKey)
 		if err != nil {
 			return err
 		}
