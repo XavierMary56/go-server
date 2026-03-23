@@ -9,6 +9,33 @@
 
 ---
 
+## 📚 文档导航
+
+> 快速查找部署、配置、集成相关的文档（所有文档已按分类整理至 docs/ 目录）
+
+| 类型 | 文档 | 用途 |
+|-----|------|------|
+| 🌟 **快速了解** | [docs/01-gettingstarted/00-START-HERE.md](docs/01-gettingstarted/00-START-HERE.md) | 5分钟快速导览 |
+| 🚀 **快速开始** | [docs/01-gettingstarted/DEPLOYMENT_CHECKLIST.md](docs/01-gettingstarted/DEPLOYMENT_CHECKLIST.md) | 部署前检查清单 |
+| 📖 **部署指南** | [docs/02-deployment/API_AND_DEPLOYMENT.md](docs/02-deployment/API_AND_DEPLOYMENT.md) | ⭐ 完整API文档和部署方案 |
+| 📋 **详细部署** | [docs/02-deployment/DEPLOYMENT.md](docs/02-deployment/DEPLOYMENT.md) | 生产部署详细指南 |
+| 👥 **项目对接** | [docs/03-integration/CLIENT_INTEGRATION.md](docs/03-integration/CLIENT_INTEGRATION.md) | ⭐ 新项目对接指南 + Demo |
+| 🔧 **代码集成** | [docs/03-integration/INTEGRATION_GUIDE.md](docs/03-integration/INTEGRATION_GUIDE.md) | 代码集成和开发 |
+| 🔐 **运维管理** | [docs/04-operations/AUTH_AND_MONITORING.md](docs/04-operations/AUTH_AND_MONITORING.md) | 鉴权、监控、日志管理 |
+| 🔨 **脚本命令** | [docs/04-operations/SCRIPTS_GUIDE.md](docs/04-operations/SCRIPTS_GUIDE.md) | 部署和管理脚本使用 |
+| 📝 **配置示例** | [docs/02-deployment/examples/](docs/02-deployment/examples/) | 所有配置文件示例 |
+
+### 🎯 按需求快速导航
+
+- 🌟 **再也理解整体？** → [docs/01-gettingstarted/00-START-HERE.md](docs/01-gettingstarted/00-START-HERE.md)
+- 🚀 **要部署服务？** → [docs/02-deployment/API_AND_DEPLOYMENT.md](docs/02-deployment/API_AND_DEPLOYMENT.md)
+- 👥 **要对接新项目？** → [docs/03-integration/CLIENT_INTEGRATION.md](docs/03-integration/CLIENT_INTEGRATION.md)
+- 🔐 **要配置鉴权和监控？** → [docs/04-operations/AUTH_AND_MONITORING.md](docs/04-operations/AUTH_AND_MONITORING.md)
+- 🔨 **怎么运行脚本？** → [docs/04-operations/SCRIPTS_GUIDE.md](docs/04-operations/SCRIPTS_GUIDE.md)
+- 📚 **查看全部文档？** → [docs/README.md](docs/README.md)
+
+---
+
 ## 📁 目录结构
 
 ```
