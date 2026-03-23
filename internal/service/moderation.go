@@ -471,6 +471,10 @@ func (s *ModerationService) callAnthropic(req *ModerateRequest, modelID string) 
 	defer resp.Body.Close()
 	respBody, _ := io.ReadAll(resp.Body)
 
+	if resp.StatusCode == http.StatusUnauthorized || resp.StatusCode == http.StatusForbidden {
+		s.MarkAnthropicKeyUnhealthy(keyID)
+		return nil, fmt.Errorf("Anthropic key 认证失败 (HTTP %d)，已标记为不可用", resp.StatusCode)
+	}
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("API 返回 HTTP %d: %s", resp.StatusCode, string(respBody))
 	}
@@ -539,6 +543,10 @@ func (s *ModerationService) callOpenAICompatible(req *ModerateRequest, modelID, 
 	defer resp.Body.Close()
 	respBody, _ := io.ReadAll(resp.Body)
 
+	if resp.StatusCode == http.StatusUnauthorized || resp.StatusCode == http.StatusForbidden {
+		s.MarkProviderKeyUnhealthy(keyID)
+		return nil, fmt.Errorf("%s key 认证失败 (HTTP %d)，已标记为不可用", provider, resp.StatusCode)
+	}
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("API 返回 HTTP %d: %s", resp.StatusCode, string(respBody))
 	}

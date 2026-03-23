@@ -14,6 +14,7 @@ import (
 	"github.com/XavierMary56/automatic_review/go-server/internal/audit"
 	"github.com/XavierMary56/automatic_review/go-server/internal/config"
 	"github.com/XavierMary56/automatic_review/go-server/internal/logger"
+	"github.com/XavierMary56/automatic_review/go-server/internal/service"
 	"github.com/XavierMary56/automatic_review/go-server/internal/storage"
 )
 
@@ -23,6 +24,7 @@ type AdminHandler struct {
 	log         *logger.Logger
 	auditLogger *audit.AuditLogger
 	db          *storage.DB
+	svc         *service.ModerationService
 	keysMu      sync.RWMutex
 	keys        map[string]*KeyInfo // 内存中的密钥管理
 }
@@ -61,12 +63,13 @@ type ListKeysResponse struct {
 }
 
 // New 创建管理处理器
-func New(cfg *config.Config, log *logger.Logger, auditLogger *audit.AuditLogger, db *storage.DB) *AdminHandler {
+func New(cfg *config.Config, log *logger.Logger, auditLogger *audit.AuditLogger, db *storage.DB, svc *service.ModerationService) *AdminHandler {
 	handler := &AdminHandler{
 		cfg:         cfg,
 		log:         log,
 		auditLogger: auditLogger,
 		db:          db,
+		svc:         svc,
 		keys:        make(map[string]*KeyInfo),
 	}
 
@@ -86,6 +89,9 @@ func (ah *AdminHandler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/v1/admin/keys", ah.withAdminAuth(ah.handleProjectKeys))
 	mux.HandleFunc("/v1/admin/keys/", ah.withAdminAuth(ah.handleProjectKeyDetail))
 	mux.HandleFunc("/v1/admin/health", ah.handleAdminHealth)
+	mux.HandleFunc("/v1/admin/keys/check-all", ah.withAdminAuth(ah.handleCheckAllKeys))
+	mux.HandleFunc("/v1/admin/anthropic-keys/check", ah.withAdminAuth(ah.handleCheckAnthropicKey))
+	mux.HandleFunc("/v1/admin/provider-keys/check", ah.withAdminAuth(ah.handleCheckProviderKey))
 
 	// 日志和审计相关的管理端点
 	mux.HandleFunc("/v1/admin/projects", ah.withAdminAuth(ah.handleListProjects))
@@ -889,6 +895,68 @@ func (ah *AdminHandler) handleProviderKeys(w http.ResponseWriter, r *http.Reques
 	default:
 		ah.jsonError(w, http.StatusMethodNotAllowed, "方法不允许")
 	}
+}
+
+// ── 健康检测 ──────────────────────────────────────────────
+
+// handleCheckAllKeys POST /v1/admin/keys/check-all 检测所有 key
+func (ah *AdminHandler) handleCheckAllKeys(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		ah.jsonError(w, http.StatusMethodNotAllowed, "方法不允许")
+		return
+	}
+	if ah.svc == nil {
+		ah.jsonError(w, http.StatusServiceUnavailable, "服务未初始化")
+		return
+	}
+	results := ah.svc.CheckAllKeys()
+	ah.jsonOK(w, http.StatusOK, map[string]interface{}{"code": 200, "data": results})
+}
+
+// handleCheckAnthropicKey POST /v1/admin/anthropic-keys/check 检测单个 Anthropic key
+func (ah *AdminHandler) handleCheckAnthropicKey(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		ah.jsonError(w, http.StatusMethodNotAllowed, "方法不允许")
+		return
+	}
+	if ah.svc == nil {
+		ah.jsonError(w, http.StatusServiceUnavailable, "服务未初始化")
+		return
+	}
+	var req struct {
+		ID int64 `json:"id"`
+	}
+	body, _ := io.ReadAll(r.Body)
+	json.Unmarshal(body, &req)
+	if req.ID == 0 {
+		ah.jsonError(w, http.StatusBadRequest, "id 不能为空")
+		return
+	}
+	result := ah.svc.CheckAnthropicKeyByID(req.ID)
+	ah.jsonOK(w, http.StatusOK, map[string]interface{}{"code": 200, "data": result})
+}
+
+// handleCheckProviderKey POST /v1/admin/provider-keys/check 检测单个 provider key
+func (ah *AdminHandler) handleCheckProviderKey(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		ah.jsonError(w, http.StatusMethodNotAllowed, "方法不允许")
+		return
+	}
+	if ah.svc == nil {
+		ah.jsonError(w, http.StatusServiceUnavailable, "服务未初始化")
+		return
+	}
+	var req struct {
+		ID int64 `json:"id"`
+	}
+	body, _ := io.ReadAll(r.Body)
+	json.Unmarshal(body, &req)
+	if req.ID == 0 {
+		ah.jsonError(w, http.StatusBadRequest, "id 不能为空")
+		return
+	}
+	result := ah.svc.CheckProviderKeyByID(req.ID)
+	ah.jsonOK(w, http.StatusOK, map[string]interface{}{"code": 200, "data": result})
 }
 
 func (ah *AdminHandler) handleProviderKeyDetail(w http.ResponseWriter, r *http.Request) {

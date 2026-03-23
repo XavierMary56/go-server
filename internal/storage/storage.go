@@ -33,8 +33,10 @@ type AnthropicKey struct {
 	Name       string
 	Key        string
 	Enabled    bool
+	Status     string     // healthy | unhealthy | unknown
 	UsageCount int64
 	LastUsedAt *time.Time
+	CheckedAt  *time.Time
 	CreatedAt  time.Time
 }
 
@@ -45,8 +47,10 @@ type ProviderKey struct {
 	Name       string
 	Key        string
 	Enabled    bool
+	Status     string     // healthy | unhealthy | unknown
 	UsageCount int64
 	LastUsedAt *time.Time
+	CheckedAt  *time.Time
 	CreatedAt  time.Time
 }
 
@@ -85,6 +89,10 @@ func New(dataDir string) (*DB, error) {
 // migrateV2 为已有表追加新列（幂等，失败静默忽略）
 func (s *DB) migrateV2() {
 	s.db.Exec(`ALTER TABLE model_configs ADD COLUMN provider TEXT NOT NULL DEFAULT ''`)
+	s.db.Exec(`ALTER TABLE anthropic_keys ADD COLUMN status TEXT NOT NULL DEFAULT 'unknown'`)
+	s.db.Exec(`ALTER TABLE anthropic_keys ADD COLUMN checked_at DATETIME`)
+	s.db.Exec(`ALTER TABLE provider_keys ADD COLUMN status TEXT NOT NULL DEFAULT 'unknown'`)
+	s.db.Exec(`ALTER TABLE provider_keys ADD COLUMN checked_at DATETIME`)
 }
 
 func (s *DB) migrate() error {
@@ -104,8 +112,10 @@ func (s *DB) migrate() error {
 			name         TEXT NOT NULL,
 			key          TEXT NOT NULL UNIQUE,
 			enabled      INTEGER NOT NULL DEFAULT 1,
+			status       TEXT NOT NULL DEFAULT 'unknown',
 			usage_count  INTEGER NOT NULL DEFAULT 0,
 			last_used_at DATETIME,
+			checked_at   DATETIME,
 			created_at   DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 		);
 
@@ -115,8 +125,10 @@ func (s *DB) migrate() error {
 			name         TEXT NOT NULL,
 			key          TEXT NOT NULL UNIQUE,
 			enabled      INTEGER NOT NULL DEFAULT 1,
+			status       TEXT NOT NULL DEFAULT 'unknown',
 			usage_count  INTEGER NOT NULL DEFAULT 0,
 			last_used_at DATETIME,
+			checked_at   DATETIME,
 			created_at   DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 		);
 
@@ -255,7 +267,7 @@ func (s *DB) GetEnabledProjectKeys() ([]string, error) {
 // ── Anthropic Keys ────────────────────────────────────────
 
 func (s *DB) ListAnthropicKeys() ([]*AnthropicKey, error) {
-	rows, err := s.db.Query(`SELECT id, name, key, enabled, usage_count, last_used_at, created_at FROM anthropic_keys ORDER BY created_at DESC`)
+	rows, err := s.db.Query(`SELECT id, name, key, enabled, status, usage_count, last_used_at, checked_at, created_at FROM anthropic_keys ORDER BY created_at DESC`)
 	if err != nil {
 		return nil, err
 	}
@@ -265,7 +277,7 @@ func (s *DB) ListAnthropicKeys() ([]*AnthropicKey, error) {
 	for rows.Next() {
 		k := &AnthropicKey{}
 		var enabled int
-		err := rows.Scan(&k.ID, &k.Name, &k.Key, &enabled, &k.UsageCount, &k.LastUsedAt, &k.CreatedAt)
+		err := rows.Scan(&k.ID, &k.Name, &k.Key, &enabled, &k.Status, &k.UsageCount, &k.LastUsedAt, &k.CheckedAt, &k.CreatedAt)
 		if err != nil {
 			return nil, err
 		}
@@ -308,7 +320,11 @@ func (s *DB) IncrAnthropicKeyUsage(id int64) error {
 }
 
 func (s *DB) GetEnabledAnthropicKeys() ([]*AnthropicKey, error) {
-	rows, err := s.db.Query(`SELECT id, name, key, enabled, usage_count, last_used_at, created_at FROM anthropic_keys WHERE enabled=1 ORDER BY usage_count ASC`)
+	// 健康的 key 优先，其次 unknown，最后 unhealthy；同等状态按用量最少优先
+	rows, err := s.db.Query(`
+		SELECT id, name, key, enabled, status, usage_count, last_used_at, checked_at, created_at
+		FROM anthropic_keys WHERE enabled=1
+		ORDER BY CASE status WHEN 'healthy' THEN 0 WHEN 'unknown' THEN 1 ELSE 2 END, usage_count ASC`)
 	if err != nil {
 		return nil, err
 	}
@@ -318,17 +334,22 @@ func (s *DB) GetEnabledAnthropicKeys() ([]*AnthropicKey, error) {
 	for rows.Next() {
 		k := &AnthropicKey{}
 		var enabled int
-		rows.Scan(&k.ID, &k.Name, &k.Key, &enabled, &k.UsageCount, &k.LastUsedAt, &k.CreatedAt)
+		rows.Scan(&k.ID, &k.Name, &k.Key, &enabled, &k.Status, &k.UsageCount, &k.LastUsedAt, &k.CheckedAt, &k.CreatedAt)
 		k.Enabled = enabled == 1
 		keys = append(keys, k)
 	}
 	return keys, nil
 }
 
+func (s *DB) UpdateAnthropicKeyStatus(id int64, status string) error {
+	_, err := s.db.Exec(`UPDATE anthropic_keys SET status=?, checked_at=? WHERE id=?`, status, time.Now(), id)
+	return err
+}
+
 // ── Provider Keys (OpenAI / Grok) ─────────────────────────
 
 func (s *DB) ListProviderKeys(provider string) ([]*ProviderKey, error) {
-	rows, err := s.db.Query(`SELECT id, provider, name, key, enabled, usage_count, last_used_at, created_at FROM provider_keys WHERE provider=? ORDER BY created_at DESC`, provider)
+	rows, err := s.db.Query(`SELECT id, provider, name, key, enabled, status, usage_count, last_used_at, checked_at, created_at FROM provider_keys WHERE provider=? ORDER BY created_at DESC`, provider)
 	if err != nil {
 		return nil, err
 	}
@@ -337,7 +358,7 @@ func (s *DB) ListProviderKeys(provider string) ([]*ProviderKey, error) {
 	for rows.Next() {
 		k := &ProviderKey{}
 		var enabled int
-		rows.Scan(&k.ID, &k.Provider, &k.Name, &k.Key, &enabled, &k.UsageCount, &k.LastUsedAt, &k.CreatedAt)
+		rows.Scan(&k.ID, &k.Provider, &k.Name, &k.Key, &enabled, &k.Status, &k.UsageCount, &k.LastUsedAt, &k.CheckedAt, &k.CreatedAt)
 		k.Enabled = enabled == 1
 		keys = append(keys, k)
 	}
@@ -345,7 +366,10 @@ func (s *DB) ListProviderKeys(provider string) ([]*ProviderKey, error) {
 }
 
 func (s *DB) GetEnabledProviderKeys(provider string) ([]*ProviderKey, error) {
-	rows, err := s.db.Query(`SELECT id, provider, name, key, enabled, usage_count, last_used_at, created_at FROM provider_keys WHERE provider=? AND enabled=1 ORDER BY usage_count ASC`, provider)
+	rows, err := s.db.Query(`
+		SELECT id, provider, name, key, enabled, status, usage_count, last_used_at, checked_at, created_at
+		FROM provider_keys WHERE provider=? AND enabled=1
+		ORDER BY CASE status WHEN 'healthy' THEN 0 WHEN 'unknown' THEN 1 ELSE 2 END, usage_count ASC`, provider)
 	if err != nil {
 		return nil, err
 	}
@@ -354,11 +378,16 @@ func (s *DB) GetEnabledProviderKeys(provider string) ([]*ProviderKey, error) {
 	for rows.Next() {
 		k := &ProviderKey{}
 		var enabled int
-		rows.Scan(&k.ID, &k.Provider, &k.Name, &k.Key, &enabled, &k.UsageCount, &k.LastUsedAt, &k.CreatedAt)
+		rows.Scan(&k.ID, &k.Provider, &k.Name, &k.Key, &enabled, &k.Status, &k.UsageCount, &k.LastUsedAt, &k.CheckedAt, &k.CreatedAt)
 		k.Enabled = enabled == 1
 		keys = append(keys, k)
 	}
 	return keys, nil
+}
+
+func (s *DB) UpdateProviderKeyStatus(id int64, status string) error {
+	_, err := s.db.Exec(`UPDATE provider_keys SET status=?, checked_at=? WHERE id=?`, status, time.Now(), id)
+	return err
 }
 
 func (s *DB) AddProviderKey(provider, name, key string) (*ProviderKey, error) {

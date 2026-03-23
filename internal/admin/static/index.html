@@ -238,7 +238,10 @@
             <h2>Anthropic API Key 管理</h2>
             <div class="sub">多个 Key 按用量最少优先分配，实现负载均衡</div>
           </div>
-          <button class="btn btn-primary" onclick="toggleAddForm('add-ak-form')">＋ 添加 Key</button>
+          <div class="actions">
+            <button class="btn btn-info" onclick="checkAllKeys()">⟳ 全部检测</button>
+            <button class="btn btn-primary" onclick="toggleAddForm('add-ak-form')">＋ 添加 Key</button>
+          </div>
         </div>
         <div class="add-form" id="add-ak-form">
           <div class="add-form-title">添加 Anthropic API Key</div>
@@ -253,7 +256,7 @@
         </div>
         <div class="table-wrap">
           <table>
-            <thead><tr><th>备注名称</th><th>Key（脱敏）</th><th>用量（次）</th><th>最后使用</th><th>有效性</th><th>状态</th><th>操作</th></tr></thead>
+            <thead><tr><th>备注名称</th><th>Key（脱敏）</th><th>用量（次）</th><th>最后使用</th><th>健康状态</th><th>启用状态</th><th>操作</th></tr></thead>
             <tbody id="ak-tbody"><tr class="empty-row"><td colspan="7">加载中...</td></tr></tbody>
           </table>
         </div>
@@ -268,7 +271,10 @@
             <h2>OpenAI API Key 管理</h2>
             <div class="sub">多个 Key 按用量最少优先分配，实现负载均衡</div>
           </div>
-          <button class="btn btn-primary" onclick="toggleAddForm('add-oai-form')">＋ 添加 Key</button>
+          <div class="actions">
+            <button class="btn btn-info" onclick="checkAllKeys()">⟳ 全部检测</button>
+            <button class="btn btn-primary" onclick="toggleAddForm('add-oai-form')">＋ 添加 Key</button>
+          </div>
         </div>
         <div class="add-form" id="add-oai-form">
           <div class="add-form-title">添加 OpenAI API Key</div>
@@ -283,8 +289,8 @@
         </div>
         <div class="table-wrap">
           <table>
-            <thead><tr><th>备注名称</th><th>Key（脱敏）</th><th>用量（次）</th><th>最后使用</th><th>状态</th><th>操作</th></tr></thead>
-            <tbody id="oai-tbody"><tr class="empty-row"><td colspan="6">加载中...</td></tr></tbody>
+            <thead><tr><th>备注名称</th><th>Key（脱敏）</th><th>用量（次）</th><th>最后使用</th><th>健康状态</th><th>启用状态</th><th>操作</th></tr></thead>
+            <tbody id="oai-tbody"><tr class="empty-row"><td colspan="7">加载中...</td></tr></tbody>
           </table>
         </div>
       </div>
@@ -298,7 +304,10 @@
             <h2>Grok (xAI) API Key 管理</h2>
             <div class="sub">多个 Key 按用量最少优先分配，实现负载均衡</div>
           </div>
-          <button class="btn btn-primary" onclick="toggleAddForm('add-grok-form')">＋ 添加 Key</button>
+          <div class="actions">
+            <button class="btn btn-info" onclick="checkAllKeys()">⟳ 全部检测</button>
+            <button class="btn btn-primary" onclick="toggleAddForm('add-grok-form')">＋ 添加 Key</button>
+          </div>
         </div>
         <div class="add-form" id="add-grok-form">
           <div class="add-form-title">添加 Grok API Key</div>
@@ -313,8 +322,8 @@
         </div>
         <div class="table-wrap">
           <table>
-            <thead><tr><th>备注名称</th><th>Key（脱敏）</th><th>用量（次）</th><th>最后使用</th><th>状态</th><th>操作</th></tr></thead>
-            <tbody id="grok-tbody"><tr class="empty-row"><td colspan="6">加载中...</td></tr></tbody>
+            <thead><tr><th>备注名称</th><th>Key（脱敏）</th><th>用量（次）</th><th>最后使用</th><th>健康状态</th><th>启用状态</th><th>操作</th></tr></thead>
+            <tbody id="grok-tbody"><tr class="empty-row"><td colspan="7">加载中...</td></tr></tbody>
           </table>
         </div>
       </div>
@@ -752,6 +761,12 @@ async function loadAnthropicKeys() {
   renderAnthropicKeys();
 }
 
+function statusBadge(status) {
+  const map = { healthy:'badge-valid', unhealthy:'badge-invalid', unknown:'badge-checking' };
+  const label = { healthy:'✓ 正常', unhealthy:'✗ 不可用', unknown:'? 未检测' };
+  return `<span class="badge ${map[status]||'badge-checking'}">${label[status]||status}</span>`;
+}
+
 function renderAnthropicKeys() {
   const tbody = document.getElementById('ak-tbody');
   if (!akData.length) { tbody.innerHTML = '<tr class="empty-row"><td colspan="7">暂无 Key，点击右上角添加</td></tr>'; return; }
@@ -761,10 +776,10 @@ function renderAnthropicKeys() {
       <td><span class="key-cell">${k.key_masked}</span></td>
       <td><span class="usage-num">${(k.usage_count||0).toLocaleString()}</span></td>
       <td>${formatDate(k.last_used_at)}</td>
-      <td id="ak-validity-${k.id}"><span class="badge badge-checking">未检测</span></td>
+      <td id="ak-health-${k.id}">${statusBadge(k.status||'unknown')}<br><small style="color:#94a3b8">${k.checked_at?formatDate(k.checked_at):''}</small></td>
       <td><span class="badge ${k.enabled?'badge-active':'badge-inactive'}">${k.enabled?'● 启用':'○ 停用'}</span></td>
       <td><div class="actions">
-        <button class="btn btn-sm btn-info" onclick="verifyAK(${k.id})">验证</button>
+        <button class="btn btn-sm btn-info" onclick="checkAK(${k.id})">检测</button>
         <button class="btn btn-sm ${k.enabled?'btn-warning':'btn-success'}"
           onclick="toggleAK(${k.id},${!k.enabled})">${k.enabled?'停用':'启用'}</button>
         <button class="btn btn-sm btn-danger"
@@ -787,19 +802,32 @@ async function addAnthropicKey() {
   } else { const j=await resp.json(); toast(j.error||'添加失败','error'); }
 }
 
-async function verifyAK(id) {
+async function checkAK(id) {
   const row = akData.find(k=>k.id===id);
   if (!row) return;
-  const cell = document.getElementById('ak-validity-'+id);
-  cell.innerHTML = '<span class="badge badge-checking"><span class="spinner"></span> 验证中...</span>';
-  // 需要传实际 key —— 但 listAnthropicKeys 只返回脱敏 key
-  // 用 verify endpoint，传 id 让后端查找
-  const resp = await api('POST','/v1/admin/anthropic-keys/verify',{id});
+  const cell = document.getElementById('ak-health-'+id);
+  cell.innerHTML = '<span class="badge badge-checking"><span class="spinner"></span> 检测中...</span>';
+  const resp = await api('POST','/v1/admin/anthropic-keys/check',{id});
   if (!resp) return;
   const json = await resp.json();
-  if (json.valid) cell.innerHTML = '<span class="badge badge-valid">✓ 有效</span>';
-  else cell.innerHTML = `<span class="badge badge-invalid">✗ 无效</span>`;
-  toast(json.valid ? `"${row.name}" 验证通过` : `"${row.name}" 无效: ${json.reason}`, json.valid?'success':'error');
+  const r = json.data || {};
+  cell.innerHTML = statusBadge(r.status||'unknown');
+  toast(r.status==='healthy' ? `"${row.name}" 正常` : `"${row.name}" 不可用: ${r.error||''}`,
+        r.status==='healthy'?'success':'error');
+  loadAnthropicKeys();
+}
+
+async function checkAllKeys() {
+  toast('正在检测所有 Key，请稍候...');
+  const resp = await api('POST','/v1/admin/keys/check-all',{});
+  if (!resp) return;
+  const json = await resp.json();
+  const results = json.data || [];
+  const ok = results.filter(r=>r.status==='healthy').length;
+  toast(`检测完成：${ok}/${results.length} 个 Key 正常`, ok===results.length?'success':'error');
+  loadAnthropicKeys();
+  if (document.getElementById('tab-openai').classList.contains('active')) loadProviderKeys('openai');
+  if (document.getElementById('tab-grok').classList.contains('active')) loadProviderKeys('grok');
 }
 
 async function toggleAK(id, enable) {
@@ -825,21 +853,38 @@ function renderProviderKeys(provider) {
   const tbodyId = provider === 'openai' ? 'oai-tbody' : 'grok-tbody';
   const tbody = document.getElementById(tbodyId);
   const data = providerKeyData[provider] || [];
-  if (!data.length) { tbody.innerHTML = '<tr class="empty-row"><td colspan="6">暂无 Key，点击右上角添加</td></tr>'; return; }
+  if (!data.length) { tbody.innerHTML = '<tr class="empty-row"><td colspan="7">暂无 Key，点击右上角添加</td></tr>'; return; }
   tbody.innerHTML = data.map(k => `
     <tr>
       <td><strong>${k.name}</strong></td>
       <td><span class="key-cell">${k.key_masked}</span></td>
       <td><span class="usage-num">${(k.usage_count||0).toLocaleString()}</span></td>
       <td>${formatDate(k.last_used_at)}</td>
+      <td id="pk-health-${k.id}">${statusBadge(k.status||'unknown')}<br><small style="color:#94a3b8">${k.checked_at?formatDate(k.checked_at):''}</small></td>
       <td><span class="badge ${k.enabled?'badge-active':'badge-inactive'}">${k.enabled?'● 启用':'○ 停用'}</span></td>
       <td><div class="actions">
+        <button class="btn btn-sm btn-info" onclick="checkPK('${provider}',${k.id})">检测</button>
         <button class="btn btn-sm ${k.enabled?'btn-warning':'btn-success'}"
           onclick="toggleProviderKey('${provider}',${k.id},${!k.enabled})">${k.enabled?'停用':'启用'}</button>
         <button class="btn btn-sm btn-danger"
           onclick="confirmDelete('/v1/admin/provider-keys/${k.id}','${k.name} 的 Key',()=>loadProviderKeys('${provider}'))">删除</button>
       </div></td>
     </tr>`).join('');
+}
+
+async function checkPK(provider, id) {
+  const data = providerKeyData[provider] || [];
+  const row = data.find(k=>k.id===id);
+  const cell = document.getElementById('pk-health-'+id);
+  if (cell) cell.innerHTML = '<span class="badge badge-checking"><span class="spinner"></span> 检测中...</span>';
+  const resp = await api('POST','/v1/admin/provider-keys/check',{id});
+  if (!resp) return;
+  const json = await resp.json();
+  const r = json.data || {};
+  if (cell) cell.innerHTML = statusBadge(r.status||'unknown');
+  toast(r.status==='healthy' ? `"${row?.name||id}" 正常` : `"${row?.name||id}" 不可用: ${r.error||''}`,
+        r.status==='healthy'?'success':'error');
+  loadProviderKeys(provider);
 }
 
 async function addProviderKey(provider) {
