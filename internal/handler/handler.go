@@ -16,9 +16,9 @@ import (
 
 // Handler HTTP 处理器
 type Handler struct {
-	svc  *service.ModerationService
-	log  *logger.Logger
-	cfg  *config.Config
+	svc   *service.ModerationService
+	log   *logger.Logger
+	cfg   *config.Config
 	tasks sync.Map // 存储异步任务结果
 }
 
@@ -29,12 +29,12 @@ func New(svc *service.ModerationService, log *logger.Logger, cfg *config.Config)
 
 // RegisterRoutes 注册所有路由
 func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
-	mux.HandleFunc("/v1/moderate",       h.withMiddleware(h.handleModerate))
+	mux.HandleFunc("/v1/moderate", h.withMiddleware(h.handleModerate))
 	mux.HandleFunc("/v1/moderate/async", h.withMiddleware(h.handleModerateAsync))
-	mux.HandleFunc("/v1/task/",          h.withMiddleware(h.handleTaskQuery))
-	mux.HandleFunc("/v1/models",         h.withMiddleware(h.handleModels))
-	mux.HandleFunc("/v1/stats",          h.withMiddleware(h.handleStats))
-	mux.HandleFunc("/v1/health",         h.handleHealth)
+	mux.HandleFunc("/v1/task/", h.withMiddleware(h.handleTaskQuery))
+	mux.HandleFunc("/v1/models", h.withMiddleware(h.handleModels))
+	mux.HandleFunc("/v1/stats", h.withMiddleware(h.handleStats))
+	mux.HandleFunc("/v1/health", h.handleHealth)
 }
 
 // ── 中间件 ─────────────────────────────────────────────────

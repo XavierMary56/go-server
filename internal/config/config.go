@@ -45,6 +45,16 @@ type Config struct {
 	EnableAuth  bool
 	AllowedKeys []string // 各项目的接入密钥
 
+	// 管理员 API
+	EnableAdminAPI bool
+	AdminToken     string // 管理员令牌（逗号分隔多个）
+
+	// 审计和监控
+	EnableAudit   bool
+	AuditLogDir   string
+	EnableMetrics bool
+	MetricsPort   int
+
 	// 日志
 	LogDir   string
 	LogLevel string // debug | info | warn | error
@@ -70,6 +80,12 @@ func Load() (*Config, error) {
 		RedisDB:         getEnvInt("REDIS_DB", 0),
 		RedisPrefix:     getEnv("REDIS_PREFIX", "mod:"),
 		EnableAuth:      getEnvBool("ENABLE_AUTH", false),
+		EnableAdminAPI:  getEnvBool("ENABLE_ADMIN_API", true),
+		AdminToken:      getEnv("ADMIN_TOKEN", "admin-token-default"),
+		EnableAudit:     getEnvBool("ENABLE_AUDIT", false),
+		AuditLogDir:     getEnv("AUDIT_LOG_DIR", "./logs/audit"),
+		EnableMetrics:   getEnvBool("ENABLE_METRICS", false),
+		MetricsPort:     getEnvInt("METRICS_PORT", 9090),
 		LogDir:          getEnv("LOG_DIR", "./logs"),
 		LogLevel:        getEnv("LOG_LEVEL", "info"),
 	}
