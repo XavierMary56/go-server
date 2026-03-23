@@ -25,6 +25,7 @@ services:
       - ADMIN_TOKEN=${ADMIN_TOKEN}
     volumes:
       - ./logs:/logs
+      - moderation-data:/data
     depends_on:
       redis:
         condition: service_healthy
@@ -54,6 +55,7 @@ services:
 
 volumes:
   redis-data:
+  moderation-data:
 
 networks:
   moderation-net:

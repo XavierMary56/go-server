@@ -16,6 +16,7 @@ import (
 	"github.com/XavierMary56/automatic_review/go-server/internal/handler"
 	"github.com/XavierMary56/automatic_review/go-server/internal/logger"
 	"github.com/XavierMary56/automatic_review/go-server/internal/service"
+	"github.com/XavierMary56/automatic_review/go-server/internal/storage"
 )
 
 func main() {
@@ -44,8 +45,16 @@ func main() {
 	// 注册 Admin 路由
 	if cfg.EnableAdminAPI {
 		auditLogger := audit.New(cfg.AuditLogDir, cfg.EnableAudit)
-		adminHandler := admin.New(cfg, lg, auditLogger)
+		db, err := storage.New("/data")
+		if err != nil {
+			lg.Error("数据库初始化失败: " + err.Error())
+			db = nil
+		}
+		adminHandler := admin.New(cfg, lg, auditLogger, db)
 		adminHandler.RegisterRoutes(mux)
+		if db != nil {
+			defer db.Close()
+		}
 	}
 
 	// 启动 HTTP 服务器
