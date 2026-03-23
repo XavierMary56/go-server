@@ -52,8 +52,8 @@ type AddKeyRequest struct {
 type UpdateKeyRequest struct {
 	ProjectID *string `json:"project_id,omitempty"`
 	Key       *string `json:"key,omitempty"`
-	RateLimit *int  `json:"rate_limit,omitempty"`
-	Enabled   *bool `json:"enabled,omitempty"`
+	RateLimit *int    `json:"rate_limit,omitempty"`
+	Enabled   *bool   `json:"enabled,omitempty"`
 }
 
 // ListKeysResponse 密钥列表响应
@@ -590,13 +590,15 @@ func (ah *AdminHandler) handleAnthropicKeys(w http.ResponseWriter, r *http.Reque
 		}
 		// 脱敏显示
 		type safeKey struct {
-			ID          int64      `json:"id"`
-			Name        string     `json:"name"`
-			KeyMasked   string     `json:"key_masked"`
-			Enabled     bool       `json:"enabled"`
-			UsageCount  int64      `json:"usage_count"`
-			LastUsedAt  *time.Time `json:"last_used_at"`
-			CreatedAt   time.Time  `json:"created_at"`
+			ID         int64      `json:"id"`
+			Name       string     `json:"name"`
+			KeyMasked  string     `json:"key_masked"`
+			Enabled    bool       `json:"enabled"`
+			Status     string     `json:"status"` // ✨ 新增：对应 healthy/unhealthy
+			UsageCount int64      `json:"usage_count"`
+			LastUsedAt *time.Time `json:"last_used_at"`
+			CheckedAt  *time.Time `json:"checked_at"` // ✨ 新增：检测时间
+			CreatedAt  time.Time  `json:"created_at"`
 		}
 		var safe []safeKey
 		for _, k := range keys {
@@ -605,8 +607,10 @@ func (ah *AdminHandler) handleAnthropicKeys(w http.ResponseWriter, r *http.Reque
 				Name:       k.Name,
 				KeyMasked:  ah.maskKey(k.Key),
 				Enabled:    k.Enabled,
+				Status:     k.Status,
 				UsageCount: k.UsageCount,
 				LastUsedAt: k.LastUsedAt,
+				CheckedAt:  k.CheckedAt,
 				CreatedAt:  k.CreatedAt,
 			})
 		}
