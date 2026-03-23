@@ -1,97 +1,132 @@
-# PHP Yaf 客户端内容审核对接示例
+# PHP Yaf 内容审核对接文档
 
-本目录为内容审核服务 PHP Yaf 客户端对接的完整示例，目录结构与实际项目保持一致，便于直接参考和集成。
+审核服务地址：`https://ai.a889.cloud`（Key 管理也在此后台）
 
-## 快速集成说明
+---
 
-请参考本节了解如何将内容审核服务集成到您的 PHP Yaf 客户端项目中。
+## 一、建表
 
-### 主要内容
-- 审核接口调用方式
-- 回调处理逻辑
-- 审核记录存储与查询
-- 管理后台审核记录展示
-
-详细集成步骤见下文。
-
-## 内容审核服务集成指南
-
-本指南详细介绍如何在 PHP Yaf 客户端项目中集成内容审核服务，包括接口调用、回调处理、审核记录存储与后台展示。
-
-### 步骤概览
-1. 引入 ContentModerationService.php
-2. 配置审核服务相关参数
-3. 在内容保存后调用审核接口
-4. 实现审核回调接口
-5. 设计审核记录表结构
-6. 后台管理审核记录
-
-### 详细说明
-- 参考 application/library/service/ContentModerationService.php 代码注释
-- 参考本 README.md 快速集成说明
-
-## 配置说明
-
-1. 在 config 或 application/configs/application.ini（或 config.php/yml/env 等）中增加如下配置：
-
-```ini
-[moderation]
-endpoint = "http://moderation-api.example.com"
-api_key  = "your_project_key"
-timeout  = 5
-async    = false
-webhook_url = "http://your-domain.com/moderation/callback"
-strictness = "standard"
-```
-
-或 PHP 配置数组：
+执行 `sql/create_moderation_logs_table.sql` 创建审核日志表，或运行迁移文件：
 
 ```php
-'moderation' => [
-    'endpoint'     => 'http://moderation-api.example.com',
-    'api_key'      => 'your_project_key',
-    'timeout'      => 5,
-    'async'        => false,
-    'webhook_url'  => 'http://your-domain.com/moderation/callback',
-    'strictness'   => 'standard',
-],
+(new Migration20260323_001())->up();
 ```
 
-2. 如果支持 .env，可添加：
+---
 
-```
-MODERATION_ENDPOINT=http://moderation-api.example.com
-MODERATION_API_KEY=your_project_key
-MODERATION_TIMEOUT=5
-MODERATION_ASYNC=false
-MODERATION_WEBHOOK_URL=http://your-domain.com/moderation/callback
-MODERATION_STRICTNESS=standard
-```
+## 二、配置
 
-3. ContentModerationService.php 会自动读取 Yaf_Registry::get('config')->moderation 或 env 变量。
-
-4. webhook_url 需保证外部审核平台可访问，并在路由中注册该接口。
-
-5. 迁移数据库，执行 migrations/20260323_001.php 创建 moderation_logs 审核日志表。
-
-## conf/develop.ini 配置示例及参数说明
-
-在 conf/develop.ini 文件中添加如下内容：
+在 `conf/application.ini` 对应环境节中填写：
 
 ```ini
-[moderation]
-endpoint     = "http://moderation-api.example.com"   ; 审核服务API地址
-api_key      = "your_project_key"                    ; 项目在审核平台的唯一key
-timeout      = 5                                     ; 审核接口请求超时时间（秒）
-async        = false                                 ; 是否异步审核（true/false）
-webhook_url  = "http://your-domain.com/moderation/callback" ; 审核平台回调通知地址
-strictness   = "standard"                            ; 审核严格度（standard/strict等）
+[develop.moderation]
+endpoint    = "https://ai.a889.cloud"
+api_key     = "51dm_ghi789"
+timeout     = 5
+async       = false
+webhook_url = "http://91pa.test/api.php/moderation/callback"
+strictness  = "standard"
+
+[product.moderation]
+endpoint    = "https://ai.a889.cloud"
+api_key     = "51dm_ghi789"
+timeout     = 5
+async       = false
+webhook_url = "https://dx-075-api1.ympxbys.xyz/api.php/moderation/callback"
+strictness  = "standard"
 ```
 
-**参数说明：**
-- endpoint：内容审核服务的API基础地址，所有审核请求都发往此地址。
-- api_key：你在审核平台申请的项目唯一标识，用于接口鉴权。
-- timeout：调用审核API的超时时间，单位为秒，建议5~10秒。
-- async：是否异步审核。true 表示提交后由回调通知审核结果，false 表示接口直接返回审核结果。
-- webhook_url：审核平台回调你项目的接口地址，需保证公网可访问，通常为 http(s)://your-domain.com/moderation/callback。
-- strictness：审核严格度，可选值如 standard、strict，根据业务需求选择。
+| 参数 | 说明 |
+|------|------|
+| endpoint | 审核服务地址，固定填 `https://ai.a889.cloud` |
+| api_key | 在审核平台后台创建项目后生成的 Key |
+| timeout | 请求超时秒数 |
+| async | `false` 同步（直接返回结果）/ `true` 异步（回调通知） |
+| webhook_url | 异步时审核服务回调你项目的地址，需公网可访问 |
+| strictness | 审核严格度：`standard` / `strict` / `loose` |
+
+---
+
+## 三、路由注册
+
+在 `Bootstrap.php` 中注册回调接口路由：
+
+```php
+$router->addRoute('moderation_callback', new Yaf_Route_Static('/moderation/callback'));
+$router->addRoute('moderation_status',   new Yaf_Route_Static('/moderation/status'));
+```
+
+---
+
+## 四、调用审核
+
+将 `ContentModerationService.php` 放入 `application/library/service/`，在内容保存后调用：
+
+```php
+// 同步审核（推荐，直接拿到结果）
+$result = ContentModerationService::submitForModeration(
+    $post->id,       // 内容ID
+    'post',          // 内容类型：post / comment / video 等
+    ['content' => $post->content],
+    (string) $currentUserId
+);
+
+if ($result === null) {
+    // 审核服务异常，按业务决定是否放行
+}
+
+if ($result['verdict'] === 'rejected') {
+    // 违规，拒绝发布
+    throw new Exception('内容违规：' . $result['category']);
+}
+
+// approved = 通过，flagged = 疑似（可人工复核），均可正常发布
+```
+
+审核结果字段：
+
+| 字段 | 值 | 说明 |
+|------|----|------|
+| verdict | `approved` / `flagged` / `rejected` | 审核结论 |
+| category | `none` / `spam` / `abuse` / `adult` / `politics` / `fraud` / `violence` | 违规类型 |
+| confidence | 0.0 ～ 1.0 | 置信度 |
+| reason | 字符串 | 审核说明 |
+
+---
+
+## 五、异步模式（可选）
+
+适合视频、长文等耗时较长的内容，提交后立即返回，审核完成由服务端回调通知。
+
+```php
+// 提交异步审核
+$result = ContentModerationService::submitForModerationAsync(
+    $video->id,
+    'video',
+    ['content' => $video->description],
+    (string) $currentUserId
+);
+// $result['task_id'] 可记录日志
+
+// 审核完成后，go-server 会 POST 到 webhook_url，
+// ModerationCallbackController::callbackAction 自动处理并更新数据库状态
+```
+
+使用异步前确保：
+1. `async = true` 且 `webhook_url` 填写正确
+2. 回调地址公网可访问
+3. 回调接口路由已注册（见第三步）
+
+---
+
+## 六、文件清单
+
+```
+conf/application.ini                                  配置文件
+sql/create_moderation_logs_table.sql                  建表 SQL
+migrations/20260323_001.php                           建表迁移
+application/library/service/ContentModerationService.php   审核核心类
+application/models/ModerationLog.php                  日志 Model
+application/controllers/ModerationCallbackController.php   回调 + 状态查询接口
+application/modules/Admin/controllers/ModerationLogsController.php  后台列表
+```
