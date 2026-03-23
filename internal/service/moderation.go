@@ -174,14 +174,7 @@ func NewModerationService(cfg *config.Config, log *logger.Logger, db *storage.DB
 }
 
 // providerOf 根据模型 ID 前缀判断所属 provider
-func providerOf(modelID string, cfg *config.Config) string {
-	// 优先使用模型配置里显式声明的 provider
-	for _, m := range cfg.Models {
-		if m.ID == modelID && m.Provider != "" {
-			return m.Provider
-		}
-	}
-	// 按 ID 前缀自动识别
+func providerOf(modelID string) string {
 	switch {
 	case strings.HasPrefix(modelID, "gpt-"), strings.HasPrefix(modelID, "o1-"),
 		strings.HasPrefix(modelID, "o3-"), strings.HasPrefix(modelID, "o4-"):
@@ -191,6 +184,35 @@ func providerOf(modelID string, cfg *config.Config) string {
 	default:
 		return "anthropic"
 	}
+}
+
+// getActiveModels 从 DB 读取启用的模型列表，转为内部类型
+func (s *ModerationService) getActiveModels() []config.ModelConfig {
+	if s.db == nil {
+		return nil
+	}
+	dbModels, err := s.db.ListModels()
+	if err != nil || len(dbModels) == 0 {
+		return nil
+	}
+	var models []config.ModelConfig
+	for _, m := range dbModels {
+		if !m.Enabled {
+			continue
+		}
+		provider := m.Provider
+		if provider == "" {
+			provider = providerOf(m.ModelID)
+		}
+		models = append(models, config.ModelConfig{
+			ID:       m.ModelID,
+			Name:     m.Name,
+			Weight:   m.Weight,
+			Priority: m.Priority,
+			Provider: provider,
+		})
+	}
+	return models
 }
 
 // getProviderKey 获取指定 provider 的 API Key（优先 DB，回退 env var）
@@ -244,6 +266,13 @@ func (s *ModerationService) Moderate(req *ModerateRequest) *ModerateResult {
 	// 构建模型调用队列（首选 + 故障转移备选）
 	queue := s.buildModelQueue(req.Model)
 	start := time.Now()
+	if len(queue) == 0 {
+		return &ModerateResult{
+			Verdict: "flagged", Category: "none", Confidence: 0,
+			Reason: "暂无可用模型，请在后台添加模型后重试", ModelUsed: "none",
+			LatencyMs: 0, Fallback: true,
+		}
+	}
 
 	var result *ModerateResult
 	var lastErr error
@@ -287,7 +316,7 @@ func (s *ModerationService) GetStats() map[string]interface{} {
 
 // GetModels 获取模型列表
 func (s *ModerationService) GetModels() []config.ModelConfig {
-	return s.cfg.Models
+	return s.getActiveModels()
 }
 
 // ── 模型调度 ───────────────────────────────────────────────
@@ -295,7 +324,7 @@ func (s *ModerationService) GetModels() []config.ModelConfig {
 // buildModelQueue 构建模型调用队列
 // auto = 加权随机选主力，其余按优先级排为 fallback
 func (s *ModerationService) buildModelQueue(pref string) []config.ModelConfig {
-	models := s.cfg.Models
+	models := s.getActiveModels()
 	if len(models) == 0 {
 		return nil
 	}
@@ -314,7 +343,7 @@ func (s *ModerationService) buildModelQueue(pref string) []config.ModelConfig {
 	}
 
 	if !found {
-		primary = s.weightedRandom()
+		primary = s.weightedRandom(models)
 	}
 
 	// 其余模型按优先级升序排列作为 fallback
@@ -332,20 +361,23 @@ func (s *ModerationService) buildModelQueue(pref string) []config.ModelConfig {
 }
 
 // weightedRandom 按权重随机选模型
-func (s *ModerationService) weightedRandom() config.ModelConfig {
+func (s *ModerationService) weightedRandom(models []config.ModelConfig) config.ModelConfig {
 	total := 0
-	for _, m := range s.cfg.Models {
+	for _, m := range models {
 		total += m.Weight
+	}
+	if total == 0 {
+		return models[0]
 	}
 	r := rand.Intn(total)
 	sum := 0
-	for _, m := range s.cfg.Models {
+	for _, m := range models {
 		sum += m.Weight
 		if r < sum {
 			return m
 		}
 	}
-	return s.cfg.Models[0]
+	return models[0]
 }
 
 // ── API 调用路由 ───────────────────────────────────────────
@@ -357,7 +389,7 @@ var strictnessPrompts = map[string]string{
 }
 
 func (s *ModerationService) callAPI(req *ModerateRequest, modelID string) (*ModerateResult, error) {
-	provider := providerOf(modelID, s.cfg)
+	provider := providerOf(modelID)
 	switch provider {
 	case "openai", "grok":
 		return s.callOpenAICompatible(req, modelID, provider)

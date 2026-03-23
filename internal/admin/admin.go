@@ -746,6 +746,7 @@ func (ah *AdminHandler) handleModels(w http.ResponseWriter, r *http.Request) {
 		var req struct {
 			ModelID  string `json:"model_id"`
 			Name     string `json:"name"`
+			Provider string `json:"provider"`
 			Weight   int    `json:"weight"`
 			Priority int    `json:"priority"`
 			Enabled  bool   `json:"enabled"`
@@ -762,7 +763,7 @@ func (ah *AdminHandler) handleModels(w http.ResponseWriter, r *http.Request) {
 		if req.Priority <= 0 {
 			req.Priority = 1
 		}
-		if err := ah.db.UpsertModel(req.ModelID, req.Name, req.Weight, req.Priority, req.Enabled); err != nil {
+		if err := ah.db.UpsertModel(req.ModelID, req.Name, req.Provider, req.Weight, req.Priority, req.Enabled); err != nil {
 			ah.jsonError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
