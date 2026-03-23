@@ -767,6 +767,10 @@ func (ah *AdminHandler) handleModels(w http.ResponseWriter, r *http.Request) {
 			ah.jsonError(w, http.StatusBadRequest, "模型 ID 和名称不能为空")
 			return
 		}
+		if err := validateModelID(req.ModelID, req.Provider); err != nil {
+			ah.jsonError(w, http.StatusBadRequest, err.Error())
+			return
+		}
 		if req.Weight <= 0 {
 			req.Weight = 50
 		}
@@ -781,6 +785,35 @@ func (ah *AdminHandler) handleModels(w http.ResponseWriter, r *http.Request) {
 	default:
 		ah.jsonError(w, http.StatusMethodNotAllowed, "方法不允许")
 	}
+}
+
+func validateModelID(modelID, provider string) error {
+	modelID = strings.TrimSpace(modelID)
+	provider = strings.TrimSpace(provider)
+
+	if len(modelID) < 3 || strings.ContainsAny(modelID, " \t\r\n") {
+		return fmt.Errorf("模型 ID 格式无效，请填写真实模型名")
+	}
+
+	switch provider {
+	case "openai":
+		if !(strings.HasPrefix(modelID, "gpt-") ||
+			strings.HasPrefix(modelID, "o1-") ||
+			strings.HasPrefix(modelID, "o3-") ||
+			strings.HasPrefix(modelID, "o4-")) {
+			return fmt.Errorf("OpenAI 模型 ID 格式无效")
+		}
+	case "grok":
+		if !strings.HasPrefix(modelID, "grok-") {
+			return fmt.Errorf("Grok 模型 ID 格式无效")
+		}
+	case "anthropic":
+		if !strings.HasPrefix(modelID, "claude-") {
+			return fmt.Errorf("Anthropic 模型 ID 格式无效")
+		}
+	}
+
+	return nil
 }
 
 func (ah *AdminHandler) handleModelDetail(w http.ResponseWriter, r *http.Request) {

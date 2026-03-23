@@ -972,6 +972,10 @@ async function addModel() {
   const weight = parseInt(document.getElementById('new-model-weight').value)||50;
   const priority = parseInt(document.getElementById('new-model-priority').value)||1;
   if (!modelId||!name) { toast('模型 ID 和名称不能为空','error'); return; }
+  if (modelId.length < 3 || /\s/.test(modelId)) { toast('模型 ID 格式无效，请填写真实模型名','error'); return; }
+  if (provider === 'openai' && !/^(gpt-|o1-|o3-|o4-)/.test(modelId)) { toast('OpenAI 模型 ID 格式无效','error'); return; }
+  if (provider === 'grok' && !/^grok-/.test(modelId)) { toast('Grok 模型 ID 格式无效','error'); return; }
+  if (provider === 'anthropic' && !/^claude-/.test(modelId)) { toast('Anthropic 模型 ID 格式无效','error'); return; }
   const resp = await api('POST','/v1/admin/models',{model_id:modelId,name,provider,weight,priority,enabled:true});
   if (!resp) return;
   if (resp.status===201) {
