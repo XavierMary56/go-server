@@ -10,6 +10,8 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/XavierMary56/automatic_review/go-server/internal/admin"
+	"github.com/XavierMary56/automatic_review/go-server/internal/audit"
 	"github.com/XavierMary56/automatic_review/go-server/internal/config"
 	"github.com/XavierMary56/automatic_review/go-server/internal/handler"
 	"github.com/XavierMary56/automatic_review/go-server/internal/logger"
@@ -38,6 +40,13 @@ func main() {
 	mux := http.NewServeMux()
 	h := handler.New(svc, lg, cfg)
 	h.RegisterRoutes(mux)
+
+	// 注册 Admin 路由
+	if cfg.EnableAdminAPI {
+		auditLogger := audit.New(cfg.AuditLogDir, cfg.EnableAudit)
+		adminHandler := admin.New(cfg, lg, auditLogger)
+		adminHandler.RegisterRoutes(mux)
+	}
 
 	// 启动 HTTP 服务器
 	srv := &http.Server{

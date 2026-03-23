@@ -79,6 +79,9 @@ func (ah *AdminHandler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/v1/admin/projects", ah.withAdminAuth(ah.handleListProjects))
 	mux.HandleFunc("/v1/admin/projects/logs", ah.withAdminAuth(ah.handleProjectLogs))
 	mux.HandleFunc("/v1/admin/projects/stats", ah.withAdminAuth(ah.handleProjectStats))
+
+	// Web UI
+	ah.registerWebUI(mux)
 }
 
 // ── 中间件 ────────────────────────────────────────
