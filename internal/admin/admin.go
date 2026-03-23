@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 	"sync"
@@ -47,6 +48,8 @@ type AddKeyRequest struct {
 
 // UpdateKeyRequest 更新密钥请求
 type UpdateKeyRequest struct {
+	ProjectID *string `json:"project_id,omitempty"`
+	Key       *string `json:"key,omitempty"`
 	RateLimit *int  `json:"rate_limit,omitempty"`
 	Enabled   *bool `json:"enabled,omitempty"`
 }
@@ -80,8 +83,8 @@ func New(cfg *config.Config, log *logger.Logger, auditLogger *audit.AuditLogger,
 // RegisterRoutes 注册管理路由
 func (ah *AdminHandler) RegisterRoutes(mux *http.ServeMux) {
 	// 所有管理端点都需要身份验证
-	mux.HandleFunc("/v1/admin/keys", ah.withAdminAuth(ah.handleKeys))
-	mux.HandleFunc("/v1/admin/keys/", ah.withAdminAuth(ah.handleKeyDetail))
+	mux.HandleFunc("/v1/admin/keys", ah.withAdminAuth(ah.handleProjectKeys))
+	mux.HandleFunc("/v1/admin/keys/", ah.withAdminAuth(ah.handleProjectKeyDetail))
 	mux.HandleFunc("/v1/admin/health", ah.handleAdminHealth)
 
 	// 日志和审计相关的管理端点
@@ -157,7 +160,11 @@ func (ah *AdminHandler) handleKeyDetail(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	key := parts[4]
+	key, err := url.PathUnescape(parts[4])
+	if err != nil {
+		ah.jsonError(w, http.StatusBadRequest, "瀵嗛挜鏍煎紡鏃犳晥")
+		return
+	}
 	switch r.Method {
 	case http.MethodGet:
 		ah.getKey(w, r, key)
