@@ -3,7 +3,9 @@ package admin
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -11,6 +13,7 @@ import (
 	"github.com/XavierMary56/automatic_review/go-server/internal/audit"
 	"github.com/XavierMary56/automatic_review/go-server/internal/config"
 	"github.com/XavierMary56/automatic_review/go-server/internal/logger"
+	"github.com/XavierMary56/automatic_review/go-server/internal/storage"
 )
 
 // AdminHandler 管理 API 处理器
@@ -18,6 +21,7 @@ type AdminHandler struct {
 	cfg         *config.Config
 	log         *logger.Logger
 	auditLogger *audit.AuditLogger
+	db          *storage.DB
 	keysMu      sync.RWMutex
 	keys        map[string]*KeyInfo // 内存中的密钥管理
 }
@@ -54,16 +58,21 @@ type ListKeysResponse struct {
 }
 
 // New 创建管理处理器
-func New(cfg *config.Config, log *logger.Logger, auditLogger *audit.AuditLogger) *AdminHandler {
+func New(cfg *config.Config, log *logger.Logger, auditLogger *audit.AuditLogger, db *storage.DB) *AdminHandler {
 	handler := &AdminHandler{
 		cfg:         cfg,
 		log:         log,
 		auditLogger: auditLogger,
+		db:          db,
 		keys:        make(map[string]*KeyInfo),
 	}
 
-	// 从环境变量加载初始密钥
-	handler.loadKeysFromEnv()
+	// 优先从数据库加载密钥，否则从环境变量导入
+	if db != nil {
+		handler.loadKeysFromDB()
+	} else {
+		handler.loadKeysFromEnv()
+	}
 
 	return handler
 }
@@ -79,6 +88,15 @@ func (ah *AdminHandler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/v1/admin/projects", ah.withAdminAuth(ah.handleListProjects))
 	mux.HandleFunc("/v1/admin/projects/logs", ah.withAdminAuth(ah.handleProjectLogs))
 	mux.HandleFunc("/v1/admin/projects/stats", ah.withAdminAuth(ah.handleProjectStats))
+
+	// Anthropic Keys 管理
+	mux.HandleFunc("/v1/admin/anthropic-keys", ah.withAdminAuth(ah.handleAnthropicKeys))
+	mux.HandleFunc("/v1/admin/anthropic-keys/", ah.withAdminAuth(ah.handleAnthropicKeyDetail))
+	mux.HandleFunc("/v1/admin/anthropic-keys/verify", ah.withAdminAuth(ah.handleVerifyAnthropicKey))
+
+	// 模型管理
+	mux.HandleFunc("/v1/admin/models", ah.withAdminAuth(ah.handleModels))
+	mux.HandleFunc("/v1/admin/models/", ah.withAdminAuth(ah.handleModelDetail))
 
 	// Web UI
 	ah.registerWebUI(mux)
@@ -465,4 +483,275 @@ func (ah *AdminHandler) GetAllowedKeys() []string {
 		keys = append(keys, entry)
 	}
 	return keys
+}
+
+// loadKeysFromDB 从数据库加载密钥到内存
+func (ah *AdminHandler) loadKeysFromDB() {
+	keys, err := ah.db.ListProjectKeys()
+	if err != nil {
+		ah.log.Error("从数据库加载密钥失败: " + err.Error())
+		ah.loadKeysFromEnv()
+		return
+	}
+
+	// 如果数据库为空，从环境变量导入
+	if len(keys) == 0 {
+		ah.loadKeysFromEnv()
+		// 将 env 里的 key 写入数据库
+		ah.keysMu.RLock()
+		defer ah.keysMu.RUnlock()
+		for _, k := range ah.keys {
+			ah.db.AddProjectKey(k.ProjectID, k.Key, k.RateLimit)
+		}
+		return
+	}
+
+	ah.keysMu.Lock()
+	defer ah.keysMu.Unlock()
+	for _, k := range keys {
+		ah.keys[k.Key] = &KeyInfo{
+			ProjectID: k.ProjectID,
+			Key:       k.Key,
+			RateLimit: k.RateLimit,
+			Enabled:   k.Enabled,
+			CreatedAt: k.CreatedAt,
+			UpdatedAt: k.UpdatedAt,
+		}
+	}
+}
+
+// ── Anthropic Keys 管理 ───────────────────────────────────
+
+func (ah *AdminHandler) handleAnthropicKeys(w http.ResponseWriter, r *http.Request) {
+	if ah.db == nil {
+		ah.jsonError(w, http.StatusServiceUnavailable, "数据库未初始化")
+		return
+	}
+	switch r.Method {
+	case http.MethodGet:
+		keys, err := ah.db.ListAnthropicKeys()
+		if err != nil {
+			ah.jsonError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		// 脱敏显示
+		type safeKey struct {
+			ID          int64      `json:"id"`
+			Name        string     `json:"name"`
+			KeyMasked   string     `json:"key_masked"`
+			Enabled     bool       `json:"enabled"`
+			UsageCount  int64      `json:"usage_count"`
+			LastUsedAt  *time.Time `json:"last_used_at"`
+			CreatedAt   time.Time  `json:"created_at"`
+		}
+		var safe []safeKey
+		for _, k := range keys {
+			safe = append(safe, safeKey{
+				ID:         k.ID,
+				Name:       k.Name,
+				KeyMasked:  ah.maskKey(k.Key),
+				Enabled:    k.Enabled,
+				UsageCount: k.UsageCount,
+				LastUsedAt: k.LastUsedAt,
+				CreatedAt:  k.CreatedAt,
+			})
+		}
+		if safe == nil {
+			safe = []safeKey{}
+		}
+		ah.jsonOK(w, http.StatusOK, map[string]interface{}{"code": 200, "data": safe})
+
+	case http.MethodPost:
+		var req struct {
+			Name string `json:"name"`
+			Key  string `json:"key"`
+		}
+		body, _ := io.ReadAll(r.Body)
+		json.Unmarshal(body, &req)
+		if req.Name == "" || req.Key == "" {
+			ah.jsonError(w, http.StatusBadRequest, "名称和 Key 不能为空")
+			return
+		}
+		k, err := ah.db.AddAnthropicKey(req.Name, req.Key)
+		if err != nil {
+			ah.jsonError(w, http.StatusConflict, "Key 已存在或保存失败: "+err.Error())
+			return
+		}
+		ah.jsonOK(w, http.StatusCreated, map[string]interface{}{"code": 201, "data": k})
+	default:
+		ah.jsonError(w, http.StatusMethodNotAllowed, "方法不允许")
+	}
+}
+
+func (ah *AdminHandler) handleAnthropicKeyDetail(w http.ResponseWriter, r *http.Request) {
+	if ah.db == nil {
+		ah.jsonError(w, http.StatusServiceUnavailable, "数据库未初始化")
+		return
+	}
+	// 提取 ID
+	parts := strings.Split(strings.TrimSuffix(r.URL.Path, "/verify"), "/")
+	idStr := parts[len(parts)-1]
+	id, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil {
+		ah.jsonError(w, http.StatusBadRequest, "无效的 ID")
+		return
+	}
+
+	switch r.Method {
+	case http.MethodPut:
+		var req struct {
+			Enabled bool `json:"enabled"`
+		}
+		body, _ := io.ReadAll(r.Body)
+		json.Unmarshal(body, &req)
+		if err := ah.db.UpdateAnthropicKey(id, req.Enabled); err != nil {
+			ah.jsonError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		ah.jsonOK(w, http.StatusOK, map[string]interface{}{"code": 200, "message": "已更新"})
+	case http.MethodDelete:
+		if err := ah.db.DeleteAnthropicKey(id); err != nil {
+			ah.jsonError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		ah.jsonOK(w, http.StatusOK, map[string]interface{}{"code": 200, "message": "已删除"})
+	default:
+		ah.jsonError(w, http.StatusMethodNotAllowed, "方法不允许")
+	}
+}
+
+// handleVerifyAnthropicKey 验证 Anthropic Key 是否有效（通过 ID 从 DB 取真实 Key）
+func (ah *AdminHandler) handleVerifyAnthropicKey(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		ah.jsonError(w, http.StatusMethodNotAllowed, "方法不允许")
+		return
+	}
+	var req struct {
+		ID int64 `json:"id"`
+	}
+	body, _ := io.ReadAll(r.Body)
+	json.Unmarshal(body, &req)
+	if req.ID == 0 {
+		ah.jsonError(w, http.StatusBadRequest, "ID 不能为空")
+		return
+	}
+
+	keys, err := ah.db.ListAnthropicKeys()
+	if err != nil {
+		ah.jsonError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	var actualKey string
+	for _, k := range keys {
+		if k.ID == req.ID {
+			actualKey = k.Key
+			break
+		}
+	}
+	if actualKey == "" {
+		ah.jsonError(w, http.StatusNotFound, "Key 不存在")
+		return
+	}
+
+	client := &http.Client{Timeout: 10 * time.Second}
+	payload := `{"model":"claude-haiku-4-5-20251001","max_tokens":1,"messages":[{"role":"user","content":"hi"}]}`
+	httpReq, _ := http.NewRequest("POST", "https://api.anthropic.com/v1/messages", strings.NewReader(payload))
+	httpReq.Header.Set("x-api-key", actualKey)
+	httpReq.Header.Set("anthropic-version", "2023-06-01")
+	httpReq.Header.Set("content-type", "application/json")
+
+	resp, err := client.Do(httpReq)
+	if err != nil {
+		ah.jsonOK(w, http.StatusOK, map[string]interface{}{"code": 200, "valid": false, "reason": "网络错误: " + err.Error()})
+		return
+	}
+	defer resp.Body.Close()
+
+	valid := resp.StatusCode != 401 && resp.StatusCode != 403
+	reason := "验证通过"
+	if !valid {
+		reason = "Key 无效或已过期"
+	}
+	ah.jsonOK(w, http.StatusOK, map[string]interface{}{"code": 200, "valid": valid, "reason": reason})
+}
+
+// ── 模型管理 ─────────────────────────────────────────────
+
+func (ah *AdminHandler) handleModels(w http.ResponseWriter, r *http.Request) {
+	if ah.db == nil {
+		ah.jsonError(w, http.StatusServiceUnavailable, "数据库未初始化")
+		return
+	}
+	switch r.Method {
+	case http.MethodGet:
+		models, err := ah.db.ListModels()
+		if err != nil {
+			ah.jsonError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		if models == nil {
+			models = []*storage.ModelConfig{}
+		}
+		ah.jsonOK(w, http.StatusOK, map[string]interface{}{"code": 200, "data": models})
+
+	case http.MethodPost:
+		var req struct {
+			ModelID  string `json:"model_id"`
+			Name     string `json:"name"`
+			Weight   int    `json:"weight"`
+			Priority int    `json:"priority"`
+			Enabled  bool   `json:"enabled"`
+		}
+		body, _ := io.ReadAll(r.Body)
+		json.Unmarshal(body, &req)
+		if req.ModelID == "" || req.Name == "" {
+			ah.jsonError(w, http.StatusBadRequest, "模型 ID 和名称不能为空")
+			return
+		}
+		if req.Weight <= 0 {
+			req.Weight = 50
+		}
+		if req.Priority <= 0 {
+			req.Priority = 1
+		}
+		if err := ah.db.UpsertModel(req.ModelID, req.Name, req.Weight, req.Priority, req.Enabled); err != nil {
+			ah.jsonError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		ah.jsonOK(w, http.StatusCreated, map[string]interface{}{"code": 201, "message": "模型已保存"})
+	default:
+		ah.jsonError(w, http.StatusMethodNotAllowed, "方法不允许")
+	}
+}
+
+func (ah *AdminHandler) handleModelDetail(w http.ResponseWriter, r *http.Request) {
+	if ah.db == nil {
+		ah.jsonError(w, http.StatusServiceUnavailable, "数据库未初始化")
+		return
+	}
+	parts := strings.Split(r.URL.Path, "/")
+	idStr := parts[len(parts)-1]
+	id, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil {
+		ah.jsonError(w, http.StatusBadRequest, "无效的 ID")
+		return
+	}
+
+	switch r.Method {
+	case http.MethodPut:
+		var req struct {
+			Weight   *int  `json:"weight,omitempty"`
+			Priority *int  `json:"priority,omitempty"`
+			Enabled  *bool `json:"enabled,omitempty"`
+		}
+		body, _ := io.ReadAll(r.Body)
+		json.Unmarshal(body, &req)
+		ah.db.UpdateModel(id, req.Weight, req.Priority, req.Enabled)
+		ah.jsonOK(w, http.StatusOK, map[string]interface{}{"code": 200, "message": "已更新"})
+	case http.MethodDelete:
+		ah.db.DeleteModel(id)
+		ah.jsonOK(w, http.StatusOK, map[string]interface{}{"code": 200, "message": "已删除"})
+	default:
+		ah.jsonError(w, http.StatusMethodNotAllowed, "方法不允许")
+	}
 }

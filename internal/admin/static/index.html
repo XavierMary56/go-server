@@ -13,92 +13,64 @@
     display: flex; align-items: center; justify-content: center; min-height: 100vh;
     background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
   }
-  .login-box {
-    background: #fff; border-radius: 16px; padding: 48px 40px; width: 400px;
-    box-shadow: 0 20px 60px rgba(0,0,0,0.3);
-  }
+  .login-box { background: #fff; border-radius: 16px; padding: 48px 40px; width: 400px; box-shadow: 0 20px 60px rgba(0,0,0,0.3); }
   .login-logo { text-align: center; margin-bottom: 32px; }
   .login-logo .icon { font-size: 48px; }
   .login-logo h1 { font-size: 22px; font-weight: 700; color: #1a1a2e; margin-top: 12px; }
   .login-logo p { font-size: 13px; color: #888; margin-top: 4px; }
   .form-group { margin-bottom: 20px; }
   .form-group label { display: block; font-size: 13px; font-weight: 600; color: #555; margin-bottom: 8px; }
-  .form-group input {
-    width: 100%; padding: 12px 16px; border: 1.5px solid #e0e0e0; border-radius: 8px;
-    font-size: 14px; outline: none; transition: border-color 0.2s;
+  .form-group input, .form-group select {
+    width: 100%; padding: 10px 14px; border: 1.5px solid #e0e0e0; border-radius: 8px;
+    font-size: 14px; outline: none; transition: border-color 0.2s; background: #fff;
   }
-  .form-group input:focus { border-color: #4f46e5; }
-  .btn-login {
-    width: 100%; padding: 13px; background: #4f46e5; color: #fff; border: none;
-    border-radius: 8px; font-size: 15px; font-weight: 600; cursor: pointer; transition: background 0.2s;
-  }
+  .form-group input:focus, .form-group select:focus { border-color: #4f46e5; }
+  .btn-login { width: 100%; padding: 13px; background: #4f46e5; color: #fff; border: none; border-radius: 8px; font-size: 15px; font-weight: 600; cursor: pointer; transition: background 0.2s; }
   .btn-login:hover { background: #4338ca; }
   .btn-login:disabled { background: #a5b4fc; cursor: not-allowed; }
-  .login-error {
-    background: #fef2f2; border: 1px solid #fecaca; color: #dc2626;
-    padding: 10px 14px; border-radius: 8px; font-size: 13px; margin-bottom: 16px; display: none;
-  }
+  .login-error { background: #fef2f2; border: 1px solid #fecaca; color: #dc2626; padding: 10px 14px; border-radius: 8px; font-size: 13px; margin-bottom: 16px; display: none; }
 
   /* ── 主界面 ── */
   #dashboard { display: none; }
-  .topbar {
-    background: #1a1a2e; color: #fff; padding: 0 32px; height: 60px;
-    display: flex; align-items: center; justify-content: space-between;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.2);
-  }
+  .topbar { background: #1a1a2e; color: #fff; padding: 0 32px; height: 60px; display: flex; align-items: center; justify-content: space-between; box-shadow: 0 2px 8px rgba(0,0,0,0.2); }
   .topbar-brand { display: flex; align-items: center; gap: 10px; font-size: 16px; font-weight: 700; }
   .topbar-brand .dot { width: 8px; height: 8px; background: #22c55e; border-radius: 50%; }
   .topbar-right { display: flex; align-items: center; gap: 16px; }
   .topbar-user { font-size: 13px; color: #94a3b8; }
-  .btn-logout {
-    padding: 6px 16px; background: transparent; color: #94a3b8; border: 1px solid #334155;
-    border-radius: 6px; font-size: 13px; cursor: pointer; transition: all 0.2s;
-  }
+  .btn-logout { padding: 6px 16px; background: transparent; color: #94a3b8; border: 1px solid #334155; border-radius: 6px; font-size: 13px; cursor: pointer; transition: all 0.2s; }
   .btn-logout:hover { background: #334155; color: #fff; }
 
-  .main-content { max-width: 1100px; margin: 32px auto; padding: 0 24px; }
+  .main-content { max-width: 1200px; margin: 32px auto; padding: 0 24px; }
 
   /* ── Tabs ── */
-  .tabs { display: flex; gap: 4px; margin-bottom: 24px; background: #fff; padding: 6px; border-radius: 10px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); width: fit-content; }
-  .tab-btn {
-    padding: 8px 24px; border: none; background: transparent; border-radius: 7px;
-    font-size: 14px; font-weight: 500; color: #64748b; cursor: pointer; transition: all 0.2s;
-  }
+  .tabs { display: flex; gap: 4px; margin-bottom: 24px; background: #fff; padding: 6px; border-radius: 10px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); width: fit-content; flex-wrap: wrap; }
+  .tab-btn { padding: 8px 20px; border: none; background: transparent; border-radius: 7px; font-size: 14px; font-weight: 500; color: #64748b; cursor: pointer; transition: all 0.2s; white-space: nowrap; }
   .tab-btn.active { background: #4f46e5; color: #fff; }
   .tab-btn:hover:not(.active) { background: #f1f5f9; color: #1a1a2e; }
   .tab-panel { display: none; }
   .tab-panel.active { display: block; }
 
   /* ── Card ── */
-  .card { background: #fff; border-radius: 12px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); overflow: hidden; }
-  .card-header {
-    padding: 20px 24px; display: flex; align-items: center; justify-content: space-between;
-    border-bottom: 1px solid #f1f5f9;
-  }
+  .card { background: #fff; border-radius: 12px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); overflow: hidden; margin-bottom: 20px; }
+  .card-header { padding: 20px 24px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #f1f5f9; }
   .card-header h2 { font-size: 16px; font-weight: 700; color: #1a1a2e; }
-  .card-header span { font-size: 13px; color: #94a3b8; }
+  .card-header .sub { font-size: 13px; color: #94a3b8; margin-top: 2px; }
 
   /* ── 添加表单 ── */
-  .add-form {
-    padding: 20px 24px; background: #f8fafc; border-bottom: 1px solid #f1f5f9; display: none;
-  }
+  .add-form { padding: 20px 24px; background: #f8fafc; border-bottom: 1px solid #f1f5f9; display: none; }
   .add-form.show { display: block; }
   .add-form-title { font-size: 14px; font-weight: 600; color: #334155; margin-bottom: 16px; }
-  .add-form-grid { display: grid; grid-template-columns: 1fr 1fr 160px; gap: 12px; align-items: end; }
+  .form-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .form-grid-3 { display: grid; grid-template-columns: 1fr 1fr 150px; gap: 12px; align-items: end; }
+  .form-grid-4 { display: grid; grid-template-columns: 1fr 1fr 100px 100px; gap: 12px; align-items: end; }
   .add-form-grid .form-group { margin-bottom: 0; }
-  .add-form-grid label { font-size: 12px; font-weight: 600; color: #64748b; margin-bottom: 6px; }
-  .add-form-grid input {
-    width: 100%; padding: 9px 12px; border: 1.5px solid #e2e8f0; border-radius: 7px;
-    font-size: 13px; outline: none; transition: border-color 0.2s;
-  }
-  .add-form-grid input:focus { border-color: #4f46e5; }
+  .add-form-grid label, .form-grid-2 label, .form-grid-3 label, .form-grid-4 label { font-size: 12px; font-weight: 600; color: #64748b; margin-bottom: 6px; display: block; }
+  .add-form-grid input, .form-grid-2 input, .form-grid-3 input, .form-grid-4 input { width: 100%; padding: 9px 12px; border: 1.5px solid #e2e8f0; border-radius: 7px; font-size: 13px; outline: none; transition: border-color 0.2s; }
+  .add-form-grid input:focus, .form-grid-2 input:focus, .form-grid-3 input:focus, .form-grid-4 input:focus { border-color: #4f46e5; }
   .add-form-actions { display: flex; gap: 8px; margin-top: 16px; }
 
   /* ── Buttons ── */
-  .btn {
-    padding: 8px 18px; border: none; border-radius: 7px; font-size: 13px;
-    font-weight: 600; cursor: pointer; transition: all 0.2s; display: inline-flex; align-items: center; gap: 6px;
-  }
+  .btn { padding: 8px 18px; border: none; border-radius: 7px; font-size: 13px; font-weight: 600; cursor: pointer; transition: all 0.2s; display: inline-flex; align-items: center; gap: 6px; }
   .btn-primary { background: #4f46e5; color: #fff; }
   .btn-primary:hover { background: #4338ca; }
   .btn-success { background: #22c55e; color: #fff; }
@@ -107,6 +79,8 @@
   .btn-danger:hover { background: #dc2626; }
   .btn-warning { background: #f59e0b; color: #fff; }
   .btn-warning:hover { background: #d97706; }
+  .btn-info { background: #0ea5e9; color: #fff; }
+  .btn-info:hover { background: #0284c7; }
   .btn-ghost { background: transparent; color: #64748b; border: 1px solid #e2e8f0; }
   .btn-ghost:hover { background: #f1f5f9; }
   .btn-sm { padding: 5px 12px; font-size: 12px; }
@@ -115,49 +89,59 @@
   .table-wrap { overflow-x: auto; }
   table { width: 100%; border-collapse: collapse; font-size: 13px; }
   thead tr { background: #f8fafc; }
-  th { padding: 12px 16px; text-align: left; font-size: 12px; font-weight: 600; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; }
-  td { padding: 14px 16px; border-top: 1px solid #f1f5f9; color: #334155; }
+  th { padding: 12px 16px; text-align: left; font-size: 12px; font-weight: 600; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; white-space: nowrap; }
+  td { padding: 13px 16px; border-top: 1px solid #f1f5f9; color: #334155; }
   tr:hover td { background: #fafbff; }
   .key-cell { font-family: monospace; font-size: 12px; color: #7c3aed; background: #f5f3ff; padding: 3px 8px; border-radius: 4px; }
-  .badge {
-    display: inline-flex; align-items: center; gap: 5px; padding: 3px 10px;
-    border-radius: 20px; font-size: 12px; font-weight: 600;
-  }
+  .model-id-cell { font-family: monospace; font-size: 12px; color: #0369a1; background: #e0f2fe; padding: 3px 8px; border-radius: 4px; }
+  .badge { display: inline-flex; align-items: center; gap: 5px; padding: 3px 10px; border-radius: 20px; font-size: 12px; font-weight: 600; }
   .badge-active { background: #dcfce7; color: #166534; }
   .badge-inactive { background: #f1f5f9; color: #64748b; }
-  .actions { display: flex; gap: 6px; }
+  .badge-valid { background: #dcfce7; color: #166534; }
+  .badge-invalid { background: #fef2f2; color: #dc2626; }
+  .badge-checking { background: #fef9c3; color: #854d0e; }
+  .actions { display: flex; gap: 6px; flex-wrap: wrap; }
   .empty-row td { text-align: center; padding: 48px 16px; color: #94a3b8; }
 
-  /* ── Stats cards ── */
-  .stats-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 16px; margin-bottom: 24px; }
+  /* ── Stats ── */
+  .stats-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 16px; margin-bottom: 24px; }
   .stat-card { background: #fff; border-radius: 12px; padding: 20px 24px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); }
   .stat-card .label { font-size: 12px; font-weight: 600; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 8px; }
   .stat-card .value { font-size: 28px; font-weight: 700; color: #1a1a2e; }
   .stat-card .sub { font-size: 12px; color: #94a3b8; margin-top: 4px; }
 
+  /* ── Progress bar ── */
+  .weight-bar { display: flex; align-items: center; gap: 8px; }
+  .weight-bar-inner { flex: 1; height: 6px; background: #e2e8f0; border-radius: 3px; overflow: hidden; }
+  .weight-bar-fill { height: 100%; background: #4f46e5; border-radius: 3px; transition: width 0.3s; }
+
   /* ── Toast ── */
   .toast-wrap { position: fixed; top: 20px; right: 20px; z-index: 9999; display: flex; flex-direction: column; gap: 8px; }
-  .toast {
-    padding: 12px 20px; border-radius: 8px; font-size: 13px; font-weight: 500;
-    box-shadow: 0 4px 16px rgba(0,0,0,0.15); animation: slideIn 0.2s ease;
-    max-width: 320px;
-  }
+  .toast { padding: 12px 20px; border-radius: 8px; font-size: 13px; font-weight: 500; box-shadow: 0 4px 16px rgba(0,0,0,0.15); animation: slideIn 0.2s ease; max-width: 320px; }
   .toast-success { background: #22c55e; color: #fff; }
   .toast-error { background: #ef4444; color: #fff; }
+  .toast-info { background: #4f46e5; color: #fff; }
   @keyframes slideIn { from { opacity: 0; transform: translateX(20px); } to { opacity: 1; transform: translateX(0); } }
 
   /* ── Loading ── */
   .loading { text-align: center; padding: 48px; color: #94a3b8; font-size: 14px; }
-  .spinner { display: inline-block; width: 24px; height: 24px; border: 3px solid #e2e8f0; border-top-color: #4f46e5; border-radius: 50%; animation: spin 0.6s linear infinite; margin-right: 8px; vertical-align: middle; }
+  .spinner { display: inline-block; width: 18px; height: 18px; border: 2px solid #e2e8f0; border-top-color: #4f46e5; border-radius: 50%; animation: spin 0.6s linear infinite; margin-right: 6px; vertical-align: middle; }
   @keyframes spin { to { transform: rotate(360deg); } }
 
   /* ── Modal ── */
   .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 1000; display: none; align-items: center; justify-content: center; }
   .modal-overlay.show { display: flex; }
-  .modal { background: #fff; border-radius: 12px; padding: 32px; width: 400px; box-shadow: 0 20px 60px rgba(0,0,0,0.2); }
+  .modal { background: #fff; border-radius: 12px; padding: 32px; width: 420px; box-shadow: 0 20px 60px rgba(0,0,0,0.2); }
   .modal h3 { font-size: 16px; font-weight: 700; margin-bottom: 12px; }
   .modal p { font-size: 14px; color: #64748b; margin-bottom: 24px; }
   .modal-actions { display: flex; gap: 10px; justify-content: flex-end; }
+
+  /* ── Usage bar ── */
+  .usage-num { font-variant-numeric: tabular-nums; }
+
+  /* inline edit */
+  .inline-num { width: 70px; padding: 4px 8px; border: 1.5px solid #e2e8f0; border-radius: 5px; font-size: 12px; text-align: center; }
+  .inline-num:focus { border-color: #4f46e5; outline: none; }
 </style>
 </head>
 <body>
@@ -183,8 +167,7 @@
 <div id="dashboard">
   <div class="topbar">
     <div class="topbar-brand">
-      <span>🛡️</span>
-      <span>审核服务管理后台</span>
+      <span>🛡️</span><span>审核服务管理后台</span>
       <div class="dot"></div>
     </div>
     <div class="topbar-right">
@@ -195,65 +178,103 @@
 
   <div class="main-content">
     <div class="tabs">
-      <button class="tab-btn active" onclick="switchTab('keys', this)">🔑 密钥管理</button>
-      <button class="tab-btn" onclick="switchTab('stats', this)">📊 项目统计</button>
+      <button class="tab-btn active" onclick="switchTab('keys',this)">🔑 项目密钥</button>
+      <button class="tab-btn" onclick="switchTab('anthropic',this)">🤖 Anthropic Keys</button>
+      <button class="tab-btn" onclick="switchTab('models',this)">⚙️ 模型管理</button>
+      <button class="tab-btn" onclick="switchTab('stats',this)">📊 项目统计</button>
     </div>
 
-    <!-- 密钥管理 -->
+    <!-- ── Tab: 项目密钥 ── -->
     <div id="tab-keys" class="tab-panel active">
       <div class="card">
         <div class="card-header">
-          <div>
-            <h2>项目密钥管理</h2>
-            <span id="keys-count">加载中...</span>
-          </div>
-          <button class="btn btn-primary" onclick="toggleAddForm()">＋ 添加密钥</button>
+          <div><h2>项目密钥管理</h2><div class="sub" id="keys-count">加载中...</div></div>
+          <button class="btn btn-primary" onclick="toggleAddForm('add-keys-form')">＋ 添加密钥</button>
         </div>
-
-        <!-- 添加表单 -->
-        <div class="add-form" id="add-form">
+        <div class="add-form" id="add-keys-form">
           <div class="add-form-title">添加新项目密钥</div>
-          <div class="add-form-grid">
-            <div class="form-group">
-              <label>项目 ID</label>
-              <input type="text" id="new-project-id" placeholder="如：forum_service" />
-            </div>
-            <div class="form-group">
-              <label>密钥（Key）</label>
-              <input type="text" id="new-key" placeholder="如：sk-proj-xxxxx" />
-            </div>
-            <div class="form-group">
-              <label>速率限制（次/分钟）</label>
-              <input type="number" id="new-rate" placeholder="60" min="1" />
-            </div>
+          <div class="form-grid-3 add-form-grid">
+            <div class="form-group"><label>项目 ID</label><input type="text" id="new-proj-id" placeholder="如：forum_service" /></div>
+            <div class="form-group"><label>密钥（Key）</label><input type="text" id="new-proj-key" placeholder="如：sk-proj-xxxxx" /></div>
+            <div class="form-group"><label>速率限制（次/分钟）</label><input type="number" id="new-proj-rate" placeholder="60" min="1" /></div>
           </div>
           <div class="add-form-actions">
-            <button class="btn btn-primary" onclick="addKey()">确认添加</button>
-            <button class="btn btn-ghost" onclick="toggleAddForm()">取消</button>
+            <button class="btn btn-primary" onclick="addProjectKey()">确认添加</button>
+            <button class="btn btn-ghost" onclick="toggleAddForm('add-keys-form')">取消</button>
           </div>
         </div>
-
         <div class="table-wrap">
           <table>
-            <thead>
-              <tr>
-                <th>项目 ID</th>
-                <th>密钥</th>
-                <th>速率限制</th>
-                <th>创建时间</th>
-                <th>状态</th>
-                <th>操作</th>
-              </tr>
-            </thead>
-            <tbody id="keys-table-body">
-              <tr class="empty-row"><td colspan="6"><span class="spinner"></span> 加载中...</td></tr>
-            </tbody>
+            <thead><tr><th>项目 ID</th><th>密钥</th><th>速率限制</th><th>创建时间</th><th>状态</th><th>操作</th></tr></thead>
+            <tbody id="keys-tbody"><tr class="empty-row"><td colspan="6"><span class="spinner"></span> 加载中...</td></tr></tbody>
           </table>
         </div>
       </div>
     </div>
 
-    <!-- 项目统计 -->
+    <!-- ── Tab: Anthropic Keys ── -->
+    <div id="tab-anthropic" class="tab-panel">
+      <div class="card">
+        <div class="card-header">
+          <div>
+            <h2>Anthropic API Key 管理</h2>
+            <div class="sub">多个 Key 按用量最少优先分配，实现负载均衡</div>
+          </div>
+          <button class="btn btn-primary" onclick="toggleAddForm('add-ak-form')">＋ 添加 Key</button>
+        </div>
+        <div class="add-form" id="add-ak-form">
+          <div class="add-form-title">添加 Anthropic API Key</div>
+          <div class="form-grid-2 add-form-grid">
+            <div class="form-group"><label>备注名称</label><input type="text" id="new-ak-name" placeholder="如：主账号Key / 备用Key" /></div>
+            <div class="form-group"><label>API Key</label><input type="text" id="new-ak-key" placeholder="sk-ant-api03-..." /></div>
+          </div>
+          <div class="add-form-actions">
+            <button class="btn btn-primary" onclick="addAnthropicKey()">确认添加</button>
+            <button class="btn btn-ghost" onclick="toggleAddForm('add-ak-form')">取消</button>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>备注名称</th><th>Key（脱敏）</th><th>用量（次）</th><th>最后使用</th><th>有效性</th><th>状态</th><th>操作</th></tr></thead>
+            <tbody id="ak-tbody"><tr class="empty-row"><td colspan="7">加载中...</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Tab: 模型管理 ── -->
+    <div id="tab-models" class="tab-panel">
+      <div class="card">
+        <div class="card-header">
+          <div>
+            <h2>模型配置管理</h2>
+            <div class="sub">Weight 权重决定调度比例，Priority 越小越优先做故障转移</div>
+          </div>
+          <button class="btn btn-primary" onclick="toggleAddForm('add-model-form')">＋ 添加模型</button>
+        </div>
+        <div class="add-form" id="add-model-form">
+          <div class="add-form-title">添加模型</div>
+          <div class="form-grid-4 add-form-grid">
+            <div class="form-group"><label>模型 ID</label><input type="text" id="new-model-id" placeholder="claude-sonnet-4-20250514" /></div>
+            <div class="form-group"><label>显示名称</label><input type="text" id="new-model-name" placeholder="Claude Sonnet 4" /></div>
+            <div class="form-group"><label>权重 (1-100)</label><input type="number" id="new-model-weight" value="50" min="1" max="100" /></div>
+            <div class="form-group"><label>优先级 (1=最高)</label><input type="number" id="new-model-priority" value="1" min="1" /></div>
+          </div>
+          <div class="add-form-actions">
+            <button class="btn btn-primary" onclick="addModel()">确认添加</button>
+            <button class="btn btn-ghost" onclick="toggleAddForm('add-model-form')">取消</button>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>模型 ID</th><th>显示名称</th><th>权重</th><th>优先级</th><th>状态</th><th>操作</th></tr></thead>
+            <tbody id="models-tbody"><tr class="empty-row"><td colspan="6">加载中...</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Tab: 项目统计 ── -->
     <div id="tab-stats" class="tab-panel">
       <div class="stats-grid" id="stats-summary"></div>
       <div class="card">
@@ -263,19 +284,8 @@
         </div>
         <div class="table-wrap">
           <table>
-            <thead>
-              <tr>
-                <th>项目 ID</th>
-                <th>API 调用</th>
-                <th>认证次数</th>
-                <th>限流次数</th>
-                <th>错误次数</th>
-                <th>日志大小</th>
-              </tr>
-            </thead>
-            <tbody id="stats-table-body">
-              <tr class="empty-row"><td colspan="6">请切换到此标签查看统计</td></tr>
-            </tbody>
+            <thead><tr><th>项目 ID</th><th>API 调用</th><th>认证次数</th><th>限流次数</th><th>错误次数</th><th>日志大小</th></tr></thead>
+            <tbody id="stats-tbody"><tr class="empty-row"><td colspan="6">请切换到此标签查看统计</td></tr></tbody>
           </table>
         </div>
       </div>
@@ -283,37 +293,27 @@
   </div>
 </div>
 
-<!-- Toast -->
 <div class="toast-wrap" id="toast-wrap"></div>
 
 <!-- 确认删除 Modal -->
 <div class="modal-overlay" id="delete-modal">
   <div class="modal">
     <h3>⚠️ 确认删除</h3>
-    <p id="delete-modal-msg">确定要删除此密钥吗？此操作不可恢复。</p>
+    <p id="delete-modal-msg"></p>
     <div class="modal-actions">
-      <button class="btn btn-ghost" onclick="closeDeleteModal()">取消</button>
+      <button class="btn btn-ghost" onclick="closeModal('delete-modal')">取消</button>
       <button class="btn btn-danger" id="delete-confirm-btn">确认删除</button>
     </div>
   </div>
 </div>
 
 <script>
-// ── 状态 ──────────────────────────────────────────────
-let keysData = {}; // { maskedKey -> KeyInfo }
-
-// ── 工具函数 ──────────────────────────────────────────
-function getToken() { return sessionStorage.getItem('adminToken'); }
+// ── 工具 ──────────────────────────────────────────────
+const getToken = () => sessionStorage.getItem('adminToken');
 
 async function api(method, path, body) {
-  const opts = {
-    method,
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': 'Bearer ' + getToken()
-    }
-  };
-  if (body) opts.body = JSON.stringify(body);
+  const opts = { method, headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + getToken() } };
+  if (body !== undefined) opts.body = JSON.stringify(body);
   const resp = await fetch(path, opts);
   if (resp.status === 401) { logout(); return null; }
   return resp;
@@ -333,48 +333,45 @@ function formatDate(iso) {
   return d.toLocaleDateString('zh-CN') + ' ' + d.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
 }
 
-function formatBytes(bytes) {
-  if (!bytes) return '0 B';
-  if (bytes < 1024) return bytes + ' B';
-  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
-  return (bytes / 1024 / 1024).toFixed(1) + ' MB';
+function formatBytes(b) {
+  if (!b) return '0 B';
+  if (b < 1024) return b + ' B';
+  if (b < 1048576) return (b/1024).toFixed(1) + ' KB';
+  return (b/1048576).toFixed(1) + ' MB';
+}
+
+function toggleAddForm(id) {
+  const f = document.getElementById(id);
+  f.classList.toggle('show');
+}
+
+function closeModal(id) {
+  document.getElementById(id).classList.remove('show');
 }
 
 // ── 登录 ──────────────────────────────────────────────
-document.getElementById('token-input').addEventListener('keydown', e => {
-  if (e.key === 'Enter') login();
+document.addEventListener('DOMContentLoaded', () => {
+  document.getElementById('token-input').addEventListener('keydown', e => { if (e.key === 'Enter') login(); });
+  const token = getToken();
+  if (token) showDashboard();
 });
 
 async function login() {
   const token = document.getElementById('token-input').value.trim();
   if (!token) { showLoginError('请输入 Admin Token'); return; }
-
   const btn = document.getElementById('login-btn');
-  btn.disabled = true;
-  btn.textContent = '验证中...';
-
+  btn.disabled = true; btn.textContent = '验证中...';
   try {
-    const resp = await fetch('/v1/admin/keys', {
-      headers: { 'Authorization': 'Bearer ' + token }
-    });
-    if (resp.ok) {
-      sessionStorage.setItem('adminToken', token);
-      showDashboard();
-    } else {
-      showLoginError('Token 无效，请检查配置');
-    }
-  } catch (e) {
-    showLoginError('连接失败，请检查服务状态');
-  } finally {
-    btn.disabled = false;
-    btn.textContent = '登 录';
-  }
+    const resp = await fetch('/v1/admin/keys', { headers: { 'Authorization': 'Bearer ' + token } });
+    if (resp.ok) { sessionStorage.setItem('adminToken', token); showDashboard(); }
+    else showLoginError('Token 无效，请检查配置');
+  } catch { showLoginError('连接失败，请检查服务状态'); }
+  finally { btn.disabled = false; btn.textContent = '登 录'; }
 }
 
 function showLoginError(msg) {
   const el = document.getElementById('login-error');
-  el.textContent = msg;
-  el.style.display = 'block';
+  el.textContent = msg; el.style.display = 'block';
 }
 
 function logout() {
@@ -389,7 +386,7 @@ function showDashboard() {
   document.getElementById('login-page').style.display = 'none';
   document.getElementById('dashboard').style.display = 'block';
   document.getElementById('topbar-host').textContent = window.location.host;
-  loadKeys();
+  loadProjectKeys();
 }
 
 // ── Tabs ──────────────────────────────────────────────
@@ -399,206 +396,222 @@ function switchTab(name, btn) {
   document.getElementById('tab-' + name).classList.add('active');
   btn.classList.add('active');
   if (name === 'stats') loadStats();
+  if (name === 'anthropic') loadAnthropicKeys();
+  if (name === 'models') loadModels();
 }
 
-// ── 密钥管理 ──────────────────────────────────────────
-async function loadKeys() {
+// ── 项目密钥 ──────────────────────────────────────────
+async function loadProjectKeys() {
   const resp = await api('GET', '/v1/admin/keys');
   if (!resp) return;
   const json = await resp.json();
-  keysData = json.data || {};
-  renderKeys();
+  const data = json.data || {};
+  document.getElementById('keys-count').textContent = `共 ${Object.keys(data).length} 个密钥`;
+  const tbody = document.getElementById('keys-tbody');
+  const entries = Object.entries(data);
+  if (!entries.length) {
+    tbody.innerHTML = '<tr class="empty-row"><td colspan="6">暂无密钥</td></tr>'; return;
+  }
+  tbody.innerHTML = entries.map(([, info]) => `
+    <tr>
+      <td><strong>${info.project_id||'-'}</strong></td>
+      <td><span class="key-cell">${info.key||'-'}</span></td>
+      <td>${info.rate_limit ? info.rate_limit+' 次/分钟' : '无限制'}</td>
+      <td>${formatDate(info.created_at)}</td>
+      <td><span class="badge ${info.enabled?'badge-active':'badge-inactive'}">${info.enabled?'● 启用':'○ 停用'}</span></td>
+      <td><div class="actions">
+        <button class="btn btn-sm ${info.enabled?'btn-warning':'btn-success'}"
+          onclick="toggleProjectKey('${encodeURIComponent(info.key||'')}',${!info.enabled})">
+          ${info.enabled?'停用':'启用'}</button>
+        <button class="btn btn-sm btn-danger"
+          onclick="confirmDelete('/v1/admin/keys/${encodeURIComponent(info.key||'')}','项目 ${info.project_id} 的密钥',loadProjectKeys)">删除</button>
+      </div></td>
+    </tr>`).join('');
 }
 
-function renderKeys() {
-  const tbody = document.getElementById('keys-table-body');
-  const count = Object.keys(keysData).length;
-  document.getElementById('keys-count').textContent = `共 ${count} 个密钥`;
+async function addProjectKey() {
+  const pid = document.getElementById('new-proj-id').value.trim();
+  const key = document.getElementById('new-proj-key').value.trim();
+  const rate = parseInt(document.getElementById('new-proj-rate').value)||0;
+  if (!pid||!key) { toast('项目 ID 和密钥不能为空','error'); return; }
+  if (rate<=0) { toast('速率限制必须大于 0','error'); return; }
+  const resp = await api('POST','/v1/admin/keys',{project_id:pid,key,rate_limit:rate});
+  if (!resp) return;
+  if (resp.status===201) {
+    toast('密钥已添加');
+    ['new-proj-id','new-proj-key','new-proj-rate'].forEach(id=>document.getElementById(id).value='');
+    document.getElementById('add-keys-form').classList.remove('show');
+    loadProjectKeys();
+  } else { const j=await resp.json(); toast(j.error||'添加失败','error'); }
+}
 
-  if (count === 0) {
-    tbody.innerHTML = '<tr class="empty-row"><td colspan="6">暂无密钥，点击右上角"添加密钥"创建</td></tr>';
-    return;
-  }
+async function toggleProjectKey(enc, enable) {
+  const resp = await api('PUT','/v1/admin/keys/'+enc,{enabled:enable});
+  if (resp?.ok) { toast(enable?'已启用':'已停用'); loadProjectKeys(); }
+  else toast('操作失败','error');
+}
 
-  tbody.innerHTML = Object.entries(keysData).map(([maskedKey, info]) => `
+// ── Anthropic Keys ────────────────────────────────────
+let akData = [];
+
+async function loadAnthropicKeys() {
+  document.getElementById('ak-tbody').innerHTML = '<tr class="empty-row"><td colspan="7"><span class="spinner"></span> 加载中...</td></tr>';
+  const resp = await api('GET','/v1/admin/anthropic-keys');
+  if (!resp) return;
+  const json = await resp.json();
+  akData = json.data || [];
+  renderAnthropicKeys();
+}
+
+function renderAnthropicKeys() {
+  const tbody = document.getElementById('ak-tbody');
+  if (!akData.length) { tbody.innerHTML = '<tr class="empty-row"><td colspan="7">暂无 Key，点击右上角添加</td></tr>'; return; }
+  tbody.innerHTML = akData.map(k => `
+    <tr id="ak-row-${k.id}">
+      <td><strong>${k.name}</strong></td>
+      <td><span class="key-cell">${k.key_masked}</span></td>
+      <td><span class="usage-num">${(k.usage_count||0).toLocaleString()}</span></td>
+      <td>${formatDate(k.last_used_at)}</td>
+      <td id="ak-validity-${k.id}"><span class="badge badge-checking">未检测</span></td>
+      <td><span class="badge ${k.enabled?'badge-active':'badge-inactive'}">${k.enabled?'● 启用':'○ 停用'}</span></td>
+      <td><div class="actions">
+        <button class="btn btn-sm btn-info" onclick="verifyAK(${k.id})">验证</button>
+        <button class="btn btn-sm ${k.enabled?'btn-warning':'btn-success'}"
+          onclick="toggleAK(${k.id},${!k.enabled})">${k.enabled?'停用':'启用'}</button>
+        <button class="btn btn-sm btn-danger"
+          onclick="confirmDelete('/v1/admin/anthropic-keys/${k.id}','${k.name} 的 Key',loadAnthropicKeys)">删除</button>
+      </div></td>
+    </tr>`).join('');
+}
+
+async function addAnthropicKey() {
+  const name = document.getElementById('new-ak-name').value.trim();
+  const key = document.getElementById('new-ak-key').value.trim();
+  if (!name||!key) { toast('名称和 Key 不能为空','error'); return; }
+  const resp = await api('POST','/v1/admin/anthropic-keys',{name,key});
+  if (!resp) return;
+  if (resp.status===201) {
+    toast('Key 已添加');
+    ['new-ak-name','new-ak-key'].forEach(id=>document.getElementById(id).value='');
+    document.getElementById('add-ak-form').classList.remove('show');
+    loadAnthropicKeys();
+  } else { const j=await resp.json(); toast(j.error||'添加失败','error'); }
+}
+
+async function verifyAK(id) {
+  const row = akData.find(k=>k.id===id);
+  if (!row) return;
+  const cell = document.getElementById('ak-validity-'+id);
+  cell.innerHTML = '<span class="badge badge-checking"><span class="spinner"></span> 验证中...</span>';
+  // 需要传实际 key —— 但 listAnthropicKeys 只返回脱敏 key
+  // 用 verify endpoint，传 id 让后端查找
+  const resp = await api('POST','/v1/admin/anthropic-keys/verify',{id});
+  if (!resp) return;
+  const json = await resp.json();
+  if (json.valid) cell.innerHTML = '<span class="badge badge-valid">✓ 有效</span>';
+  else cell.innerHTML = `<span class="badge badge-invalid">✗ 无效</span>`;
+  toast(json.valid ? `"${row.name}" 验证通过` : `"${row.name}" 无效: ${json.reason}`, json.valid?'success':'error');
+}
+
+async function toggleAK(id, enable) {
+  const resp = await api('PUT','/v1/admin/anthropic-keys/'+id,{enabled:enable});
+  if (resp?.ok) { toast(enable?'已启用':'已停用'); loadAnthropicKeys(); }
+  else toast('操作失败','error');
+}
+
+// ── 模型管理 ──────────────────────────────────────────
+async function loadModels() {
+  document.getElementById('models-tbody').innerHTML = '<tr class="empty-row"><td colspan="6"><span class="spinner"></span> 加载中...</td></tr>';
+  const resp = await api('GET','/v1/admin/models');
+  if (!resp) return;
+  const json = await resp.json();
+  const models = json.data || [];
+  const tbody = document.getElementById('models-tbody');
+  if (!models.length) { tbody.innerHTML = '<tr class="empty-row"><td colspan="6">暂无模型配置</td></tr>'; return; }
+  const maxW = Math.max(...models.map(m=>m.weight||1), 1);
+  tbody.innerHTML = models.map(m => `
     <tr>
-      <td><strong>${info.project_id || '-'}</strong></td>
-      <td><span class="key-cell">${info.key || maskedKey}</span></td>
-      <td>${info.rate_limit ? info.rate_limit + ' 次/分钟' : '无限制'}</td>
-      <td>${formatDate(info.created_at)}</td>
+      <td><span class="model-id-cell">${m.model_id}</span></td>
+      <td>${m.name}</td>
       <td>
-        <span class="badge ${info.enabled ? 'badge-active' : 'badge-inactive'}">
-          ${info.enabled ? '● 启用' : '○ 停用'}
-        </span>
-      </td>
-      <td>
-        <div class="actions">
-          <button class="btn btn-sm ${info.enabled ? 'btn-warning' : 'btn-success'}"
-            onclick="toggleKey('${encodeURIComponent(info.key || maskedKey)}', ${!info.enabled})">
-            ${info.enabled ? '停用' : '启用'}
-          </button>
-          <button class="btn btn-sm btn-danger"
-            onclick="confirmDelete('${encodeURIComponent(info.key || maskedKey)}', '${info.project_id}')">
-            删除
-          </button>
+        <div class="weight-bar">
+          <input class="inline-num" type="number" value="${m.weight}" min="1" max="100"
+            onchange="updateModel(${m.id},{weight:parseInt(this.value)})" />
+          <div class="weight-bar-inner"><div class="weight-bar-fill" style="width:${Math.round(m.weight/maxW*100)}%"></div></div>
+          <span style="font-size:12px;color:#94a3b8">${m.weight}</span>
         </div>
       </td>
-    </tr>
-  `).join('');
+      <td>
+        <input class="inline-num" type="number" value="${m.priority}" min="1"
+          onchange="updateModel(${m.id},{priority:parseInt(this.value)})" />
+      </td>
+      <td><span class="badge ${m.enabled?'badge-active':'badge-inactive'}">${m.enabled?'● 启用':'○ 停用'}</span></td>
+      <td><div class="actions">
+        <button class="btn btn-sm ${m.enabled?'btn-warning':'btn-success'}"
+          onclick="updateModel(${m.id},{enabled:${!m.enabled}}).then(()=>loadModels())">
+          ${m.enabled?'停用':'启用'}</button>
+        <button class="btn btn-sm btn-danger"
+          onclick="confirmDelete('/v1/admin/models/${m.id}','模型 ${m.name}',loadModels)">删除</button>
+      </div></td>
+    </tr>`).join('');
 }
 
-function toggleAddForm() {
-  const form = document.getElementById('add-form');
-  form.classList.toggle('show');
-  if (form.classList.contains('show')) {
-    document.getElementById('new-project-id').focus();
-  }
-}
-
-async function addKey() {
-  const projectId = document.getElementById('new-project-id').value.trim();
-  const key = document.getElementById('new-key').value.trim();
-  const rate = parseInt(document.getElementById('new-rate').value) || 0;
-
-  if (!projectId || !key) { toast('项目 ID 和密钥不能为空', 'error'); return; }
-  if (rate <= 0) { toast('速率限制必须大于 0', 'error'); return; }
-
-  const resp = await api('POST', '/v1/admin/keys', { project_id: projectId, key, rate_limit: rate });
+async function addModel() {
+  const modelId = document.getElementById('new-model-id').value.trim();
+  const name = document.getElementById('new-model-name').value.trim();
+  const weight = parseInt(document.getElementById('new-model-weight').value)||50;
+  const priority = parseInt(document.getElementById('new-model-priority').value)||1;
+  if (!modelId||!name) { toast('模型 ID 和名称不能为空','error'); return; }
+  const resp = await api('POST','/v1/admin/models',{model_id:modelId,name,weight,priority,enabled:true});
   if (!resp) return;
-
-  if (resp.status === 201) {
-    toast(`密钥已添加：${projectId}`);
-    document.getElementById('new-project-id').value = '';
-    document.getElementById('new-key').value = '';
-    document.getElementById('new-rate').value = '';
-    document.getElementById('add-form').classList.remove('show');
-    loadKeys();
-  } else {
-    const json = await resp.json();
-    toast(json.error || '添加失败', 'error');
-  }
+  if (resp.status===201) {
+    toast('模型已添加');
+    ['new-model-id','new-model-name'].forEach(id=>document.getElementById(id).value='');
+    document.getElementById('add-model-form').classList.remove('show');
+    loadModels();
+  } else { const j=await resp.json(); toast(j.error||'添加失败','error'); }
 }
 
-async function toggleKey(encodedKey, enable) {
-  const key = decodeURIComponent(encodedKey);
-  const resp = await api('PUT', '/v1/admin/keys/' + encodedKey, { enabled: enable });
-  if (!resp) return;
-
-  if (resp.ok) {
-    toast(enable ? '密钥已启用' : '密钥已停用');
-    loadKeys();
-  } else {
-    const json = await resp.json();
-    toast(json.error || '操作失败', 'error');
-  }
-}
-
-let pendingDeleteKey = null;
-
-function confirmDelete(encodedKey, projectId) {
-  pendingDeleteKey = encodedKey;
-  document.getElementById('delete-modal-msg').textContent =
-    `确定要删除项目 "${projectId}" 的密钥吗？此操作不可恢复。`;
-  document.getElementById('delete-modal').classList.add('show');
-  document.getElementById('delete-confirm-btn').onclick = doDelete;
-}
-
-function closeDeleteModal() {
-  document.getElementById('delete-modal').classList.remove('show');
-  pendingDeleteKey = null;
-}
-
-async function doDelete() {
-  if (!pendingDeleteKey) return;
-  closeDeleteModal();
-
-  const resp = await api('DELETE', '/v1/admin/keys/' + pendingDeleteKey);
-  if (!resp) return;
-
-  if (resp.ok) {
-    toast('密钥已删除');
-    loadKeys();
-  } else {
-    const json = await resp.json();
-    toast(json.error || '删除失败', 'error');
-  }
+async function updateModel(id, data) {
+  const resp = await api('PUT','/v1/admin/models/'+id, data);
+  if (resp?.ok) { toast('已更新'); loadModels(); }
+  else toast('更新失败','error');
 }
 
 // ── 项目统计 ──────────────────────────────────────────
 async function loadStats() {
-  document.getElementById('stats-table-body').innerHTML =
-    '<tr class="empty-row"><td colspan="6"><span class="spinner"></span> 加载中...</td></tr>';
-
-  const [statsResp, projResp] = await Promise.all([
-    api('GET', '/v1/admin/projects/stats'),
-    api('GET', '/v1/admin/projects')
-  ]);
-  if (!statsResp || !projResp) return;
-
-  const statsJson = await statsResp.json();
-  const projJson = await projResp.json();
-
-  const stats = statsJson.data || {};
-  const projects = projJson.data || {};
-
-  // 汇总卡片
-  let totalCalls = 0, totalAuth = 0, totalLimit = 0;
-  Object.values(stats).forEach(s => {
-    totalCalls += s.api_calls || 0;
-    totalAuth += s.auth_attempts || 0;
-    totalLimit += s.rate_limited || 0;
-  });
-
+  document.getElementById('stats-tbody').innerHTML = '<tr class="empty-row"><td colspan="6"><span class="spinner"></span> 加载中...</td></tr>';
+  const [sr, pr] = await Promise.all([api('GET','/v1/admin/projects/stats'), api('GET','/v1/admin/projects')]);
+  if (!sr||!pr) return;
+  const stats = (await sr.json()).data||{};
+  const projs = (await pr.json()).data||{};
+  let tc=0,ta=0,tl=0;
+  Object.values(stats).forEach(s=>{tc+=s.api_calls||0;ta+=s.auth_attempts||0;tl+=s.rate_limited||0;});
   document.getElementById('stats-summary').innerHTML = `
-    <div class="stat-card">
-      <div class="label">项目总数</div>
-      <div class="value">${Object.keys(projects).length}</div>
-      <div class="sub">活跃项目</div>
-    </div>
-    <div class="stat-card">
-      <div class="label">API 调用总量</div>
-      <div class="value">${totalCalls.toLocaleString()}</div>
-      <div class="sub">累计请求次数</div>
-    </div>
-    <div class="stat-card">
-      <div class="label">认证次数</div>
-      <div class="value">${totalAuth.toLocaleString()}</div>
-      <div class="sub">鉴权请求总量</div>
-    </div>
-    <div class="stat-card">
-      <div class="label">限流次数</div>
-      <div class="value">${totalLimit.toLocaleString()}</div>
-      <div class="sub">触发速率限制</div>
-    </div>
-  `;
-
-  const tbody = document.getElementById('stats-table-body');
+    <div class="stat-card"><div class="label">项目总数</div><div class="value">${Object.keys(projs).length}</div><div class="sub">活跃项目</div></div>
+    <div class="stat-card"><div class="label">API 调用</div><div class="value">${tc.toLocaleString()}</div><div class="sub">累计请求次数</div></div>
+    <div class="stat-card"><div class="label">认证次数</div><div class="value">${ta.toLocaleString()}</div><div class="sub">鉴权请求总量</div></div>
+    <div class="stat-card"><div class="label">限流次数</div><div class="value">${tl.toLocaleString()}</div><div class="sub">触发速率限制</div></div>`;
+  const tbody = document.getElementById('stats-tbody');
   const entries = Object.entries(stats);
-
-  if (entries.length === 0) {
-    tbody.innerHTML = '<tr class="empty-row"><td colspan="6">暂无统计数据</td></tr>';
-    return;
-  }
-
-  tbody.innerHTML = entries.map(([projectId, s]) => `
-    <tr>
-      <td><strong>${projectId}</strong></td>
-      <td>${(s.api_calls || 0).toLocaleString()}</td>
-      <td>${(s.auth_attempts || 0).toLocaleString()}</td>
-      <td>${(s.rate_limited || 0).toLocaleString()}</td>
-      <td>${(s.errors || 0).toLocaleString()}</td>
-      <td>${formatBytes(s.log_size || 0)}</td>
-    </tr>
-  `).join('');
+  if (!entries.length) { tbody.innerHTML = '<tr class="empty-row"><td colspan="6">暂无统计数据</td></tr>'; return; }
+  tbody.innerHTML = entries.map(([pid,s])=>`
+    <tr><td><strong>${pid}</strong></td><td>${(s.api_calls||0).toLocaleString()}</td>
+    <td>${(s.auth_attempts||0).toLocaleString()}</td><td>${(s.rate_limited||0).toLocaleString()}</td>
+    <td>${(s.errors||0).toLocaleString()}</td><td>${formatBytes(s.log_size||0)}</td></tr>`).join('');
 }
 
-// ── 初始化 ──────────────────────────────────────────
-window.onload = function() {
-  const token = getToken();
-  if (token) {
-    showDashboard();
-  }
-};
+// ── 通用删除 ─────────────────────────────────────────
+function confirmDelete(apiPath, label, onSuccess) {
+  document.getElementById('delete-modal-msg').textContent = `确定要删除「${label}」吗？此操作不可恢复。`;
+  document.getElementById('delete-modal').classList.add('show');
+  document.getElementById('delete-confirm-btn').onclick = async () => {
+    closeModal('delete-modal');
+    const resp = await api('DELETE', apiPath);
+    if (resp?.ok) { toast('已删除'); onSuccess(); }
+    else toast('删除失败','error');
+  };
+}
 </script>
 </body>
 </html>
