@@ -1,7 +1,6 @@
 version: "3.9"
 
 services:
-  # ── 审核服务 ──────────────────────────────────────────────
   moderation:
     build:
       context: .
@@ -9,24 +8,18 @@ services:
     container_name: moderation-server
     restart: unless-stopped
     ports:
-      - "8080:8080"
+      - "888:8080"
     environment:
-      # ⚠ 必填：你的 Anthropic API Key
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
-      # 服务配置
       - PORT=8080
       - APP_ENV=production
       - LOG_LEVEL=info
       - LOG_DIR=/logs
-      # 缓存（使用 Redis）
       - CACHE_DRIVER=redis
       - CACHE_TTL=60
       - REDIS_ADDR=redis:6379
-      - REDIS_PREFIX=mod:
-      # 鉴权（改为 true 后需要传 X-Project-Key 请求头）
+      - REDIS_PREFIX=mod
       - ENABLE_AUTH=false
-      # 各项目密钥（逗号分隔）
-      # - ALLOWED_KEYS=proj_forum_a_k3j9x,proj_bbs_b_p8q4w
     volumes:
       - ./logs:/logs
     depends_on:
@@ -41,7 +34,6 @@ services:
     networks:
       - moderation-net
 
-  # ── Redis 缓存 ────────────────────────────────────────────
   redis:
     image: redis:7-alpine
     container_name: moderation-redis
