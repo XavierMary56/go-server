@@ -33,9 +33,9 @@ type ModerateRequest struct {
 
 // ModerateResult 审核结果
 type ModerateResult struct {
-	Verdict    string  `json:"verdict"`     // approved | flagged | rejected
-	Category   string  `json:"category"`    // none | spam | abuse | politics | adult | fraud | violence
-	Confidence float64 `json:"confidence"`  // 0.0 ~ 1.0
+	Verdict    string  `json:"verdict"`    // approved | flagged | rejected
+	Category   string  `json:"category"`   // none | spam | abuse | politics | adult | fraud | violence
+	Confidence float64 `json:"confidence"` // 0.0 ~ 1.0
 	Reason     string  `json:"reason"`
 	ModelUsed  string  `json:"model_used"`
 	LatencyMs  int64   `json:"latency_ms"`
@@ -255,8 +255,13 @@ func (s *ModerationService) Moderate(req *ModerateRequest) *ModerateResult {
 		req.Strictness = "standard"
 	}
 
+	auditContent := s.buildAuditContent(req)
+	if strings.TrimSpace(auditContent) == "" {
+		auditContent = req.Content
+	}
+
 	// 命中缓存直接返回
-	cacheKey := s.cacheKey(req.Content, req.Type, req.Strictness)
+	cacheKey := s.cacheKey(auditContent, req.Type, req.Strictness)
 	if cached, ok := s.cache.Get(cacheKey); ok {
 		result := cached.(*ModerateResult)
 		result.FromCache = true
@@ -303,7 +308,7 @@ func (s *ModerationService) Moderate(req *ModerateRequest) *ModerateResult {
 		"model":      result.ModelUsed,
 		"latency_ms": result.LatencyMs,
 		"type":       req.Type,
-		"preview":    truncate(req.Content, 50),
+		"preview":    truncate(auditContent, 50),
 	})
 
 	return result
@@ -424,6 +429,38 @@ func (s *ModerationService) buildSystemPrompt(req *ModerateRequest) string {
 {"verdict":"approved|flagged|rejected","category":"none|spam|abuse|politics|adult|fraud|violence","confidence":0.95,"reason":"简短原因15字内"}`, strictHint)
 }
 
+func (s *ModerationService) buildAuditContent(req *ModerateRequest) string {
+	var parts []string
+
+	if content := strings.TrimSpace(req.Content); content != "" {
+		parts = append(parts, "主内容：\n"+content)
+	}
+
+	scene := ""
+	if req.Context != nil {
+		if value, ok := req.Context["scene"].(string); ok {
+			scene = strings.TrimSpace(value)
+		}
+	}
+	if scene != "" {
+		parts = append(parts, "场景："+scene)
+	}
+
+	payload, ok := req.Context["payload"].(map[string]interface{})
+	if !ok {
+		return strings.Join(parts, "\n\n")
+	}
+
+	if title, ok := payload["title"].(string); ok && strings.TrimSpace(title) != "" {
+		parts = append(parts, "标题：\n"+strings.TrimSpace(title))
+	}
+	if body, ok := payload["content"].(string); ok && strings.TrimSpace(body) != "" {
+		parts = append(parts, "正文：\n"+strings.TrimSpace(body))
+	}
+
+	return strings.Join(parts, "\n\n")
+}
+
 // parseAIText 解析 AI 返回的文本为 aiResult
 func parseAIText(text string) (*aiResult, error) {
 	text = strings.ReplaceAll(text, "```json", "")
@@ -443,12 +480,14 @@ func (s *ModerationService) callAnthropic(req *ModerateRequest, modelID string) 
 		return nil, fmt.Errorf("未配置 Anthropic API Key")
 	}
 
+	auditContent := s.buildAuditContent(req)
+
 	payload := anthropicRequest{
 		Model:     modelID,
 		MaxTokens: 200,
 		System:    s.buildSystemPrompt(req),
 		Messages: []anthropicMessage{
-			{Role: "user", Content: fmt.Sprintf("内容类型：%s\n\n待审内容：\n%s", req.Type, req.Content)},
+			{Role: "user", Content: fmt.Sprintf("内容类型：%s\n\n待审内容：\n%s", req.Type, auditContent)},
 		},
 	}
 	body, _ := json.Marshal(payload)
@@ -508,6 +547,8 @@ func (s *ModerationService) callOpenAICompatible(req *ModerateRequest, modelID, 
 		return nil, fmt.Errorf("未配置 %s API Key", provider)
 	}
 
+	auditContent := s.buildAuditContent(req)
+
 	var apiURL string
 	switch provider {
 	case "grok":
@@ -521,7 +562,7 @@ func (s *ModerationService) callOpenAICompatible(req *ModerateRequest, modelID, 
 		MaxTokens: 200,
 		Messages: []openAIMessage{
 			{Role: "system", Content: s.buildSystemPrompt(req)},
-			{Role: "user", Content: fmt.Sprintf("内容类型：%s\n\n待审内容：\n%s", req.Type, req.Content)},
+			{Role: "user", Content: fmt.Sprintf("内容类型：%s\n\n待审内容：\n%s", req.Type, auditContent)},
 		},
 	}
 	body, _ := json.Marshal(payload)

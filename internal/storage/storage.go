@@ -18,51 +18,51 @@ type DB struct {
 
 // ProjectKey 项目密钥
 type ProjectKey struct {
-	ID        int64
-	ProjectID string
-	Key       string
-	RateLimit int
-	Enabled   bool
-	CreatedAt time.Time
-	UpdatedAt time.Time
+	ID        int64     `json:"id"`
+	ProjectID string    `json:"project_id"`
+	Key       string    `json:"key"`
+	RateLimit int       `json:"rate_limit"`
+	Enabled   bool      `json:"enabled"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
 }
 
 // AnthropicKey Anthropic API Key
 type AnthropicKey struct {
-	ID         int64
-	Name       string
-	Key        string
-	Enabled    bool
-	Status     string     // healthy | unhealthy | unknown
-	UsageCount int64
-	LastUsedAt *time.Time
-	CheckedAt  *time.Time
-	CreatedAt  time.Time
+	ID         int64      `json:"id"`
+	Name       string     `json:"name"`
+	Key        string     `json:"key"`
+	Enabled    bool       `json:"enabled"`
+	Status     string     `json:"status"` // healthy | unhealthy | unknown
+	UsageCount int64      `json:"usage_count"`
+	LastUsedAt *time.Time `json:"last_used_at"`
+	CheckedAt  *time.Time `json:"checked_at"`
+	CreatedAt  time.Time  `json:"created_at"`
 }
 
 // ProviderKey OpenAI / Grok API Key
 type ProviderKey struct {
-	ID         int64
-	Provider   string // openai | grok
-	Name       string
-	Key        string
-	Enabled    bool
-	Status     string     // healthy | unhealthy | unknown
-	UsageCount int64
-	LastUsedAt *time.Time
-	CheckedAt  *time.Time
-	CreatedAt  time.Time
+	ID         int64      `json:"id"`
+	Provider   string     `json:"provider"` // openai | grok
+	Name       string     `json:"name"`
+	Key        string     `json:"key"`
+	Enabled    bool       `json:"enabled"`
+	Status     string     `json:"status"` // healthy | unhealthy | unknown
+	UsageCount int64      `json:"usage_count"`
+	LastUsedAt *time.Time `json:"last_used_at"`
+	CheckedAt  *time.Time `json:"checked_at"`
+	CreatedAt  time.Time  `json:"created_at"`
 }
 
 // ModelConfig 模型配置
 type ModelConfig struct {
-	ID       int64
-	ModelID  string
-	Name     string
-	Provider string // anthropic | openai | grok
-	Weight   int
-	Priority int
-	Enabled  bool
+	ID       int64  `json:"id"`
+	ModelID  string `json:"model_id"`
+	Name     string `json:"name"`
+	Provider string `json:"provider"` // anthropic | openai | grok
+	Weight   int    `json:"weight"`
+	Priority int    `json:"priority"`
+	Enabled  bool   `json:"enabled"`
 }
 
 // New 初始化数据库
