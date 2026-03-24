@@ -257,6 +257,12 @@ func (s *ModerationService) Moderate(req *ModerateRequest) *ModerateResult {
 		auditContent = req.Content
 	}
 
+	if hardResult := applyHardBlockRules(auditContent); hardResult != nil {
+		hardResult.FromCache = false
+		s.stats.record(hardResult.Verdict, hardResult.ModelUsed)
+		return hardResult
+	}
+
 	// 命中缓存直接返回
 	cacheKey := s.cacheKey(auditContent, req.Type, req.Strictness)
 	if cached, ok := s.cache.Get(cacheKey); ok {
@@ -513,10 +519,87 @@ func newModerateResult(ai *aiResult, modelID string) *ModerateResult {
 	}
 }
 
+func applyHardBlockRules(content string) *ModerateResult {
+	normalized := normalizeForDetection(content)
+
+	type ruleSpec struct {
+		category string
+		reason   string
+		keywords []string
+	}
+
+	rules := []ruleSpec{
+		{
+			category: "politics",
+			reason:   "命中涉政敏感内容",
+			keywords: []string{
+				"政变", "暴动", "起义", "颠覆政权", "独立运动", "分裂国家", "港独", "台独", "藏独",
+				"非法集会", "示威游行", "政府腐败内幕", "高层黑料", "敏感政治", "分裂主义", "反政府",
+				"coup", "rebellion", "overthrowgovernment", "separatism", "independencemovement", "illegalprotest", "riot", "governmentcorruptionscandal", "politicalleak", "classifiedinfo", "regimechange", "anti-government",
+				"государственныйпереворот", "мятеж", "восстание", "сепаратизм", "незаконныймитинг", "протест", "политическийскандал", "утечка", "независимость",
+			},
+		},
+		{
+			category: "adult",
+			reason:   "命中强敏感成人内容",
+			keywords: []string{
+				"约炮", "一夜情", "上门服务", "迷药", "裸聊", "裸照", "强奸", "幼女", "未成年", "儿童", "援交", "幼交",
+				"hookup", "onenightstand", "nude", "nudes", "sexvideo", "porn", "rape", "gangrape", "prostitution", "escortservice", "underagesex", "minorporn", "childporn", "escort",
+				"сексзаденьги", "порно", "сексвидео", "изнасилование", "интимуслуги", "несовершеннолетнийсекс",
+			},
+		},
+		{
+			category: "fraud",
+			reason:   "命中诈骗、赌博或黑产内容",
+			keywords: []string{
+				"刷单", "兼职日结高薪", "带你赚钱", "稳赚不赔", "私服", "代充", "黑卡", "赌博", "博彩", "上分", "bc", "杀猪盘", "资金盘", "投资返利", "套路盘",
+				"makemoneyfast", "guaranteedprofit", "scam", "phishing", "gambling", "betting", "casinoonline", "fakeaccount", "stolencard", "investmentscheme", "ponzi", "ponzischeme", "fastmoney", "onlinecasino",
+				"быстрыйзаработок", "мошенничество", "ставки", "казино", "фишинг", "финансоваяпирамида", "афера",
+			},
+		},
+		{
+			category: "abuse",
+			reason:   "命中毒品或违禁品内容",
+			keywords: []string{
+				"冰毒", "海洛因", "摇头丸", "买毒", "出货", "走货", "制毒", "配方", "大麻", "吸毒工具", "白粉", "毒品交易",
+				"drugs", "cocaine", "heroin", "meth", "buydrugs", "selldrugs", "drugrecipe", "howtomakedrugs", "weed", "marijuana", "narcotics", "drugdealer",
+				"наркотики", "кокаин", "героин", "купитьнаркотики", "изготовлениенаркотиков", "марихуана",
+			},
+		},
+		{
+			category: "violence",
+			reason:   "命中暴力、恐怖或武器内容",
+			keywords: []string{
+				"杀人", "暗杀", "爆炸", "制作炸弹", "枪支购买", "恐怖袭击", "自制武器", "凶杀", "引爆",
+				"kill", "assassination", "bombmaking", "explosives", "terroristattack", "gunforsale", "weaponforsale", "homemadebomb", "massacre",
+				"убийство", "взрыв", "бомба", "террористическаяатака", "взрывчатка", "оружиекупить", "взрывчатка",
+			},
+		},
+	}
+
+	for _, rule := range rules {
+		for _, keyword := range rule.keywords {
+			if strings.Contains(normalized, keyword) {
+				return &ModerateResult{Verdict: "rejected", Category: rule.category, Confidence: 0.99, Reason: rule.reason, ModelUsed: "hard-rule"}
+			}
+		}
+	}
+
+	if looksLikeAdOrContact(content) {
+		return &ModerateResult{Verdict: "rejected", Category: "spam", Confidence: 0.99, Reason: "命中广告导流或联系方式", ModelUsed: "hard-rule"}
+	}
+
+	return nil
+}
+
 // 成人内容不是当前项目的主拦截目标；未命中广告/联系方式时，避免被模型误判拦截。
 func normalizeModelDecision(ai *aiResult, auditContent string) *aiResult {
 	if ai == nil {
 		return nil
+	}
+
+	if hardResult := applyHardBlockRules(auditContent); hardResult != nil {
+		return &aiResult{Verdict: hardResult.Verdict, Category: hardResult.Category, Confidence: hardResult.Confidence, Reason: hardResult.Reason}
 	}
 
 	normalized := *ai
@@ -687,6 +770,11 @@ func (s *ModerationService) cacheKey(content, typ, strictness string) string {
 }
 
 func (s *ModerationService) safeFallback(auditContent, model string, ms int64) *ModerateResult {
+	if hardResult := applyHardBlockRules(auditContent); hardResult != nil {
+		hardResult.LatencyMs = ms
+		hardResult.Fallback = true
+		return hardResult
+	}
 	if looksLikeAdOrContact(auditContent) {
 		return &ModerateResult{
 			Verdict:    "rejected",
@@ -718,7 +806,7 @@ func looksLikeAdOrContact(content string) bool {
 	normalized := normalizeForDetection(content)
 
 	keywords := []string{
-		"微信", "vx", "vx号", "qq", "telegram", "tg", "whatsapp", "line", "discord", "skype",
+		"微信", "vx", "vx号", "qq", "telegram", "tg", "whatsapp", "line", "discord", "skype", "freevideo", "freedownload",
 		"邮箱", "email", "加我", "联系我", "私聊", "拉群", "群号", "代理", "加盟", "引流",
 		"外链", "网址", "链接", "下载地址", "扫码", "二维码",
 	}
@@ -761,12 +849,25 @@ func containsBenignNegation(content string) bool {
 }
 
 func containsDirectContactSignal(content string) bool {
+	rawLower := strings.ToLower(content)
 	normalized := normalizeForDetection(content)
 
+	rawPatterns := []*regexp.Regexp{
+		regexp.MustCompile(`https?://[^\s]+`),
+		regexp.MustCompile(`www\.[^\s]+`),
+		regexp.MustCompile(`([a-z0-9\-]+\.)+(com|net|org|cc|xyz|top|info|io|co|tv|me|cn|ru|biz|vip|app|link|shop|live|site|fun|pro|club|online|store|cloud|test)\b`),
+	}
+	for _, pattern := range rawPatterns {
+		if pattern.MatchString(rawLower) {
+			return true
+		}
+	}
+
 	keywords := []string{
-		"微信", "vx", "vx号", "加v", "加vx", "加q", "qq", "telegram", "tg", "whatsapp", "line", "discord", "skype",
+		"微信", "vx", "vx号", "加v", "加vx", "加q", "qq", "telegram", "tg", "whatsapp", "line", "discord", "skype", "freevideo", "freedownload",
 		"邮箱", "email", "加我", "联系我", "私聊", "拉群", "群号", "代理", "加盟", "引流",
 		"外链", "网址", "链接", "下载地址", "扫码", "二维码", "主页有群", "看我头像", "站外继续聊",
+		".com", "http://", "https://", "www.",
 	}
 	for _, keyword := range keywords {
 		if strings.Contains(normalized, keyword) {
@@ -793,8 +894,14 @@ func containsWeakTradeIntent(content string) bool {
 	normalized := normalizeForDetection(content)
 
 	directPhrases := []string{
-		"去别处看", "主页找我", "看资料", "私下聊", "站外价更低", "外站价更低",
-		"资源打包", "完整版资源", "有偿分享", "付费进群",
+		"\u53bb\u522b\u5904\u770b", "\u4e3b\u9875\u627e\u6211", "\u770b\u8d44\u6599", "\u79c1\u4e0b\u804a", "\u7ad9\u5916\u4ef7\u66f4\u4f4e", "\u5916\u7ad9\u4ef7\u66f4\u4f4e",
+		"\u8d44\u6e90\u6253\u5305", "\u5b8c\u6574\u7248\u8d44\u6e90", "\u6709\u507f\u5206\u4eab", "\u4ed8\u8d39\u8fdb\u7fa4",
+		"\u79c1\u804a\u53d1\u4f60\u8d44\u6e90", "\u70b9\u51fb\u94fe\u63a5\u9886\u53d6", "\u514d\u8d39\u770b\u7247", "\u798f\u5229\u7fa4",
+		"addmeonwhatsapp", "addmeontelegram", "clicklinkbelow", "freedownload", "freevideo", "joingroupforfree",
+		"\u0434\u043e\u0431\u0430\u0432\u044c\u0432\u0442\u0435\u043b\u0435\u0433\u0440\u0430\u043c",
+		"\u043f\u0435\u0440\u0435\u0439\u0434\u0438\u043f\u043e\u0441\u0441\u044b\u043b\u043a\u0435",
+		"\u0431\u0435\u0441\u043f\u043b\u0430\u0442\u043d\u043e\u0441\u043a\u0430\u0447\u0430\u0442\u044c",
+		"\u0432\u0441\u0442\u0443\u043f\u0438\u0442\u044c\u0432\u0433\u0440\u0443\u043f\u043f\u0443",
 	}
 	for _, phrase := range directPhrases {
 		if strings.Contains(normalized, phrase) {
@@ -802,7 +909,11 @@ func containsWeakTradeIntent(content string) bool {
 		}
 	}
 
-	weakTokens := []string{"低价", "资源", "完整版", "打包", "有偿", "私下", "别处", "看资料"}
+	weakTokens := []string{
+		"\u4f4e\u4ef7", "\u8d44\u6e90", "\u5b8c\u6574\u7248", "\u6253\u5305", "\u6709\u507f", "\u79c1\u4e0b", "\u522b\u5904", "\u770b\u8d44\u6599",
+		"free", "download", "video", "group", "telegram", "whatsapp",
+		"\u0441\u043a\u0430\u0447\u0430\u0442\u044c", "\u0442\u0435\u043b\u0435\u0433\u0440\u0430\u043c", "\u0441\u0441\u044b\u043b\u043a\u0435", "\u0433\u0440\u0443\u043f\u043f\u0443",
+	}
 	hitCount := 0
 	for _, token := range weakTokens {
 		if strings.Contains(normalized, token) {
