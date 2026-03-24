@@ -13,7 +13,7 @@ func TestNormalizeModelDecisionAllowsBenignNegation(t *testing.T) {
 		Verdict:    "flagged",
 		Category:   "spam",
 		Confidence: 0.92,
-		Reason:     "命中联系方式相关词",
+		Reason:     "contact-like wording",
 	}, "【VN011】节奏还行，镜头切得挺顺。不带联系方式。")
 
 	if result == nil {
@@ -28,7 +28,7 @@ func TestNormalizeModelDecisionAllowsBenignNegation(t *testing.T) {
 }
 
 func TestContainsDirectContactSignal(t *testing.T) {
-	if !containsDirectContactSignal("加V test_video_01 领更多资源") {
+	if !containsDirectContactSignal("add me on telegram and click link below") {
 		t.Fatal("expected direct contact signal to be detected")
 	}
 	if containsDirectContactSignal("【VN011】节奏还行，镜头切得挺顺。不带联系方式。") {
@@ -70,4 +70,120 @@ func TestLooksLikeAdOrContactCoversWeakTradeIntent(t *testing.T) {
 			t.Fatalf("expected weak trade intent to be detected: %s", content)
 		}
 	}
+}
+
+func TestApplyHardBlockRules(t *testing.T) {
+	cases := []struct {
+		name     string
+		content  string
+		category string
+	}{
+		{name: "politics_cn", content: "讨论政变和颠覆政权", category: "politics"},
+		{name: "politics_en", content: "coup and overthrow government", category: "politics"},
+		{name: "politics_ru", content: "государственный переворот и протест", category: "politics"},
+		{name: "adult", content: "rape and minor porn", category: "adult"},
+		{name: "fraud", content: "scam gambling guaranteed profit", category: "fraud"},
+		{name: "drugs", content: "buy drugs and heroin recipe", category: "abuse"},
+		{name: "violence", content: "bomb making and gun for sale", category: "violence"},
+		{name: "spam", content: "add me on telegram and click link below", category: "spam"},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			result := applyHardBlockRules(tc.content)
+			if result == nil {
+				t.Fatal("expected hard block result")
+			}
+			if result.Verdict != "rejected" {
+				t.Fatalf("unexpected verdict: %s", result.Verdict)
+			}
+			if result.Category != tc.category {
+				t.Fatalf("unexpected category: %s", result.Category)
+			}
+		})
+	}
+}
+
+func TestApplyHardBlockRulesVariantCoverage(t *testing.T) {
+	cases := []struct {
+		name     string
+		content  string
+		category string
+	}{
+		{name: "politics_en_variant", content: "anti-government riot and regime change", category: "politics"},
+		{name: "politics_ru_variant", content: "сепаратизм и независимость", category: "politics"},
+		{name: "adult_ru_variant", content: "интим услуги и порно", category: "adult"},
+		{name: "fraud_ru_variant", content: "финансовая пирамида и мошенничество", category: "fraud"},
+		{name: "drugs_en_variant", content: "drug dealer with narcotics and meth", category: "abuse"},
+		{name: "violence_ru_variant", content: "взрывчатка и оружие купить", category: "violence"},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			result := applyHardBlockRules(tc.content)
+			if result == nil {
+				t.Fatal("expected hard block result")
+			}
+			if result.Category != tc.category {
+				t.Fatalf("unexpected category: %s", result.Category)
+			}
+		})
+	}
+}
+
+func TestApplyHardBlockRulesFraudCoverage(t *testing.T) {
+	cases := []string{
+		"兼职日结高薪，带你赚钱，稳赚不赔",
+		"私服代充黑卡上分，博彩包赢",
+		"杀猪盘资金盘，投资返利",
+		"make money fast with guaranteed profit",
+		"scam phishing fake account stolen card",
+		"gambling betting casino online ponzi",
+		"быстрый заработок и мошенничество",
+		"ставки казино фишинг",
+		"финансовая пирамида и афера",
+	}
+
+	for _, content := range cases {
+		result := applyHardBlockRules(content)
+		if result == nil {
+			t.Fatalf("expected fraud hard block result: %s", content)
+		}
+		if result.Category != "fraud" {
+			t.Fatalf("unexpected fraud category for %s: %s", content, result.Category)
+		}
+	}
+}
+
+func TestLooksLikeAdOrContactCoversMultilingualDrainPhrases(t *testing.T) {
+	cases := []string{
+		"加我微信，私聊发你资源",
+		"点击链接领取，福利群里见",
+		"add me on WhatsApp and click link below",
+		"free download and join group for free",
+		"добавь в телеграм",
+		"перейди по ссылке и вступить в группу",
+	}
+
+	for _, content := range cases {
+		if !looksLikeAdOrContact(content) {
+			t.Fatalf("expected multilingual drain phrase to be detected: %s", content)
+		}
+	}
+}
+
+
+func TestContainsDirectContactSignalCoversURLPatterns(t *testing.T) {
+    cases := []string{
+        "https://example.com/free-video",
+        "http://abc.test/path",
+        "www.example.com",
+        "join at moviehub.com right now",
+    }
+
+    for _, content := range cases {
+        if !containsDirectContactSignal(content) {
+            t.Fatalf("expected URL-like signal to be detected: %s", content)
+        }
+    }
 }
