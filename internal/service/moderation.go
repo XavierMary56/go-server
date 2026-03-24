@@ -1,4 +1,4 @@
-package service
+﻿package service
 
 import (
 	"bytes"
@@ -832,62 +832,74 @@ func looksLikeAdOrContact(content string) bool {
 }
 
 func containsBenignNegation(content string) bool {
-	normalized := normalizeForDetection(content)
+    normalized := normalizeForDetection(content)
 
-	phrases := []string{
-		"不带联系方式", "没有联系方式", "无联系方式", "不含联系方式", "未留联系方式",
-		"没有导流内容", "不含引流", "无引流", "没有导流", "不带导流",
-		"没有站外交易", "不含站外交易", "无站外交易",
-	}
-	for _, phrase := range phrases {
-		if strings.Contains(normalized, phrase) {
-			return true
-		}
-	}
+    phrases := []string{
+        "\u4e0d\u5e26\u8054\u7cfb\u65b9\u5f0f", "\u6ca1\u6709\u8054\u7cfb\u65b9\u5f0f", "\u65e0\u8054\u7cfb\u65b9\u5f0f", "\u4e0d\u542b\u8054\u7cfb\u65b9\u5f0f", "\u672a\u7559\u8054\u7cfb\u65b9\u5f0f",
+        "\u6ca1\u6709\u5bfc\u6d41\u5185\u5bb9", "\u4e0d\u542b\u5f15\u6d41", "\u65e0\u5f15\u6d41", "\u6ca1\u6709\u5bfc\u6d41", "\u4e0d\u5e26\u5bfc\u6d41", "\u4e0d\u662f\u5f15\u6d41",
+        "\u6ca1\u6709\u7ad9\u5916\u4ea4\u6613", "\u4e0d\u542b\u7ad9\u5916\u4ea4\u6613", "\u65e0\u7ad9\u5916\u4ea4\u6613",
+    }
+    for _, phrase := range phrases {
+        if strings.Contains(normalized, phrase) {
+            return true
+        }
+    }
 
-	return false
+    return false
 }
 
 func containsDirectContactSignal(content string) bool {
-	rawLower := strings.ToLower(content)
-	normalized := normalizeForDetection(content)
+    rawLower := strings.ToLower(content)
+    normalized := normalizeForDetection(content)
+    sanitized := normalized
 
-	rawPatterns := []*regexp.Regexp{
-		regexp.MustCompile(`https?://[^\s]+`),
-		regexp.MustCompile(`www\.[^\s]+`),
-		regexp.MustCompile(`([a-z0-9\-]+\.)+(com|net|org|cc|xyz|top|info|io|co|tv|me|cn|ru|biz|vip|app|link|shop|live|site|fun|pro|club|online|store|cloud|test)\b`),
-	}
-	for _, pattern := range rawPatterns {
-		if pattern.MatchString(rawLower) {
-			return true
-		}
-	}
+    if containsBenignNegation(content) {
+        phrases := []string{
+            "\u4e0d\u5e26\u8054\u7cfb\u65b9\u5f0f", "\u6ca1\u6709\u8054\u7cfb\u65b9\u5f0f", "\u65e0\u8054\u7cfb\u65b9\u5f0f", "\u4e0d\u542b\u8054\u7cfb\u65b9\u5f0f", "\u672a\u7559\u8054\u7cfb\u65b9\u5f0f",
+            "\u6ca1\u6709\u5bfc\u6d41\u5185\u5bb9", "\u4e0d\u542b\u5f15\u6d41", "\u65e0\u5f15\u6d41", "\u6ca1\u6709\u5bfc\u6d41", "\u4e0d\u5e26\u5bfc\u6d41", "\u4e0d\u662f\u5f15\u6d41",
+            "\u6ca1\u6709\u7ad9\u5916\u4ea4\u6613", "\u4e0d\u542b\u7ad9\u5916\u4ea4\u6613", "\u65e0\u7ad9\u5916\u4ea4\u6613",
+        }
+        for _, phrase := range phrases {
+            sanitized = strings.ReplaceAll(sanitized, phrase, "")
+        }
+    }
 
-	keywords := []string{
-		"微信", "vx", "vx号", "加v", "加vx", "加q", "qq", "telegram", "tg", "whatsapp", "line", "discord", "skype", "freevideo", "freedownload",
-		"邮箱", "email", "加我", "联系我", "私聊", "拉群", "群号", "代理", "加盟", "引流",
-		"外链", "网址", "链接", "下载地址", "扫码", "二维码", "主页有群", "看我头像", "站外继续聊",
-		".com", "http://", "https://", "www.",
-	}
-	for _, keyword := range keywords {
-		if strings.Contains(normalized, keyword) {
-			return true
-		}
-	}
+    rawPatterns := []*regexp.Regexp{
+        regexp.MustCompile(`https?://[^\s]+`),
+        regexp.MustCompile(`www\.[^\s]+`),
+        regexp.MustCompile(`([a-z0-9\-]+\.)+(com|net|org|cc|xyz|top|info|io|co|tv|me|cn|ru|biz|vip|app|link|shop|live|site|fun|pro|club|online|store|cloud|test)\b`),
+    }
+    for _, pattern := range rawPatterns {
+        if pattern.MatchString(rawLower) {
+            return true
+        }
+    }
 
-	patterns := []*regexp.Regexp{
-		regexp.MustCompile(`[1-9][0-9]{5,}`),
-		regexp.MustCompile(`[a-z0-9._%+\-]+@[a-z0-9.\-]+\.[a-z]{2,}`),
-		regexp.MustCompile(`https?://[^\s]+`),
-		regexp.MustCompile(`([a-z0-9\-]+\.)+[a-z]{2,}`),
-	}
-	for _, pattern := range patterns {
-		if pattern.MatchString(normalized) {
-			return true
-		}
-	}
+    keywords := []string{
+        "\u5fae\u4fe1", "vx", "vx\u53f7", "\u52a0v", "\u52a0vx", "\u52a0q", "qq", "telegram", "tg", "whatsapp", "line", "discord", "skype", "freevideo", "freedownload",
+        "\u90ae\u7bb1", "email", "\u52a0\u6211", "\u8054\u7cfb\u6211", "\u79c1\u804a", "\u62c9\u7fa4", "\u7fa4\u53f7", "\u4ee3\u7406", "\u52a0\u76df", "\u5f15\u6d41",
+        "\u5916\u94fe", "\u7f51\u5740", "\u94fe\u63a5", "\u4e0b\u8f7d\u5730\u5740", "\u626b\u7801", "\u4e8c\u7ef4\u7801", "\u4e3b\u9875\u6709\u7fa4", "\u770b\u6211\u5934\u50cf", "\u7ad9\u5916\u7ee7\u7eed\u804a",
+        ".com", "http://", "https://", "www.",
+    }
+    for _, keyword := range keywords {
+        if strings.Contains(sanitized, keyword) {
+            return true
+        }
+    }
 
-	return false
+    patterns := []*regexp.Regexp{
+        regexp.MustCompile(`[1-9][0-9]{5,}`),
+        regexp.MustCompile(`[a-z0-9._%+\-]+@[a-z0-9.\-]+\.[a-z]{2,}`),
+        regexp.MustCompile(`https?://[^\s]+`),
+        regexp.MustCompile(`([a-z0-9\-]+\.)+[a-z]{2,}`),
+    }
+    for _, pattern := range patterns {
+        if pattern.MatchString(sanitized) {
+            return true
+        }
+    }
+
+    return false
 }
 
 func containsWeakTradeIntent(content string) bool {
@@ -902,6 +914,7 @@ func containsWeakTradeIntent(content string) bool {
 		"\u043f\u0435\u0440\u0435\u0439\u0434\u0438\u043f\u043e\u0441\u0441\u044b\u043b\u043a\u0435",
 		"\u0431\u0435\u0441\u043f\u043b\u0430\u0442\u043d\u043e\u0441\u043a\u0430\u0447\u0430\u0442\u044c",
 		"\u0432\u0441\u0442\u0443\u043f\u0438\u0442\u044c\u0432\u0433\u0440\u0443\u043f\u043f\u0443",
+		"\u0447\u0430\u0441\u0442\u043d\u044b\u0439\u0447\u0430\u0442",
 	}
 	for _, phrase := range directPhrases {
 		if strings.Contains(normalized, phrase) {
