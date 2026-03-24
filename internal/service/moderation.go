@@ -9,6 +9,7 @@ import (
 	"io"
 	"math/rand"
 	"net/http"
+	"regexp"
 	"sort"
 	"strings"
 	"sync"
@@ -248,12 +249,7 @@ func (s *ModerationService) getProviderKey(provider string) (apiKey string, keyI
 
 // Moderate 同步审核
 func (s *ModerationService) Moderate(req *ModerateRequest) *ModerateResult {
-	if req.Type == "" {
-		req.Type = "post"
-	}
-	if req.Strictness == "" {
-		req.Strictness = "standard"
-	}
+	s.applyRequestDefaults(req)
 
 	auditContent := s.buildAuditContent(req)
 	if strings.TrimSpace(auditContent) == "" {
@@ -263,7 +259,7 @@ func (s *ModerationService) Moderate(req *ModerateRequest) *ModerateResult {
 	// 命中缓存直接返回
 	cacheKey := s.cacheKey(auditContent, req.Type, req.Strictness)
 	if cached, ok := s.cache.Get(cacheKey); ok {
-		result := cached.(*ModerateResult)
+		result := cloneModerateResult(cached.(*ModerateResult))
 		result.FromCache = true
 		return result
 	}
@@ -272,11 +268,7 @@ func (s *ModerationService) Moderate(req *ModerateRequest) *ModerateResult {
 	queue := s.buildModelQueue(req.Model)
 	start := time.Now()
 	if len(queue) == 0 {
-		return &ModerateResult{
-			Verdict: "flagged", Category: "none", Confidence: 0,
-			Reason: "暂无可用模型，请在后台添加模型后重试", ModelUsed: "none",
-			LatencyMs: 0, Fallback: true,
-		}
+		return s.safeFallback(auditContent, "none", 0)
 	}
 
 	var result *ModerateResult
@@ -292,7 +284,7 @@ func (s *ModerationService) Moderate(req *ModerateRequest) *ModerateResult {
 
 	if lastErr != nil || result == nil {
 		s.log.Error("所有模型均失败: " + lastErr.Error())
-		return s.safeFallback(queue[0].ID, time.Since(start).Milliseconds())
+		return s.safeFallback(auditContent, queue[0].ID, time.Since(start).Milliseconds())
 	}
 
 	result.LatencyMs = time.Since(start).Milliseconds()
@@ -312,6 +304,15 @@ func (s *ModerationService) Moderate(req *ModerateRequest) *ModerateResult {
 	})
 
 	return result
+}
+
+func (s *ModerationService) applyRequestDefaults(req *ModerateRequest) {
+	if req.Type == "" {
+		req.Type = "post"
+	}
+	if req.Strictness == "" {
+		req.Strictness = "standard"
+	}
 }
 
 // GetStats 获取统计数据
@@ -488,6 +489,29 @@ func parseAIText(text string) (*aiResult, error) {
 	return &ai, nil
 }
 
+func buildUserPrompt(contentType, auditContent string) string {
+	return fmt.Sprintf("内容类型：%s\n\n待审内容：\n%s", contentType, auditContent)
+}
+
+func cloneModerateResult(result *ModerateResult) *ModerateResult {
+	if result == nil {
+		return nil
+	}
+
+	cloned := *result
+	return &cloned
+}
+
+func newModerateResult(ai *aiResult, modelID string) *ModerateResult {
+	return &ModerateResult{
+		Verdict:    ai.Verdict,
+		Category:   ai.Category,
+		Confidence: ai.Confidence,
+		Reason:     ai.Reason,
+		ModelUsed:  modelID,
+	}
+}
+
 // callAnthropic 调用 Anthropic API
 func (s *ModerationService) callAnthropic(req *ModerateRequest, modelID string) (*ModerateResult, error) {
 	apiKey, keyID := s.getProviderKey("anthropic")
@@ -502,7 +526,7 @@ func (s *ModerationService) callAnthropic(req *ModerateRequest, modelID string) 
 		MaxTokens: 200,
 		System:    s.buildSystemPrompt(req),
 		Messages: []anthropicMessage{
-			{Role: "user", Content: fmt.Sprintf("内容类型：%s\n\n待审内容：\n%s", req.Type, auditContent)},
+			{Role: "user", Content: buildUserPrompt(req.Type, auditContent)},
 		},
 	}
 	body, _ := json.Marshal(payload)
@@ -552,7 +576,7 @@ func (s *ModerationService) callAnthropic(req *ModerateRequest, modelID string) 
 	if err != nil {
 		return nil, err
 	}
-	return &ModerateResult{Verdict: ai.Verdict, Category: ai.Category, Confidence: ai.Confidence, Reason: ai.Reason, ModelUsed: modelID}, nil
+	return newModerateResult(ai, modelID), nil
 }
 
 // callOpenAICompatible 调用 OpenAI / Grok API（兼容格式相同）
@@ -577,7 +601,7 @@ func (s *ModerationService) callOpenAICompatible(req *ModerateRequest, modelID, 
 		MaxTokens: 200,
 		Messages: []openAIMessage{
 			{Role: "system", Content: s.buildSystemPrompt(req)},
-			{Role: "user", Content: fmt.Sprintf("内容类型：%s\n\n待审内容：\n%s", req.Type, auditContent)},
+			{Role: "user", Content: buildUserPrompt(req.Type, auditContent)},
 		},
 	}
 	body, _ := json.Marshal(payload)
@@ -626,7 +650,7 @@ func (s *ModerationService) callOpenAICompatible(req *ModerateRequest, modelID, 
 	if err != nil {
 		return nil, err
 	}
-	return &ModerateResult{Verdict: ai.Verdict, Category: ai.Category, Confidence: ai.Confidence, Reason: ai.Reason, ModelUsed: modelID}, nil
+	return newModerateResult(ai, modelID), nil
 }
 
 // ── 工具函数 ───────────────────────────────────────────────
@@ -636,7 +660,19 @@ func (s *ModerationService) cacheKey(content, typ, strictness string) string {
 	return fmt.Sprintf("%x", md5.Sum([]byte(raw)))
 }
 
-func (s *ModerationService) safeFallback(model string, ms int64) *ModerateResult {
+func (s *ModerationService) safeFallback(auditContent, model string, ms int64) *ModerateResult {
+	if looksLikeAdOrContact(auditContent) {
+		return &ModerateResult{
+			Verdict:    "rejected",
+			Category:   "spam",
+			Confidence: 0.99,
+			Reason:     "包含联系方式或导流信息",
+			ModelUsed:  "rule-fallback",
+			LatencyMs:  ms,
+			Fallback:   true,
+		}
+	}
+
 	return &ModerateResult{
 		Verdict:    "flagged",
 		Category:   "none",
@@ -646,6 +682,39 @@ func (s *ModerationService) safeFallback(model string, ms int64) *ModerateResult
 		LatencyMs:  ms,
 		Fallback:   true,
 	}
+}
+
+func looksLikeAdOrContact(content string) bool {
+	normalized := strings.ToLower(content)
+	normalized = strings.ReplaceAll(normalized, " ", "")
+	normalized = strings.ReplaceAll(normalized, "\n", "")
+	normalized = strings.ReplaceAll(normalized, "\r", "")
+	normalized = strings.ReplaceAll(normalized, "\t", "")
+
+	keywords := []string{
+		"微信", "vx", "vx号", "qq", "telegram", "tg", "whatsapp", "line", "discord", "skype",
+		"邮箱", "email", "加我", "联系我", "私聊", "拉群", "群号", "代理", "加盟", "引流",
+		"外链", "网址", "链接", "下载地址", "扫码", "二维码",
+	}
+	for _, keyword := range keywords {
+		if strings.Contains(normalized, keyword) {
+			return true
+		}
+	}
+
+	patterns := []*regexp.Regexp{
+		regexp.MustCompile(`[1-9][0-9]{5,}`),
+		regexp.MustCompile(`[a-z0-9._%+\-]+@[a-z0-9.\-]+\.[a-z]{2,}`),
+		regexp.MustCompile(`https?://[^\s]+`),
+		regexp.MustCompile(`([a-z0-9\-]+\.)+[a-z]{2,}`),
+	}
+	for _, pattern := range patterns {
+		if pattern.MatchString(normalized) {
+			return true
+		}
+	}
+
+	return false
 }
 
 func truncate(s string, n int) string {
