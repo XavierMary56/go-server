@@ -512,6 +512,22 @@ func newModerateResult(ai *aiResult, modelID string) *ModerateResult {
 	}
 }
 
+// 成人内容不是当前项目的主拦截目标；未命中广告/联系方式时，避免被模型误判拦截。
+func normalizeModelDecision(ai *aiResult, auditContent string) *aiResult {
+	if ai == nil {
+		return nil
+	}
+
+	normalized := *ai
+	if normalized.Category == "adult" && !looksLikeAdOrContact(auditContent) {
+		normalized.Verdict = "approved"
+		normalized.Category = "none"
+		normalized.Reason = "普通内容，未命中广告联系方式"
+	}
+
+	return &normalized
+}
+
 // callAnthropic 调用 Anthropic API
 func (s *ModerationService) callAnthropic(req *ModerateRequest, modelID string) (*ModerateResult, error) {
 	apiKey, keyID := s.getProviderKey("anthropic")
@@ -576,6 +592,7 @@ func (s *ModerationService) callAnthropic(req *ModerateRequest, modelID string) 
 	if err != nil {
 		return nil, err
 	}
+	ai = normalizeModelDecision(ai, auditContent)
 	return newModerateResult(ai, modelID), nil
 }
 
@@ -650,6 +667,7 @@ func (s *ModerationService) callOpenAICompatible(req *ModerateRequest, modelID, 
 	if err != nil {
 		return nil, err
 	}
+	ai = normalizeModelDecision(ai, auditContent)
 	return newModerateResult(ai, modelID), nil
 }
 
