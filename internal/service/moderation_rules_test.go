@@ -2,58 +2,72 @@ package service
 
 import "testing"
 
-func TestDetectStrongAdOrContact(t *testing.T) {
-	cases := []struct {
-		name    string
-		content string
-		wantHit bool
-	}{
-		{name: "wechat diversion", content: "加V test_video_01 领更多资源", wantHit: true},
-		{name: "tg diversion", content: "TG 房间 testvideo05，外站继续聊", wantHit: true},
-		{name: "offsite trade", content: "站外私聊交易，外站价更低，编号 tv03", wantHit: true},
-		{name: "profile diversion", content: "看我头像，主页有方式，细聊", wantHit: true},
-		{name: "adult only", content: "这段描写很露骨，成人味很重，但只是讨论内容本身。", wantHit: false},
-	}
-
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			_, hit := detectStrongAdOrContact(tc.content)
-			if hit != tc.wantHit {
-				t.Fatalf("detectStrongAdOrContact(%q) = %v, want %v", tc.content, hit, tc.wantHit)
-			}
-		})
+func TestContainsBenignNegation(t *testing.T) {
+	if !containsBenignNegation("【VN011】节奏还行，镜头切得挺顺。不带联系方式。") {
+		t.Fatal("expected benign negation phrase to be detected")
 	}
 }
 
-func TestDetectWeakDrainSignal(t *testing.T) {
-	cases := []struct {
-		name    string
-		content string
-		wantHit bool
-	}{
-		{name: "weak drain", content: "有兴趣可以私聊我细聊", wantHit: true},
-		{name: "normal adult", content: "这段描写很露骨，成人味很重，但只是讨论内容本身。", wantHit: false},
-	}
+func TestNormalizeModelDecisionAllowsBenignNegation(t *testing.T) {
+	result := normalizeModelDecision(&aiResult{
+		Verdict:    "flagged",
+		Category:   "spam",
+		Confidence: 0.92,
+		Reason:     "命中联系方式相关词",
+	}, "【VN011】节奏还行，镜头切得挺顺。不带联系方式。")
 
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			_, hit := detectWeakDrainSignal(tc.content)
-			if hit != tc.wantHit {
-				t.Fatalf("detectWeakDrainSignal(%q) = %v, want %v", tc.content, hit, tc.wantHit)
-			}
-		})
-	}
-}
-
-func TestApplyDeterministicDecisionWithAuditContentPrefix(t *testing.T) {
-	result := applyDeterministicDecision("主内容：\n加V test_video_01 领更多资源", "standard")
 	if result == nil {
-		t.Fatal("expected rule-engine result, got nil")
+		t.Fatal("expected normalized result")
 	}
-	if result.ModelUsed != "rule-engine" {
-		t.Fatalf("unexpected model used: %s", result.ModelUsed)
-	}
-	if result.Verdict != "rejected" {
+	if result.Verdict != "approved" {
 		t.Fatalf("unexpected verdict: %s", result.Verdict)
+	}
+	if result.Category != "none" {
+		t.Fatalf("unexpected category: %s", result.Category)
+	}
+}
+
+func TestContainsDirectContactSignal(t *testing.T) {
+	if !containsDirectContactSignal("加V test_video_01 领更多资源") {
+		t.Fatal("expected direct contact signal to be detected")
+	}
+	if containsDirectContactSignal("【VN011】节奏还行，镜头切得挺顺。不带联系方式。") {
+		t.Fatal("did not expect direct contact signal for benign negation sample")
+	}
+}
+
+func TestLooksLikeAdOrContactIgnoresBenignNegation(t *testing.T) {
+	if looksLikeAdOrContact("【VN011】节奏还行，镜头切得挺顺。不带联系方式。") {
+		t.Fatal("did not expect benign negation sample to be treated as ad/contact")
+	}
+}
+
+func TestNormalizeForDetectionCoversSplitAndVariantForms(t *testing.T) {
+	cases := []string{
+		"微-信 test001",
+		"薇信 test002",
+		"扣扣 1234567",
+		"ＱＱ１２３４５６７",
+		"T.G room001",
+	}
+
+	for _, content := range cases {
+		if !looksLikeAdOrContact(content) {
+			t.Fatalf("expected variant form to be detected: %s", content)
+		}
+	}
+}
+
+func TestLooksLikeAdOrContactCoversWeakTradeIntent(t *testing.T) {
+	cases := []string{
+		"低价资源打包，有偿分享完整版",
+		"主页找我，看资料，私下聊",
+		"去别处看，外站价更低",
+	}
+
+	for _, content := range cases {
+		if !looksLikeAdOrContact(content) {
+			t.Fatalf("expected weak trade intent to be detected: %s", content)
+		}
 	}
 }

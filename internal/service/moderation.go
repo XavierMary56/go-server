@@ -14,6 +14,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode"
 
 	"github.com/XavierMary56/automatic_review/go-server/internal/config"
 	"github.com/XavierMary56/automatic_review/go-server/internal/logger"
@@ -519,6 +520,13 @@ func normalizeModelDecision(ai *aiResult, auditContent string) *aiResult {
 	}
 
 	normalized := *ai
+	if containsBenignNegation(auditContent) && !containsDirectContactSignal(auditContent) {
+		normalized.Verdict = "approved"
+		normalized.Category = "none"
+		normalized.Reason = "明确说明不含联系方式或导流"
+		return &normalized
+	}
+
 	if normalized.Category == "adult" && !looksLikeAdOrContact(auditContent) {
 		normalized.Verdict = "approved"
 		normalized.Category = "none"
@@ -703,11 +711,11 @@ func (s *ModerationService) safeFallback(auditContent, model string, ms int64) *
 }
 
 func looksLikeAdOrContact(content string) bool {
-	normalized := strings.ToLower(content)
-	normalized = strings.ReplaceAll(normalized, " ", "")
-	normalized = strings.ReplaceAll(normalized, "\n", "")
-	normalized = strings.ReplaceAll(normalized, "\r", "")
-	normalized = strings.ReplaceAll(normalized, "\t", "")
+	if containsBenignNegation(content) && !containsDirectContactSignal(content) && !containsWeakTradeIntent(content) {
+		return false
+	}
+
+	normalized := normalizeForDetection(content)
 
 	keywords := []string{
 		"微信", "vx", "vx号", "qq", "telegram", "tg", "whatsapp", "line", "discord", "skype",
@@ -732,7 +740,122 @@ func looksLikeAdOrContact(content string) bool {
 		}
 	}
 
+	return containsWeakTradeIntent(content)
+}
+
+func containsBenignNegation(content string) bool {
+	normalized := normalizeForDetection(content)
+
+	phrases := []string{
+		"不带联系方式", "没有联系方式", "无联系方式", "不含联系方式", "未留联系方式",
+		"没有导流内容", "不含引流", "无引流", "没有导流", "不带导流",
+		"没有站外交易", "不含站外交易", "无站外交易",
+	}
+	for _, phrase := range phrases {
+		if strings.Contains(normalized, phrase) {
+			return true
+		}
+	}
+
 	return false
+}
+
+func containsDirectContactSignal(content string) bool {
+	normalized := normalizeForDetection(content)
+
+	keywords := []string{
+		"微信", "vx", "vx号", "加v", "加vx", "加q", "qq", "telegram", "tg", "whatsapp", "line", "discord", "skype",
+		"邮箱", "email", "加我", "联系我", "私聊", "拉群", "群号", "代理", "加盟", "引流",
+		"外链", "网址", "链接", "下载地址", "扫码", "二维码", "主页有群", "看我头像", "站外继续聊",
+	}
+	for _, keyword := range keywords {
+		if strings.Contains(normalized, keyword) {
+			return true
+		}
+	}
+
+	patterns := []*regexp.Regexp{
+		regexp.MustCompile(`[1-9][0-9]{5,}`),
+		regexp.MustCompile(`[a-z0-9._%+\-]+@[a-z0-9.\-]+\.[a-z]{2,}`),
+		regexp.MustCompile(`https?://[^\s]+`),
+		regexp.MustCompile(`([a-z0-9\-]+\.)+[a-z]{2,}`),
+	}
+	for _, pattern := range patterns {
+		if pattern.MatchString(normalized) {
+			return true
+		}
+	}
+
+	return false
+}
+
+func containsWeakTradeIntent(content string) bool {
+	normalized := normalizeForDetection(content)
+
+	directPhrases := []string{
+		"去别处看", "主页找我", "看资料", "私下聊", "站外价更低", "外站价更低",
+		"资源打包", "完整版资源", "有偿分享", "付费进群",
+	}
+	for _, phrase := range directPhrases {
+		if strings.Contains(normalized, phrase) {
+			return true
+		}
+	}
+
+	weakTokens := []string{"低价", "资源", "完整版", "打包", "有偿", "私下", "别处", "看资料"}
+	hitCount := 0
+	for _, token := range weakTokens {
+		if strings.Contains(normalized, token) {
+			hitCount++
+		}
+	}
+
+	return hitCount >= 2
+}
+
+func normalizeForDetection(content string) string {
+	normalized := strings.ToLower(content)
+
+	var builder strings.Builder
+	builder.Grow(len(normalized))
+	for _, r := range normalized {
+		switch {
+		case r == 12288:
+			builder.WriteRune(' ')
+		case r >= 65281 && r <= 65374:
+			builder.WriteRune(r - 65248)
+		default:
+			builder.WriteRune(unicode.ToLower(r))
+		}
+	}
+
+	normalized = builder.String()
+	replacer := strings.NewReplacer(
+		"薇信", "微信",
+		"围信", "微信",
+		"卫星", "微信",
+		"v信", "微信",
+		"微❤", "微信",
+		"扣扣", "qq",
+		"球球", "qq",
+		"电报", "telegram",
+		"飞机", "telegram",
+		"油箱", "邮箱",
+		"郵箱", "邮箱",
+		"私下", "私下",
+	)
+	normalized = replacer.Replace(normalized)
+
+	var compact strings.Builder
+	compact.Grow(len(normalized))
+	for _, r := range normalized {
+		if unicode.IsSpace(r) || unicode.IsPunct(r) || unicode.IsSymbol(r) {
+			continue
+		}
+		compact.WriteRune(r)
+	}
+
+	return compact.String()
 }
 
 func truncate(s string, n int) string {
