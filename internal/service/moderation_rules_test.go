@@ -155,6 +155,72 @@ func TestApplyHardBlockRulesFraudCoverage(t *testing.T) {
 	}
 }
 
+func TestApplyHardBlockRulesDrugsCoverage(t *testing.T) {
+	cases := []string{
+		"冰毒海洛因摇头丸，买毒出货走货",
+		"制毒配方，大麻和吸毒工具",
+		"drugs cocaine heroin meth",
+		"buy drugs sell drugs drug recipe",
+		"how to make drugs with weed marijuana",
+		"наркотики кокаин героин",
+		"купить наркотики и изготовление наркотиков",
+	}
+
+	for _, content := range cases {
+		result := applyHardBlockRules(content)
+		if result == nil {
+			t.Fatalf("expected drugs hard block result: %s", content)
+		}
+		if result.Category != "abuse" {
+			t.Fatalf("unexpected drugs category for %s: %s", content, result.Category)
+		}
+	}
+}
+
+func TestApplyHardBlockRulesViolenceCoverage(t *testing.T) {
+	cases := []string{
+		"杀人暗杀爆炸，制作炸弹",
+		"枪支购买，恐怖袭击，自制武器",
+		"kill assassination bomb making explosives",
+		"terrorist attack and gun for sale",
+		"убийство и взрыв бомба",
+		"террористическая атака и оружие купить",
+	}
+
+	for _, content := range cases {
+		result := applyHardBlockRules(content)
+		if result == nil {
+			t.Fatalf("expected violence hard block result: %s", content)
+		}
+		if result.Category != "violence" {
+			t.Fatalf("unexpected violence category for %s: %s", content, result.Category)
+		}
+	}
+}
+
+func TestApplyHardBlockRulesAdultCoverage(t *testing.T) {
+	cases := []string{
+		"约炮一夜情，上门服务迷药",
+		"裸聊裸照，强奸幼女未成年儿童",
+		"hookup one night stand nude sexvideo porn",
+		"rape gang rape prostitution escort service",
+		"underage sex and minor porn",
+		"секс за деньги и порно",
+		"секс видео и изнасилование",
+		"интим услуги и несовершеннолетний секс",
+	}
+
+	for _, content := range cases {
+		result := applyHardBlockRules(content)
+		if result == nil {
+			t.Fatalf("expected adult hard block result: %s", content)
+		}
+		if result.Category != "adult" {
+			t.Fatalf("unexpected adult category for %s: %s", content, result.Category)
+		}
+	}
+}
+
 func TestLooksLikeAdOrContactCoversMultilingualDrainPhrases(t *testing.T) {
 	cases := []string{
 		"加我微信，私聊发你资源",
