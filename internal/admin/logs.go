@@ -2,6 +2,7 @@ package admin
 
 import (
 	"net/http"
+	"sort"
 	"time"
 
 	"github.com/XavierMary56/automatic_review/go-server/internal/audit"
@@ -139,17 +140,11 @@ func (ah *AdminHandler) collectProjectIDs() []string {
 	}
 	ah.keysMu.RUnlock()
 
-	logProjects, err := audit.ListProjects(ah.cfg.AuditLogDir)
-	if err == nil {
-		for _, projectID := range logProjects {
-			projectMap[projectID] = true
-		}
-	}
-
 	projectIDs := make([]string, 0, len(projectMap))
 	for projectID := range projectMap {
 		projectIDs = append(projectIDs, projectID)
 	}
+	sort.Strings(projectIDs)
 
 	return projectIDs
 }

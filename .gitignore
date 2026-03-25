@@ -7,3 +7,8 @@
 /tests/*.md
 /tests/*.ps1
 /.tmp-go
+/logs/audit/91prona/*.log
+/logs/audit/unknown/*.log
+/logs/audit/admin-check-proj-edited/*.log
+/logs/audit/admin-check-proj/*.log
+/logs/audit/stats-delete-check/*.log

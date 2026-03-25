@@ -416,7 +416,7 @@
       </div>
       <div class="form-group">
         <label>速率限制（次/分钟）</label>
-        <input type="number" id="project-key-rate-limit" min="1" />
+        <input type="number" id="project-key-rate-limit" min="0" />
       </div>
       <div class="form-group">
         <label>状态</label>
@@ -614,8 +614,8 @@ function setProjectKeyModalMode(mode, info) {
   document.getElementById('project-key-modal-desc').textContent = isEdit ? '修改后会立即同步到后台配置。' : '这里显示当前项目密钥的完整信息。';
   document.getElementById('project-key-project-id').value = info?.project_id || '';
   document.getElementById('project-key-value').value = info?.key || '';
-  document.getElementById('project-key-rate-limit').value = info?.rate_limit || '';
-  document.getElementById('project-key-status').value = info?.enabled ? 'Enabled' : 'Disabled';
+  document.getElementById('project-key-rate-limit').value = info?.rate_limit ?? '';
+  document.getElementById('project-key-status').value = info?.enabled ? '已启用' : '已停用';
   document.getElementById('project-key-created-at').value = formatDate(info?.created_at);
   document.getElementById('project-key-updated-at').value = formatDate(info?.updated_at);
   document.getElementById('project-key-project-id').readOnly = !isEdit;
@@ -634,9 +634,10 @@ async function saveProjectKeyModal() {
   if (!activeProjectKey?.key) return;
   const projectId = document.getElementById('project-key-project-id').value.trim();
   const key = document.getElementById('project-key-value').value.trim();
-  const rateLimit = parseInt(document.getElementById('project-key-rate-limit').value, 10);
-  if (!projectId || !key || !(rateLimit > 0)) {
-    toast('Invalid input', 'error');
+  const rateLimitRaw = document.getElementById('project-key-rate-limit').value.trim();
+  const rateLimit = parseInt(rateLimitRaw, 10);
+  if (!projectId || !key || rateLimitRaw === '' || Number.isNaN(rateLimit) || rateLimit < 0) {
+    toast('输入不合法', 'error');
     return;
   }
 
@@ -647,12 +648,12 @@ async function saveProjectKeyModal() {
     enabled: !!activeProjectKey.enabled
   });
   if (resp?.ok) {
-    toast('Key updated');
+    toast('项目密钥已更新');
     closeProjectKeyModal();
     loadProjectKeys();
   } else {
     const j = await resp.json();
-    toast(j.error || 'Update failed', 'error');
+    toast(j.error || '更新失败', 'error');
   }
 }
 
@@ -673,9 +674,9 @@ function renderProjectKeys() {
     return `${info.project_id || ''} ${info.key || ''}`.toLowerCase().includes(keyword);
   });
 
-  document.getElementById('keys-count').textContent = `Total ${rows.length} / ${projectKeysData.length} keys`;
+  document.getElementById('keys-count').textContent = `共 ${rows.length} / ${projectKeysData.length} 个项目密钥`;
   if (!rows.length) {
-    tbody.innerHTML = '<tr class="empty-row"><td colspan="6">No matching keys</td></tr>';
+    tbody.innerHTML = '<tr class="empty-row"><td colspan="6">没有匹配的项目密钥</td></tr>';
     return;
   }
 
@@ -683,14 +684,14 @@ function renderProjectKeys() {
     <tr>
       <td><strong>${info.project_id || '-'}</strong></td>
       <td><span class="key-cell">${info.key || '-'}</span></td>
-      <td>${info.rate_limit ? info.rate_limit + ' req/min' : 'Unlimited'}</td>
+      <td>${info.rate_limit ? info.rate_limit + ' 次/分钟' : '不限速'}</td>
       <td>${formatDate(info.created_at)}</td>
-      <td><span class="badge ${info.enabled ? 'badge-active' : 'badge-inactive'}">${info.enabled ? 'Enabled' : 'Disabled'}</span></td>
+      <td><span class="badge ${info.enabled ? 'badge-active' : 'badge-inactive'}">${info.enabled ? '已启用' : '已停用'}</span></td>
       <td><div class="actions">
-        <button class="btn btn-sm btn-info" onclick="viewProjectKey('${encodeURIComponent(info.key || '')}')">View</button>
-        <button class="btn btn-sm btn-primary" onclick="editProjectKey('${encodeURIComponent(info.key || '')}')">Edit</button>
-        <button class="btn btn-sm ${info.enabled ? 'btn-warning' : 'btn-success'}" onclick="toggleProjectKey('${encodeURIComponent(info.key || '')}', ${!info.enabled})">${info.enabled ? 'Disable' : 'Enable'}</button>
-        <button class="btn btn-sm btn-danger" onclick="confirmDelete('/v1/admin/keys/${encodeURIComponent(info.key || '')}', 'Key for ${info.project_id || '-'}', loadProjectKeys)">Delete</button>
+        <button class="btn btn-sm btn-info" onclick="viewProjectKey('${encodeURIComponent(info.key || '')}')">查看</button>
+        <button class="btn btn-sm btn-primary" onclick="editProjectKey('${encodeURIComponent(info.key || '')}')">编辑</button>
+        <button class="btn btn-sm ${info.enabled ? 'btn-warning' : 'btn-success'}" onclick="toggleProjectKey('${encodeURIComponent(info.key || '')}', ${!info.enabled})">${info.enabled ? '停用' : '启用'}</button>
+        <button class="btn btn-sm btn-danger" onclick="confirmDelete('/v1/admin/keys/${encodeURIComponent(info.key || '')}', '项目 ' + '${info.project_id || '-'}' + ' 的密钥', loadProjectKeys)">删除</button>
       </div></td>
     </tr>`).join('');
 }
@@ -708,12 +709,12 @@ async function addProjectKey() {
   const pid = document.getElementById('new-proj-id').value.trim();
   const key = document.getElementById('new-proj-key').value.trim();
   const rate = parseInt(document.getElementById('new-proj-rate').value, 10) || 0;
-  if (!pid) { toast('Project ID is required', 'error'); return; }
-  if (rate < 0) { toast('Rate limit must be 0 (unlimited) or greater', 'error'); return; }
+  if (!pid) { toast('项目 ID 不能为空', 'error'); return; }
+  if (rate < 0) { toast('限速必须大于等于 0', 'error'); return; }
   const resp = await api('POST', '/v1/admin/keys', { project_id: pid, key, rate_limit: rate });
   if (!resp) return;
   if (resp.status === 201) {
-    toast('Key created');
+    toast('项目密钥已创建');
     document.getElementById('new-proj-id').value = '';
     document.getElementById('new-proj-key').value = '';
     document.getElementById('new-proj-key').dataset.autoGenerated = '1';
@@ -722,20 +723,20 @@ async function addProjectKey() {
     loadProjectKeys();
   } else {
     const j = await resp.json();
-    toast(j.error || 'Create failed', 'error');
+    toast(j.error || '创建失败', 'error');
   }
 }
 
 async function viewProjectKey(enc) {
   const resp = await api('GET', '/v1/admin/keys/' + enc);
-  if (!resp?.ok) { toast('Query failed', 'error'); return; }
+  if (!resp?.ok) { toast('查询失败', 'error'); return; }
   const json = await resp.json();
   setProjectKeyModalMode('view', json.data || {});
 }
 
 async function editProjectKey(enc) {
   const resp = await api('GET', '/v1/admin/keys/' + enc);
-  if (!resp?.ok) { toast('Read key failed', 'error'); return; }
+  if (!resp?.ok) { toast('读取项目密钥失败', 'error'); return; }
   const json = await resp.json();
   setProjectKeyModalMode('edit', json.data || {});
 }
@@ -743,10 +744,10 @@ async function editProjectKey(enc) {
 async function toggleProjectKey(enc, enable) {
   const resp = await api('PUT', '/v1/admin/keys/' + enc, { enabled: enable });
   if (resp?.ok) {
-    toast(enable ? 'Key enabled' : 'Key disabled');
+    toast(enable ? '项目密钥已启用' : '项目密钥已停用');
     loadProjectKeys();
   } else {
-    toast('Operation failed', 'error');
+    toast('操作失败', 'error');
   }
 }
 
@@ -988,8 +989,8 @@ async function addModel() {
 
 async function updateModel(id, data) {
   const resp = await api('PUT','/v1/admin/models/'+id, data);
-  if (resp?.ok) { toast('已更新'); loadModels(); }
-  else toast('更新失败','error');
+  if (resp?.ok) { toast('模型已更新'); loadModels(); }
+  else toast('模型更新失败','error');
 }
 
 // ── 项目统计 ──────────────────────────────────────────
@@ -998,16 +999,17 @@ async function loadStats() {
   const [sr, pr] = await Promise.all([api('GET','/v1/admin/projects/stats'), api('GET','/v1/admin/projects')]);
   if (!sr||!pr) return;
   const stats = (await sr.json()).data||{};
-  const projs = (await pr.json()).data||{};
+  const projectsData = (await pr.json()).data||{};
+  const projectCount = projectsData.total_projects || (projectsData.projects||[]).length || 0;
   let tc=0,ta=0,tl=0;
   Object.values(stats).forEach(s=>{tc+=s.api_calls||0;ta+=s.auth_attempts||0;tl+=s.rate_limited||0;});
   document.getElementById('stats-summary').innerHTML = `
-    <div class="stat-card"><div class="label">项目总数</div><div class="value">${Object.keys(projs).length}</div><div class="sub">活跃项目</div></div>
+    <div class="stat-card"><div class="label">项目总数</div><div class="value">${projectCount}</div><div class="sub">活跃项目</div></div>
     <div class="stat-card"><div class="label">API 调用</div><div class="value">${tc.toLocaleString()}</div><div class="sub">累计请求次数</div></div>
     <div class="stat-card"><div class="label">认证次数</div><div class="value">${ta.toLocaleString()}</div><div class="sub">鉴权请求总量</div></div>
     <div class="stat-card"><div class="label">限流次数</div><div class="value">${tl.toLocaleString()}</div><div class="sub">触发速率限制</div></div>`;
   const tbody = document.getElementById('stats-tbody');
-  const entries = Object.entries(stats);
+  const entries = Object.entries(stats).sort((a,b)=>(b[1].api_calls||0)-(a[1].api_calls||0) || (b[1].auth_attempts||0)-(a[1].auth_attempts||0) || a[0].localeCompare(b[0]));
   if (!entries.length) { tbody.innerHTML = '<tr class="empty-row"><td colspan="6">暂无统计数据</td></tr>'; return; }
   tbody.innerHTML = entries.map(([pid,s])=>`
     <tr><td><strong>${pid}</strong></td><td>${(s.api_calls||0).toLocaleString()}</td>
