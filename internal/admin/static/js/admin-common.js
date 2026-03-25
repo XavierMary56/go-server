@@ -119,6 +119,7 @@ function switchTab(name, btn) {
   if (name === 'openai') loadProviderKeys('openai');
   if (name === 'grok') loadProviderKeys('grok');
   if (name === 'models') loadModels();
+  if (name === 'settings') loadAdminTokenSettings();
 }
 
 function confirmDelete(apiPath, label, onSuccess) {

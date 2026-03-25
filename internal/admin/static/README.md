@@ -16,6 +16,8 @@
   Anthropic/OpenAI/Grok key management and model management.
 - [admin-stats-logs.js](/d:/Users/Public/php20250819/2026www/go-server/internal/admin/static/js/admin-stats-logs.js)
   Project statistics, audit log filters, and log detail dialog.
+- [admin-settings.js](/d:/Users/Public/php20250819/2026www/go-server/internal/admin/static/js/admin-settings.js)
+  Admin token source display and online token update form.
 
 ## Editing Notes
 

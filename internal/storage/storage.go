@@ -66,6 +66,13 @@ type ModelConfig struct {
 	Enabled  bool   `json:"enabled"`
 }
 
+// AdminSetting stores lightweight admin console settings.
+type AdminSetting struct {
+	Key       string     `json:"key"`
+	Value     string     `json:"value,omitempty"`
+	UpdatedAt *time.Time `json:"updated_at,omitempty"`
+}
+
 // New 初始化数据库
 func New(dataDir string) (*DB, error) {
 	if err := os.MkdirAll(dataDir, 0755); err != nil {
@@ -143,6 +150,12 @@ func (s *DB) migrate() error {
 			weight   INTEGER NOT NULL DEFAULT 50,
 			priority INTEGER NOT NULL DEFAULT 1,
 			enabled  INTEGER NOT NULL DEFAULT 1
+		);
+
+		CREATE TABLE IF NOT EXISTS admin_settings (
+			key        TEXT PRIMARY KEY,
+			value      TEXT NOT NULL,
+			updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 		);
 	`)
 	return err
@@ -255,6 +268,32 @@ func (s *DB) UpdateProjectKey(currentKey string, projectID *string, newKey *stri
 
 func (s *DB) DeleteProjectKey(key string) error {
 	_, err := s.db.Exec(`UPDATE project_keys SET enabled=0, deleted_at=?, updated_at=? WHERE key=? AND deleted_at IS NULL`, time.Now(), time.Now(), key)
+	return err
+}
+
+func (s *DB) GetAdminSetting(key string) (*AdminSetting, error) {
+	row := s.db.QueryRow(`SELECT key, value, updated_at FROM admin_settings WHERE key=? LIMIT 1`, key)
+
+	setting := &AdminSetting{}
+	err := row.Scan(&setting.Key, &setting.Value, &setting.UpdatedAt)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, err
+	}
+
+	return setting, nil
+}
+
+func (s *DB) SetAdminSetting(key, value string) error {
+	_, err := s.db.Exec(`
+		INSERT INTO admin_settings (key, value, updated_at)
+		VALUES (?, ?, ?)
+		ON CONFLICT(key) DO UPDATE SET
+			value=excluded.value,
+			updated_at=excluded.updated_at
+	`, key, value, time.Now())
 	return err
 }
 
