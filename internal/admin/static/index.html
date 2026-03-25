@@ -45,7 +45,8 @@
       <button class="tab-btn" onclick="switchTab('openai',this)">OpenAI 密钥</button>
       <button class="tab-btn" onclick="switchTab('grok',this)">Grok 密钥</button>
       <button class="tab-btn" onclick="switchTab('models',this)">模型管理</button>
-      <button class="tab-btn" onclick="switchTab('stats',this)">项目统计</button>
+      
+      <button class="tab-btn" onclick="switchTab('settings',this)">系统设置</button>
     </div>
 
     <!-- 标签：项目密钥 -->
@@ -283,7 +284,57 @@
   </div>
 </div>
 
-<div class="toast-wrap" id="toast-wrap"></div>
+    <div id="tab-settings" class="tab-panel">
+      <div class="card">
+        <div class="card-header">
+          <div>
+            <h2>系统设置</h2>
+            <div class="sub">管理员令牌支持数据库优先，环境变量兜底。</div>
+          </div>
+          <button class="btn btn-ghost btn-sm" onclick="loadAdminTokenSettings()">刷新</button>
+        </div>
+        <div class="add-form show">
+          <div class="form-grid-3 add-form-grid">
+            <div class="form-group">
+              <label>当前来源</label>
+              <input type="text" id="admin-token-source" readonly />
+            </div>
+            <div class="form-group">
+              <label>是否已配置</label>
+              <input type="text" id="admin-token-configured" readonly />
+            </div>
+            <div class="form-group">
+              <label>最近更新时间</label>
+              <input type="text" id="admin-token-updated-at" readonly />
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-header">
+          <div>
+            <h2>修改管理员令牌</h2>
+            <div class="sub">保存成功后，当前后台登录会自动切换到新令牌。</div>
+          </div>
+        </div>
+        <div class="add-form show">
+          <div class="form-grid-2 add-form-grid">
+            <div class="form-group">
+              <label>新管理员令牌</label>
+              <input type="password" id="admin-token-new" placeholder="例如：admin_20260325_console_token" />
+            </div>
+            <div class="form-group">
+              <label>确认新令牌</label>
+              <input type="password" id="admin-token-confirm" placeholder="再次输入新令牌" />
+            </div>
+          </div>
+          <div class="add-form-actions">
+            <button class="btn btn-primary" onclick="updateAdminTokenSettings()">保存管理员令牌</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
 
 <!-- 删除确认弹窗 -->
 <div class="modal-overlay" id="delete-modal">
@@ -373,7 +424,8 @@
 <script src="js/admin-common.js"></script>
 <script src="js/admin-project-keys.js"></script>
 <script src="js/admin-providers-models.js"></script>
-<script src="js/admin-stats-logs.js"></script>
+
+<script src="js/admin-settings.js"></script>
 </body>
 </html>
 

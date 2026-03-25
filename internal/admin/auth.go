@@ -1,12 +1,17 @@
 package admin
 
 import (
+	"crypto/sha256"
+	"crypto/subtle"
+	"encoding/hex"
 	"net/http"
 	"strings"
 	"time"
 
 	"github.com/XavierMary56/automatic_review/go-server/internal/audit"
 )
+
+const adminTokenSettingKey = "admin_token_hash"
 
 // withAdminAuth validates the admin bearer token before serving a request.
 func (ah *AdminHandler) withAdminAuth(next http.HandlerFunc) http.HandlerFunc {
@@ -38,6 +43,14 @@ func (ah *AdminHandler) withAdminAuth(next http.HandlerFunc) http.HandlerFunc {
 
 // isValidAdminToken checks whether the provided token matches config.
 func (ah *AdminHandler) isValidAdminToken(token string) bool {
+	if ah.db != nil {
+		setting, err := ah.db.GetAdminSetting(adminTokenSettingKey)
+		if err == nil && setting != nil && strings.TrimSpace(setting.Value) != "" {
+			expected := hashAdminToken(token)
+			return subtle.ConstantTimeCompare([]byte(setting.Value), []byte(expected)) == 1
+		}
+	}
+
 	adminTokens := strings.Split(ah.cfg.AdminToken, ",")
 	for _, t := range adminTokens {
 		if strings.TrimSpace(t) == token {
@@ -45,4 +58,9 @@ func (ah *AdminHandler) isValidAdminToken(token string) bool {
 		}
 	}
 	return false
+}
+
+func hashAdminToken(token string) string {
+	sum := sha256.Sum256([]byte(token))
+	return hex.EncodeToString(sum[:])
 }
