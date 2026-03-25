@@ -83,70 +83,6 @@ func New(cfg *config.Config, log *logger.Logger, auditLogger *audit.AuditLogger,
 	return handler
 }
 
-// RegisterRoutes 注册管理路由
-func (ah *AdminHandler) RegisterRoutes(mux *http.ServeMux) {
-	// 所有管理端点都需要身份验证
-	mux.HandleFunc("/v1/admin/keys", ah.withAdminAuth(ah.handleProjectKeys))
-	mux.HandleFunc("/v1/admin/keys/", ah.withAdminAuth(ah.handleProjectKeyDetail))
-	mux.HandleFunc("/v1/admin/health", ah.handleAdminHealth)
-	mux.HandleFunc("/v1/admin/keys/check-all", ah.withAdminAuth(ah.handleCheckAllKeys))
-	mux.HandleFunc("/v1/admin/anthropic-keys/check", ah.withAdminAuth(ah.handleCheckAnthropicKey))
-	mux.HandleFunc("/v1/admin/provider-keys/check", ah.withAdminAuth(ah.handleCheckProviderKey))
-
-	// 日志和审计相关的管理端点
-	mux.HandleFunc("/v1/admin/projects", ah.withAdminAuth(ah.handleListProjects))
-	mux.HandleFunc("/v1/admin/projects/logs", ah.withAdminAuth(ah.handleProjectLogs))
-	mux.HandleFunc("/v1/admin/projects/stats", ah.withAdminAuth(ah.handleProjectStats))
-
-	// Anthropic 密钥管理
-	mux.HandleFunc("/v1/admin/anthropic-keys", ah.withAdminAuth(ah.handleAnthropicKeys))
-	mux.HandleFunc("/v1/admin/anthropic-keys/", ah.withAdminAuth(ah.handleAnthropicKeyDetail))
-	mux.HandleFunc("/v1/admin/anthropic-keys/verify", ah.withAdminAuth(ah.handleVerifyAnthropicKey))
-
-	// Provider 密钥管理（OpenAI / Grok）
-	mux.HandleFunc("/v1/admin/provider-keys", ah.withAdminAuth(ah.handleProviderKeys))
-	mux.HandleFunc("/v1/admin/provider-keys/", ah.withAdminAuth(ah.handleProviderKeyDetail))
-
-	// 模型管理
-	mux.HandleFunc("/v1/admin/models", ah.withAdminAuth(ah.handleModels))
-	mux.HandleFunc("/v1/admin/models/", ah.withAdminAuth(ah.handleModelDetail))
-
-	// Web UI
-	ah.registerWebUI(mux)
-}
-
-// ── 中间件 ────────────────────────────────────────
-
-// withAdminAuth 管理员鉴权中间件
-func (ah *AdminHandler) withAdminAuth(next http.HandlerFunc) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-
-		// 检查授权头
-		authHeader := r.Header.Get("Authorization")
-		if authHeader == "" {
-			ah.jsonError(w, http.StatusUnauthorized, "缺少 Authorization 头")
-			return
-		}
-
-		// 验证 Bearer token
-		token := strings.TrimPrefix(authHeader, "Bearer ")
-		if token == authHeader || !ah.isValidAdminToken(token) {
-			ah.jsonError(w, http.StatusUnauthorized, "无效的管理员令牌")
-			ah.auditLogger.LogEvent(&audit.AuditEvent{
-				Timestamp: time.Now(),
-				EventType: "admin_auth_failed",
-				ErrorMsg:  "无效的管理员令牌",
-				IPAddress: ah.getClientIP(r),
-				Path:      r.RequestURI,
-			})
-			return
-		}
-
-		next(w, r)
-	}
-}
-
 // ── 路由处理器 ────────────────────────────────────────
 
 // handleKeys 处理 GET/POST /v1/admin/keys
@@ -375,29 +311,7 @@ func (ah *AdminHandler) deleteKey(w http.ResponseWriter, r *http.Request, key st
 	})
 }
 
-// handleAdminHealth 管理界面健康检查（无需认证）
-func (ah *AdminHandler) handleAdminHealth(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-	ah.jsonOK(w, http.StatusOK, map[string]interface{}{
-		"status":              "ok",
-		"admin_api_available": true,
-	})
-}
-
 // ── 工具函数 ────────────────────────────────────────
-
-// isValidAdminToken 验证管理员令牌
-func (ah *AdminHandler) isValidAdminToken(token string) bool {
-	// 从配置中读取管理员令牌
-	// 支持逗号分隔的多个令牌
-	adminTokens := strings.Split(ah.cfg.AdminToken, ",")
-	for _, t := range adminTokens {
-		if strings.TrimSpace(t) == token {
-			return true
-		}
-	}
-	return false
-}
 
 // loadKeysFromEnv 从环境变量加载密钥
 func (ah *AdminHandler) loadKeysFromEnv() {
@@ -505,21 +419,6 @@ func (ah *AdminHandler) getClientIP(r *http.Request) string {
 		return xri
 	}
 	return r.RemoteAddr
-}
-
-// jsonOK 返回成功响应
-func (ah *AdminHandler) jsonOK(w http.ResponseWriter, status int, data interface{}) {
-	w.WriteHeader(status)
-	json.NewEncoder(w).Encode(data)
-}
-
-// jsonError 返回错误响应
-func (ah *AdminHandler) jsonError(w http.ResponseWriter, status int, msg string) {
-	w.WriteHeader(status)
-	json.NewEncoder(w).Encode(map[string]interface{}{
-		"code":  status,
-		"error": msg,
-	})
 }
 
 // GetAllowedKeys 获取当前允许的所有密钥（供 handler 使用）
