@@ -46,6 +46,20 @@ func normalizeForDetection(content string) string {
 
 	normalized = builder.String()
 	replacer := strings.NewReplacer(
+		"微信", "wechat",
+		"微x", "wechat",
+		"微 x", "wechat",
+		"微ｘ", "wechat",
+		"薇信", "wechat",
+		"薇❤", "wechat",
+		"薇心", "wechat",
+		"扣扣", "qq",
+		"球球", "qq",
+		"电报", "telegram",
+		"飞机", "telegram",
+		"微x", "微信",
+		"微 x", "微信",
+		"微ｘ", "微信",
 		"围信", "微信",
 		"薇信", "微信",
 		"卫星", "微信",

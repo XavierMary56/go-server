@@ -8,16 +8,17 @@ import (
 var (
 	directContactRawPatterns = []*regexp.Regexp{
 		regexp.MustCompile(`https?://[^\s]+`),
+		regexp.MustCompile(`hxxps?://[^\s]+`),
 		regexp.MustCompile(`www\.[^\s]+`),
 		regexp.MustCompile(`t\.me/[^\s]+`),
 		regexp.MustCompile(`discord\.gg/[^\s]+`),
 		regexp.MustCompile(`bit\.ly/[^\s]+`),
 		regexp.MustCompile(`tinyurl\.com/[^\s]+`),
 		regexp.MustCompile(`(?:^|[\s(])@[a-z0-9_]{5,}\b`),
+		regexp.MustCompile(`([a-z0-9\-]+)(?:\.|\[\.\])+(com|cn|net|org|ru|cc|xyz|top|info|io|co|tv|me|biz|vip|app|link|shop|live|site|fun|pro|club|online|store|cloud|test|gg|ly)\b`),
 		regexp.MustCompile(`([a-z0-9\-]+\.)+(com|cn|net|org|ru|cc|xyz|top|info|io|co|tv|me|biz|vip|app|link|shop|live|site|fun|pro|club|online|store|cloud|test|gg|ly)\b`),
 	}
 	directContactCompactPatterns = []*regexp.Regexp{
-		regexp.MustCompile(`[1-9][0-9]{5,}`),
 		regexp.MustCompile(`[a-z0-9._%+\-]+@[a-z0-9.\-]+\.[a-z]{2,}`),
 		regexp.MustCompile(`([a-z0-9\-]+\.)+[a-z]{2,}`),
 	}
@@ -38,6 +39,12 @@ func applyHardBlockRules(content string) *ModerateResult {
 
 	for _, rule := range hardBlockRules {
 		for _, keyword := range rule.keywords {
+			if rule.category == "fraud" && keyword == "bc" {
+				continue
+			}
+			if rule.category == "violence" && keyword == "ammo" {
+				continue
+			}
 			if strings.Contains(normalized, keyword) {
 				return &ModerateResult{
 					Verdict:    "rejected",
@@ -127,12 +134,46 @@ func containsDirectContactSignal(content string) bool {
 	}
 
 	for _, keyword := range directContactKeywords {
+		if isGenericPlatformKeyword(keyword) {
+			continue
+		}
 		if strings.Contains(sanitized, keyword) {
 			return true
 		}
 	}
 
+	if containsPlatformAccountSignal(sanitized) {
+		return true
+	}
+
 	for _, pattern := range directContactCompactPatterns {
+		if pattern.MatchString(sanitized) {
+			return true
+		}
+	}
+
+	return false
+}
+
+func isGenericPlatformKeyword(keyword string) bool {
+	switch keyword {
+	case "寰畑", "寰綐", "寰俊", "wechat", "wx", "vx", "qq", "telegram", "tg", "whatsapp", "line", "discord", "skype", "閭", "email":
+		return true
+	default:
+		return false
+	}
+}
+
+func containsPlatformAccountSignal(sanitized string) bool {
+	patterns := []*regexp.Regexp{
+		regexp.MustCompile(`(wechat|weixin|wx|vx|qq|telegram|tg|email|mail)(hao|号)?[a-z0-9_]{4,}`),
+		regexp.MustCompile(`(wechat|weixin|wx|vx|qq|telegram|tg)(hao|号)?[1-9][0-9]{5,}`),
+		regexp.MustCompile(`(微信|薇信|qq|电报|飞机)(号)?[a-z0-9_]{4,}`),
+		regexp.MustCompile(`(微信|薇信|qq|电报|飞机)(号)?[1-9][0-9]{5,}`),
+		regexp.MustCompile(`(telegram|qq)group[1-9][0-9]{5,}`),
+	}
+
+	for _, pattern := range patterns {
 		if pattern.MatchString(sanitized) {
 			return true
 		}
