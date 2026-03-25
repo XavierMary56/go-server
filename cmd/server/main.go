@@ -45,9 +45,11 @@ func main() {
 	}
 
 	svc := service.NewModerationService(cfg, lg, db)
+	auditLogger := audit.New(cfg.AuditLogDir, cfg.EnableAudit)
+	defer auditLogger.Close()
 
 	mux := http.NewServeMux()
-	h := handler.New(svc, lg, cfg, db)
+	h := handler.New(svc, lg, cfg, db, auditLogger)
 	h.RegisterRoutes(mux)
 
 	// 启动后台 Key 健康检测（每 5 分钟一次）
@@ -56,7 +58,6 @@ func main() {
 	svc.StartHealthChecker(ctx, 5*time.Minute)
 
 	if cfg.EnableAdminAPI {
-		auditLogger := audit.New(cfg.AuditLogDir, cfg.EnableAudit)
 		adminHandler := admin.New(cfg, lg, auditLogger, db, svc)
 		adminHandler.RegisterRoutes(mux)
 	}

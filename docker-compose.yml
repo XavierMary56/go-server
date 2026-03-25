@@ -21,6 +21,8 @@ services:
       - ALLOWED_KEYS=${ALLOWED_KEYS}
       - ENABLE_ADMIN_API=${ENABLE_ADMIN_API:-true}
       - ADMIN_TOKEN=${ADMIN_TOKEN}
+      - ENABLE_AUDIT=${ENABLE_AUDIT:-true}
+      - AUDIT_LOG_DIR=${AUDIT_LOG_DIR:-/logs/audit}
     volumes:
       - ./logs:/logs
       - moderation-data:/data
