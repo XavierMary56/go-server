@@ -1,4 +1,4 @@
-# 🤖 AI 内容审核系统 — Go 服务端
+﻿# 🤖 AI 内容审核系统 — Go 服务端
 
 > 使用 Go 实现的高性能内容审核服务，多模型自动轮换，支持同步/异步两种模式，PHP YAF 一键对接。
 
@@ -230,7 +230,7 @@ if (!$service->ping()) {
 
 ---
 
-### POST /v1/moderate/async — 异步审核
+### POST /v1/moderate/async — 异步审核（保留能力，当前接入暂不对接）
 
 立即返回 `task_id`，审核结果通过 Webhook 回调：
 
@@ -248,6 +248,7 @@ if (!$service->ping()) {
 // Webhook 回调（审核完成后 POST 到 webhook_url）
 {
   "task_id":    "task_1234567890",
+  "status":     "done",
   "verdict":    "approved",
   "category":   "none",
   "confidence": 0.95,

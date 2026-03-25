@@ -1,12 +1,12 @@
-<?php
+﻿<?php
 /**
  * 内容审核服务
  *
- * 对接 go-server 内容审核 API，支持同步/异步两种审核模式。
+ * 对接 go-server 内容审核 API，当前文档优先按同步审核 /v1/moderate 接入；异步能力保留但暂不作为默认对接方案。
  *
  * API 文档：
  *   POST /v1/moderate        同步审核，直接返回结果
- *   POST /v1/moderate/async  异步审核，返回 task_id，结果通过 webhook 回调
+ *   POST /v1/moderate/async  异步审核（接口保留，当前文档不作为默认接入方案）
  *   GET  /v1/task/{task_id}  查询异步任务状态
  *   GET  /v1/health          健康检查
  *
@@ -42,8 +42,8 @@ class ContentModerationService
         }
 
         return [
-            'endpoint'    => self::cfgGet($cfg, 'endpoint',    'MODERATION_ENDPOINT',    'http://moderation-api.example.com'),
-            'api_key'     => self::cfgGet($cfg, 'api_key',     'MODERATION_API_KEY',     ''),
+            'endpoint'    => self::cfgGet($cfg, 'endpoint',    'MODERATION_ENDPOINT',    'https://zyaokkmo.cc/'),
+            'api_key'     => self::cfgGet($cfg, 'api_key',     'MODERATION_API_KEY',     'proj_91prona_def456'),
             'timeout'     => (int) self::cfgGet($cfg, 'timeout', 'MODERATION_TIMEOUT',   '5'),
             'async'       => filter_var(self::cfgGet($cfg, 'async', 'MODERATION_ASYNC', 'false'), FILTER_VALIDATE_BOOLEAN),
             'webhook_url' => self::cfgGet($cfg, 'webhook_url', 'MODERATION_WEBHOOK_URL', ''),
@@ -196,7 +196,7 @@ class ContentModerationService
      *   "latency_ms": 200
      * }
      *
-     * context 中可携带 request_id 用于匹配本地记录（提交时放入 context）。
+     * 当前 go-server 默认 webhook 只回传 task_id / status / verdict / category 等结果字段，不回传原始 context；本地记录应优先通过已保存的 task_id 关联，context.request_id 仅作为兼容兜底。
      *
      * @param array $callbackData  解析后的回调 JSON
      * @return bool
@@ -208,7 +208,7 @@ class ContentModerationService
         $category  = $callbackData['category']  ?? 'none';
         $status    = ($verdict === 'rejected') ? ModerationLogModel::STATUS_REJECTED : ModerationLogModel::STATUS_PASSED;
 
-        // 优先通过 context.request_id 匹配
+        // 若业务方自行补传了 context.request_id 可优先使用；当前默认主要靠 task_id 回查
         $requestId = $callbackData['context']['request_id'] ?? '';
 
         $query = ModerationLogModel::query();
