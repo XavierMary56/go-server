@@ -23,6 +23,12 @@ func TestHandleProjectStatsReturnsAllProjectsWhenQueryIsMissing(t *testing.T) {
 	if err := os.WriteFile(filename, []byte(`{"timestamp":"2026-03-25T12:00:00Z","event_type":"api_call","project_id":"project-a","status_code":200}`+"\n"), 0o644); err != nil {
 		t.Fatalf("write file failed: %v", err)
 	}
+	if err := os.MkdirAll(filepath.Join(auditDir, "unknown"), 0o755); err != nil {
+		t.Fatalf("mkdir unknown failed: %v", err)
+	}
+	if err := os.MkdirAll(filepath.Join(auditDir, "log-only-project"), 0o755); err != nil {
+		t.Fatalf("mkdir log-only-project failed: %v", err)
+	}
 
 	handler := &AdminHandler{
 		cfg: &config.Config{AuditLogDir: auditDir},
@@ -56,5 +62,78 @@ func TestHandleProjectStatsReturnsAllProjectsWhenQueryIsMissing(t *testing.T) {
 	}
 	if _, ok := payload.Data["project-b"]; !ok {
 		t.Fatal("expected configured project-b zero stats in aggregated response")
+	}
+	if _, ok := payload.Data["log-only-project"]; ok {
+		t.Fatal("did not expect log-only project in aggregated project response")
+	}
+	if _, ok := payload.Data["unknown"]; ok {
+		t.Fatal("did not expect unknown audit bucket in aggregated project response")
+	}
+}
+
+func TestHandleListProjectsReturnsSortedProjectsWithoutUnknown(t *testing.T) {
+	auditDir := t.TempDir()
+
+	for _, projectID := range []string{"project-b", "project-a", "log-only-project", "unknown"} {
+		projectDir := filepath.Join(auditDir, projectID)
+		if err := os.MkdirAll(projectDir, 0o755); err != nil {
+			t.Fatalf("mkdir %s failed: %v", projectID, err)
+		}
+	}
+
+	handler := &AdminHandler{
+		cfg: &config.Config{AuditLogDir: auditDir},
+		keys: map[string]*KeyInfo{
+			"key-b": {ProjectID: "project-b"},
+			"key-c": {ProjectID: "project-c"},
+		},
+	}
+
+	req := httptest.NewRequest("GET", "/v1/admin/projects", nil)
+	rec := httptest.NewRecorder()
+	handler.handleListProjects(rec, req)
+
+	if rec.Code != 200 {
+		t.Fatalf("expected status 200, got %d", rec.Code)
+	}
+
+	var payload struct {
+		Code int `json:"code"`
+		Data struct {
+			TotalProjects int              `json:"total_projects"`
+			Projects      []map[string]any `json:"projects"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("unmarshal failed: %v", err)
+	}
+
+	if payload.Code != 200 {
+		t.Fatalf("expected code 200, got %d", payload.Code)
+	}
+	if payload.Data.TotalProjects != 2 {
+		t.Fatalf("expected 2 projects, got %d", payload.Data.TotalProjects)
+	}
+
+	gotOrder := make([]string, 0, len(payload.Data.Projects))
+	for _, project := range payload.Data.Projects {
+		projectID, _ := project["project_id"].(string)
+		if projectID == "unknown" {
+			t.Fatal("did not expect unknown audit bucket in project list response")
+		}
+		if projectID == "log-only-project" {
+			t.Fatal("did not expect log-only project in project list response")
+		}
+		gotOrder = append(gotOrder, projectID)
+	}
+
+	wantOrder := []string{"project-b", "project-c"}
+	if len(gotOrder) != len(wantOrder) {
+		t.Fatalf("expected %d projects in response, got %d", len(wantOrder), len(gotOrder))
+	}
+	for i := range wantOrder {
+		if gotOrder[i] != wantOrder[i] {
+			t.Fatalf("expected project order %v, got %v", wantOrder, gotOrder)
+		}
 	}
 }

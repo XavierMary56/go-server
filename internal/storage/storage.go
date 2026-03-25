@@ -18,13 +18,14 @@ type DB struct {
 
 // ProjectKey 项目密钥
 type ProjectKey struct {
-	ID        int64     `json:"id"`
-	ProjectID string    `json:"project_id"`
-	Key       string    `json:"key"`
-	RateLimit int       `json:"rate_limit"`
-	Enabled   bool      `json:"enabled"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
+	ID        int64      `json:"id"`
+	ProjectID string     `json:"project_id"`
+	Key       string     `json:"key"`
+	RateLimit int        `json:"rate_limit"`
+	Enabled   bool       `json:"enabled"`
+	DeletedAt *time.Time `json:"deleted_at,omitempty"`
+	CreatedAt time.Time  `json:"created_at"`
+	UpdatedAt time.Time  `json:"updated_at"`
 }
 
 // AnthropicKey Anthropic API Key
@@ -93,6 +94,7 @@ func (s *DB) migrateV2() {
 	s.db.Exec(`ALTER TABLE anthropic_keys ADD COLUMN checked_at DATETIME`)
 	s.db.Exec(`ALTER TABLE provider_keys ADD COLUMN status TEXT NOT NULL DEFAULT 'unknown'`)
 	s.db.Exec(`ALTER TABLE provider_keys ADD COLUMN checked_at DATETIME`)
+	s.db.Exec(`ALTER TABLE project_keys ADD COLUMN deleted_at DATETIME`)
 }
 
 func (s *DB) migrate() error {
@@ -103,6 +105,7 @@ func (s *DB) migrate() error {
 			key        TEXT NOT NULL UNIQUE,
 			rate_limit INTEGER NOT NULL DEFAULT 60,
 			enabled    INTEGER NOT NULL DEFAULT 1,
+			deleted_at DATETIME,
 			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
 			updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 		);
@@ -148,7 +151,12 @@ func (s *DB) migrate() error {
 // ── Project Keys ──────────────────────────────────────────
 
 func (s *DB) ListProjectKeys() ([]*ProjectKey, error) {
-	rows, err := s.db.Query(`SELECT id, project_id, key, rate_limit, enabled, created_at, updated_at FROM project_keys ORDER BY created_at DESC`)
+	rows, err := s.db.Query(`
+		SELECT id, project_id, key, rate_limit, enabled, deleted_at, created_at, updated_at
+		FROM project_keys
+		WHERE deleted_at IS NULL
+		ORDER BY created_at DESC
+	`)
 	if err != nil {
 		return nil, err
 	}
@@ -158,7 +166,7 @@ func (s *DB) ListProjectKeys() ([]*ProjectKey, error) {
 	for rows.Next() {
 		k := &ProjectKey{}
 		var enabled int
-		err := rows.Scan(&k.ID, &k.ProjectID, &k.Key, &k.RateLimit, &enabled, &k.CreatedAt, &k.UpdatedAt)
+		err := rows.Scan(&k.ID, &k.ProjectID, &k.Key, &k.RateLimit, &enabled, &k.DeletedAt, &k.CreatedAt, &k.UpdatedAt)
 		if err != nil {
 			return nil, err
 		}
@@ -170,9 +178,9 @@ func (s *DB) ListProjectKeys() ([]*ProjectKey, error) {
 
 func (s *DB) GetEnabledProjectKey(key string) (*ProjectKey, error) {
 	row := s.db.QueryRow(`
-		SELECT id, project_id, key, rate_limit, enabled, created_at, updated_at
+		SELECT id, project_id, key, rate_limit, enabled, deleted_at, created_at, updated_at
 		FROM project_keys
-		WHERE key=? AND enabled=1
+		WHERE key=? AND enabled=1 AND deleted_at IS NULL
 		LIMIT 1
 	`, key)
 
@@ -184,6 +192,7 @@ func (s *DB) GetEnabledProjectKey(key string) (*ProjectKey, error) {
 		&projectKey.Key,
 		&projectKey.RateLimit,
 		&enabled,
+		&projectKey.DeletedAt,
 		&projectKey.CreatedAt,
 		&projectKey.UpdatedAt,
 	)
@@ -201,7 +210,7 @@ func (s *DB) GetEnabledProjectKey(key string) (*ProjectKey, error) {
 func (s *DB) AddProjectKey(projectID, key string, rateLimit int) (*ProjectKey, error) {
 	now := time.Now()
 	result, err := s.db.Exec(
-		`INSERT INTO project_keys (project_id, key, rate_limit, enabled, created_at, updated_at) VALUES (?, ?, ?, 1, ?, ?)`,
+		`INSERT INTO project_keys (project_id, key, rate_limit, enabled, deleted_at, created_at, updated_at) VALUES (?, ?, ?, 1, NULL, ?, ?)`,
 		projectID, key, rateLimit, now, now,
 	)
 	if err != nil {
@@ -213,13 +222,13 @@ func (s *DB) AddProjectKey(projectID, key string, rateLimit int) (*ProjectKey, e
 
 func (s *DB) UpdateProjectKey(currentKey string, projectID *string, newKey *string, enabled *bool, rateLimit *int) error {
 	if projectID != nil {
-		_, err := s.db.Exec(`UPDATE project_keys SET project_id=?, updated_at=? WHERE key=?`, *projectID, time.Now(), currentKey)
+		_, err := s.db.Exec(`UPDATE project_keys SET project_id=?, updated_at=? WHERE key=? AND deleted_at IS NULL`, *projectID, time.Now(), currentKey)
 		if err != nil {
 			return err
 		}
 	}
 	if newKey != nil {
-		_, err := s.db.Exec(`UPDATE project_keys SET key=?, updated_at=? WHERE key=?`, *newKey, time.Now(), currentKey)
+		_, err := s.db.Exec(`UPDATE project_keys SET key=?, updated_at=? WHERE key=? AND deleted_at IS NULL`, *newKey, time.Now(), currentKey)
 		if err != nil {
 			return err
 		}
@@ -230,13 +239,13 @@ func (s *DB) UpdateProjectKey(currentKey string, projectID *string, newKey *stri
 		if *enabled {
 			e = 1
 		}
-		_, err := s.db.Exec(`UPDATE project_keys SET enabled=?, updated_at=? WHERE key=?`, e, time.Now(), currentKey)
+		_, err := s.db.Exec(`UPDATE project_keys SET enabled=?, updated_at=? WHERE key=? AND deleted_at IS NULL`, e, time.Now(), currentKey)
 		if err != nil {
 			return err
 		}
 	}
 	if rateLimit != nil {
-		_, err := s.db.Exec(`UPDATE project_keys SET rate_limit=?, updated_at=? WHERE key=?`, *rateLimit, time.Now(), currentKey)
+		_, err := s.db.Exec(`UPDATE project_keys SET rate_limit=?, updated_at=? WHERE key=? AND deleted_at IS NULL`, *rateLimit, time.Now(), currentKey)
 		if err != nil {
 			return err
 		}
@@ -245,7 +254,7 @@ func (s *DB) UpdateProjectKey(currentKey string, projectID *string, newKey *stri
 }
 
 func (s *DB) DeleteProjectKey(key string) error {
-	_, err := s.db.Exec(`DELETE FROM project_keys WHERE key=?`, key)
+	_, err := s.db.Exec(`UPDATE project_keys SET enabled=0, deleted_at=?, updated_at=? WHERE key=? AND deleted_at IS NULL`, time.Now(), time.Now(), key)
 	return err
 }
 
