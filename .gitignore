@@ -3,3 +3,7 @@
 /server.log
 /moderation-server
 /moderation-server~
+/.github/*.md
+/tests/*.md
+/tests/*.ps1
+/.tmp-go

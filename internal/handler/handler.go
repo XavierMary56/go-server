@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/XavierMary56/automatic_review/go-server/internal/audit"
 	"github.com/XavierMary56/automatic_review/go-server/internal/config"
 	"github.com/XavierMary56/automatic_review/go-server/internal/logger"
 	"github.com/XavierMary56/automatic_review/go-server/internal/service"
@@ -21,6 +22,7 @@ type Handler struct {
 	log   *logger.Logger
 	cfg   *config.Config
 	db    *storage.DB
+	audit *audit.AuditLogger
 	tasks sync.Map
 	usage sync.Map // key -> *rateCounter
 }
@@ -31,13 +33,38 @@ type rateCounter struct {
 	resetAt time.Time
 }
 
+type statusRecorder struct {
+	http.ResponseWriter
+	status int
+}
+
+func (r *statusRecorder) WriteHeader(status int) {
+	r.status = status
+	r.ResponseWriter.WriteHeader(status)
+}
+
+func (r *statusRecorder) Write(b []byte) (int, error) {
+	if r.status == 0 {
+		r.status = http.StatusOK
+	}
+	return r.ResponseWriter.Write(b)
+}
+
+func (r *statusRecorder) StatusCode() int {
+	if r.status == 0 {
+		return http.StatusOK
+	}
+	return r.status
+}
+
 // New creates a new handler instance.
-func New(svc *service.ModerationService, log *logger.Logger, cfg *config.Config, db *storage.DB) *Handler {
+func New(svc *service.ModerationService, log *logger.Logger, cfg *config.Config, db *storage.DB, auditLogger *audit.AuditLogger) *Handler {
 	return &Handler{
-		svc: svc,
-		log: log,
-		cfg: cfg,
-		db:  db,
+		svc:   svc,
+		log:   log,
+		cfg:   cfg,
+		db:    db,
+		audit: auditLogger,
 	}
 }
 
@@ -53,29 +80,59 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 
 func (h *Handler) withMiddleware(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		start := time.Now()
+		rec := &statusRecorder{ResponseWriter: w}
 		w.Header().Set("Access-Control-Allow-Origin", "*")
 		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Project-Key")
 		w.Header().Set("Access-Control-Allow-Methods", "POST, GET, OPTIONS")
 		w.Header().Set("Content-Type", "application/json; charset=utf-8")
 
 		if r.Method == http.MethodOptions {
-			w.WriteHeader(http.StatusOK)
+			rec.WriteHeader(http.StatusOK)
 			return
 		}
 
+		var projectKey *storage.ProjectKey
 		if h.cfg.EnableAuth {
-			projectKey, err := h.validateProjectKey(r.Header.Get("X-Project-Key"))
+			var err error
+			projectKey, err = h.validateProjectKey(r.Header.Get("X-Project-Key"))
 			if err != nil {
-				h.jsonError(w, http.StatusUnauthorized, "invalid project key")
+				if h.audit != nil {
+					h.audit.LogAuthAttempt("unknown", r.Header.Get("X-Project-Key"), false, h.getClientIP(r))
+				}
+				h.jsonError(rec, http.StatusUnauthorized, "invalid project key")
 				return
 			}
+			if h.audit != nil {
+				h.audit.LogAuthAttempt(projectKey.ProjectID, projectKey.Key, true, h.getClientIP(r))
+			}
 			if err := h.checkRateLimit(projectKey); err != nil {
-				h.jsonError(w, http.StatusTooManyRequests, err.Error())
+				if h.audit != nil {
+					h.audit.LogRateLimitExceeded(projectKey.ProjectID, projectKey.Key, h.getClientIP(r))
+				}
+				h.jsonError(rec, http.StatusTooManyRequests, err.Error())
 				return
 			}
 		}
 
-		next(w, r)
+		next(rec, r)
+
+		if h.audit != nil && projectKey != nil {
+			errorMsg := ""
+			if rec.StatusCode() >= http.StatusBadRequest {
+				errorMsg = http.StatusText(rec.StatusCode())
+			}
+			h.audit.LogAPICall(
+				projectKey.ProjectID,
+				projectKey.Key,
+				r.Method,
+				r.URL.Path,
+				rec.StatusCode(),
+				time.Since(start).Milliseconds(),
+				h.getClientIP(r),
+				errorMsg,
+			)
+		}
 	}
 }
 
@@ -277,6 +334,17 @@ func (h *Handler) jsonOK(w http.ResponseWriter, status int, data interface{}) {
 func (h *Handler) jsonError(w http.ResponseWriter, status int, msg string) {
 	w.WriteHeader(status)
 	_ = json.NewEncoder(w).Encode(map[string]interface{}{"code": status, "error": msg})
+}
+
+func (h *Handler) getClientIP(r *http.Request) string {
+	if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
+		parts := strings.Split(xff, ",")
+		return strings.TrimSpace(parts[0])
+	}
+	if xri := r.Header.Get("X-Real-IP"); xri != "" {
+		return xri
+	}
+	return r.RemoteAddr
 }
 
 func triggerWebhook(url string, data map[string]interface{}) {

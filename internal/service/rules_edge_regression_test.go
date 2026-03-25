@@ -31,6 +31,50 @@ func TestContainsDirectContactSignalCoversShortLinksAndHandles(t *testing.T) {
 	}
 }
 
+func TestContainsDirectContactSignalCoversEmailsAndDomainSuffixes(t *testing.T) {
+	cases := []string{
+		"contact admin@moviehub.ru for access",
+		"mirror is hosted on moviehub.cn now",
+		"open the backup at moviehub.net/archive",
+	}
+
+	for _, content := range cases {
+		if !containsDirectContactSignal(content) {
+			t.Fatalf("expected domain or email signal to be detected: %s", content)
+		}
+	}
+}
+
+func TestContainsBenignNegationSupportsEnglishVariants(t *testing.T) {
+	cases := []string{
+		"ordinary feedback, no contact info here",
+		"just discussion, not an ad and no diversion",
+		"movie review only, no private contact",
+	}
+
+	for _, content := range cases {
+		if !containsBenignNegation(content) {
+			t.Fatalf("expected benign negation to be detected: %s", content)
+		}
+		if looksLikeAdOrContact(content) {
+			t.Fatalf("did not expect benign negation sample to look like ad/contact: %s", content)
+		}
+	}
+}
+
+func TestApplyHardBlockRulesLeavesNormalAdultDiscussionUnblocked(t *testing.T) {
+	cases := []string{
+		"this is an adult-themed movie discussion with no solicitation",
+		"普通成人题材剧情讨论，没有联系方式也没有交易",
+	}
+
+	for _, content := range cases {
+		if result := applyHardBlockRules(content); result != nil {
+			t.Fatalf("expected normal adult discussion to stay unblocked, got %s for %q", result.Category, content)
+		}
+	}
+}
+
 func TestApplyHardBlockRulesCoversExpandedRiskKeywords(t *testing.T) {
 	cases := []struct {
 		content  string

@@ -13,7 +13,7 @@ import (
 // AuditLogger 审计日志记录器（按项目分别存储）
 type AuditLogger struct {
 	mu       sync.Mutex
-	baseDir  string      // 基础日志目录
+	baseDir  string // 基础日志目录
 	enabled  bool
 	eventCh  chan *AuditEvent
 	stopCh   chan struct{}
@@ -24,9 +24,9 @@ type AuditLogger struct {
 // AuditEvent 审计事件
 type AuditEvent struct {
 	Timestamp   time.Time              `json:"timestamp"`
-	EventType   string                 `json:"event_type"`   // auth, api_call, error, etc.
+	EventType   string                 `json:"event_type"` // auth, api_call, error, etc.
 	ProjectID   string                 `json:"project_id"`
-	APIKey      string                 `json:"api_key"`      // 隐藏的密钥
+	APIKey      string                 `json:"api_key"` // 隐藏的密钥
 	Method      string                 `json:"method"`
 	Path        string                 `json:"path"`
 	StatusCode  int                    `json:"status_code"`
@@ -41,11 +41,11 @@ type AuditEvent struct {
 // New 创建审计日志记录器
 func New(baseDir string, enabled bool) *AuditLogger {
 	al := &AuditLogger{
-		baseDir:  baseDir,
-		enabled:  enabled,
-		eventCh:  make(chan *AuditEvent, 1000),
-		stopCh:   make(chan struct{}),
-		logDirs:  make(map[string]string),
+		baseDir: baseDir,
+		enabled: enabled,
+		eventCh: make(chan *AuditEvent, 1000),
+		stopCh:  make(chan struct{}),
+		logDirs: make(map[string]string),
 	}
 
 	// 创建基础日志目录
@@ -77,7 +77,7 @@ func (al *AuditLogger) getProjectLogDir(projectID string) string {
 
 	if err := os.MkdirAll(projectDir, 0755); err != nil {
 		fmt.Fprintf(os.Stderr, "创建项目日志目录失败: %v\n", err)
-		return al.baseDir  // 回退到基础目录
+		return al.baseDir // 回退到基础目录
 	}
 
 	al.logDirMu.Lock()
@@ -290,14 +290,18 @@ func GetProjectStats(baseLogDir string, projectID string) (map[string]interface{
 
 	// 统计各类事件数
 	stats := map[string]int{
-		"api_call":             0,
-		"auth_attempt":         0,
-		"rate_limit_exceeded":  0,
-		"config_change":        0,
+		"api_call":            0,
+		"auth_attempt":        0,
+		"rate_limit_exceeded": 0,
+		"config_change":       0,
 	}
+	errors := 0
 
 	entries, err := os.ReadDir(projectLogDir)
 	if err != nil {
+		if os.IsNotExist(err) {
+			return buildProjectStats(projectID, totalSize, stats, errors), nil
+		}
 		return nil, err
 	}
 
@@ -324,15 +328,28 @@ func GetProjectStats(baseLogDir string, projectID string) (map[string]interface{
 			if count, exists := stats[event.EventType]; exists {
 				stats[event.EventType] = count + 1
 			}
+			if event.StatusCode >= 400 || event.ErrorMsg != "" {
+				errors++
+			}
 		}
 	}
 
+	return buildProjectStats(projectID, totalSize, stats, errors), nil
+}
+
+func buildProjectStats(projectID string, totalSize int64, stats map[string]int, errors int) map[string]interface{} {
 	return map[string]interface{}{
-		"project_id":           projectID,
-		"total_size_bytes":     totalSize,
-		"total_size_mb":        fmt.Sprintf("%.2f", float64(totalSize)/1024/1024),
-		"event_counts":         stats,
-	}, nil
+		"project_id":       projectID,
+		"log_size":         totalSize,
+		"total_size_bytes": totalSize,
+		"total_size_mb":    fmt.Sprintf("%.2f", float64(totalSize)/1024/1024),
+		"api_calls":        stats["api_call"],
+		"auth_attempts":    stats["auth_attempt"],
+		"rate_limited":     stats["rate_limit_exceeded"],
+		"config_changes":   stats["config_change"],
+		"errors":           errors,
+		"event_counts":     stats,
+	}
 }
 
 // sanitizeProjectID 清理项目ID（确保可用作文件夹名）

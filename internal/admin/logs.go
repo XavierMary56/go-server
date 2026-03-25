@@ -7,60 +7,52 @@ import (
 	"github.com/XavierMary56/automatic_review/go-server/internal/audit"
 )
 
-// 日志和审计相关的管理接口
-
-// handleProjectLogs 处理 GET /v1/admin/projects/{id}/logs
+// handleProjectLogs handles GET /v1/admin/projects/logs?project={id}
 func (ah *AdminHandler) handleProjectLogs(w http.ResponseWriter, r *http.Request) {
-	// 从 URL 中提取项目ID
-	// 格式：/v1/admin/projects/{id}/logs
 	projectID := r.URL.Query().Get("project")
 	if projectID == "" {
-		ah.jsonError(w, http.StatusBadRequest, "项目ID不能为空")
+		ah.jsonError(w, http.StatusBadRequest, "project id is required")
 		return
 	}
 
-	// 查询参数
-	startStr := r.URL.Query().Get("start") // 2026-03-23
+	startStr := r.URL.Query().Get("start")
 	endStr := r.URL.Query().Get("end")
-	eventType := r.URL.Query().Get("type") // api_call, auth_attempt 等
+	eventType := r.URL.Query().Get("type")
 
-	// 解析时间范围
 	var startTime, endTime time.Time
 	if startStr != "" {
 		t, err := time.Parse("2006-01-02", startStr)
 		if err != nil {
-			ah.jsonError(w, http.StatusBadRequest, "开始时间格式错误 (格式: 2006-01-02)")
+			ah.jsonError(w, http.StatusBadRequest, "invalid start date, expected 2006-01-02")
 			return
 		}
 		startTime = t
 	} else {
-		startTime = time.Now().Add(-24 * time.Hour) // 默认最近 24 小时
+		startTime = time.Now().Add(-24 * time.Hour)
 	}
 
 	if endStr != "" {
 		t, err := time.Parse("2006-01-02", endStr)
 		if err != nil {
-			ah.jsonError(w, http.StatusBadRequest, "结束时间格式错误 (格式: 2006-01-02)")
+			ah.jsonError(w, http.StatusBadRequest, "invalid end date, expected 2006-01-02")
 			return
 		}
-		endTime = t.Add(24 * time.Hour) // 包含这一天
+		endTime = t.Add(24 * time.Hour)
 	} else {
 		endTime = time.Now()
 	}
 
-	// 查询日志
 	events, err := audit.QueryEvents(ah.cfg.AuditLogDir, projectID, startTime, endTime)
 	if err != nil {
-		ah.jsonError(w, http.StatusInternalServerError, "查询日志失败: "+err.Error())
+		ah.jsonError(w, http.StatusInternalServerError, "failed to query logs: "+err.Error())
 		return
 	}
 
-	// 过滤事件类型（如果指定）
 	if eventType != "" {
-		var filtered []audit.AuditEvent
-		for _, e := range events {
-			if e.EventType == eventType {
-				filtered = append(filtered, e)
+		filtered := make([]audit.AuditEvent, 0, len(events))
+		for _, event := range events {
+			if event.EventType == eventType {
+				filtered = append(filtered, event)
 			}
 		}
 		events = filtered
@@ -79,18 +71,29 @@ func (ah *AdminHandler) handleProjectLogs(w http.ResponseWriter, r *http.Request
 	})
 }
 
-// handleProjectStats 处理 GET /v1/admin/projects/{id}/stats
+// handleProjectStats handles GET /v1/admin/projects/stats and /v1/admin/projects/stats?project={id}
 func (ah *AdminHandler) handleProjectStats(w http.ResponseWriter, r *http.Request) {
 	projectID := r.URL.Query().Get("project")
 	if projectID == "" {
-		ah.jsonError(w, http.StatusBadRequest, "项目ID不能为空")
+		result := make(map[string]interface{})
+		for _, pid := range ah.collectProjectIDs() {
+			stats, err := audit.GetProjectStats(ah.cfg.AuditLogDir, pid)
+			if err != nil {
+				continue
+			}
+			result[pid] = stats
+		}
+
+		ah.jsonOK(w, http.StatusOK, map[string]interface{}{
+			"code": 200,
+			"data": result,
+		})
 		return
 	}
 
-	// 获取项目统计
 	stats, err := audit.GetProjectStats(ah.cfg.AuditLogDir, projectID)
 	if err != nil {
-		ah.jsonError(w, http.StatusInternalServerError, "获取统计信息失败: "+err.Error())
+		ah.jsonError(w, http.StatusInternalServerError, "failed to get stats: "+err.Error())
 		return
 	}
 
@@ -100,66 +103,53 @@ func (ah *AdminHandler) handleProjectStats(w http.ResponseWriter, r *http.Reques
 	})
 }
 
-// handleListProjects 处理 GET /v1/admin/projects
+// handleListProjects handles GET /v1/admin/projects
 func (ah *AdminHandler) handleListProjects(w http.ResponseWriter, r *http.Request) {
-	// 从密钥表中获取所有已配置的项目
-	ah.keysMu.RLock()
-	configuredProjects := make(map[string]bool)
-	for _, keyInfo := range ah.keys {
-		if keyInfo.ProjectID != "" {
-			configuredProjects[keyInfo.ProjectID] = true
-		}
-	}
-	ah.keysMu.RUnlock()
-
-	// 列出所有有日志的项目
-	logProjects, err := audit.ListProjects(ah.cfg.AuditLogDir)
-	if err != nil {
-		// 如果日志目录不存在/不可读，继续使用配置的项目
-		logProjects = []string{}
-	}
-
-	// 合并配置的项目和日志中的项目
-	var allProjects []string
-	projectMap := make(map[string]bool)
-
-	// 先添加配置的项目
-	for projectID := range configuredProjects {
-		if !projectMap[projectID] {
-			allProjects = append(allProjects, projectID)
-			projectMap[projectID] = true
-		}
-	}
-
-	// 再添加日志中有的项目
-	for _, projectID := range logProjects {
-		if !projectMap[projectID] {
-			allProjects = append(allProjects, projectID)
-			projectMap[projectID] = true
-		}
-	}
-
-	// 获取每个项目的统计
-	var projectStats []map[string]interface{}
-	for _, projectID := range allProjects {
+	projectStats := make([]map[string]interface{}, 0)
+	for _, projectID := range ah.collectProjectIDs() {
 		stats, err := audit.GetProjectStats(ah.cfg.AuditLogDir, projectID)
 		if err == nil {
 			projectStats = append(projectStats, stats)
-		} else {
-			// 即使没有日志统计，也要返回项目信息
-			projectStats = append(projectStats, map[string]interface{}{
-				"project_id": projectID,
-				"created_at": time.Now(),
-				"status":     "configured",
-			})
+			continue
 		}
+
+		projectStats = append(projectStats, map[string]interface{}{
+			"project_id": projectID,
+			"status":     "configured",
+			"log_size":   int64(0),
+		})
 	}
 
 	ah.jsonOK(w, http.StatusOK, map[string]interface{}{
 		"code": 200,
 		"data": map[string]interface{}{
-			"total_projects": len(allProjects),
+			"total_projects": len(projectStats),
 			"projects":       projectStats,
 		},
 	})
+}
+
+func (ah *AdminHandler) collectProjectIDs() []string {
+	ah.keysMu.RLock()
+	projectMap := make(map[string]bool)
+	for _, keyInfo := range ah.keys {
+		if keyInfo.ProjectID != "" {
+			projectMap[keyInfo.ProjectID] = true
+		}
+	}
+	ah.keysMu.RUnlock()
+
+	logProjects, err := audit.ListProjects(ah.cfg.AuditLogDir)
+	if err == nil {
+		for _, projectID := range logProjects {
+			projectMap[projectID] = true
+		}
+	}
+
+	projectIDs := make([]string, 0, len(projectMap))
+	for projectID := range projectMap {
+		projectIDs = append(projectIDs, projectID)
+	}
+
+	return projectIDs
 }
