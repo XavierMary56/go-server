@@ -500,7 +500,7 @@ func (s *ModerationService) buildAuditContent(req *ModerateRequest) string {
 	parts := make([]string, 0, 4)
 
 	if content := strings.TrimSpace(req.Content); content != "" {
-		parts = append(parts, "main content:\n"+content)
+		parts = append(parts, "review body:\n"+content)
 	}
 
 	if req.Context == nil {

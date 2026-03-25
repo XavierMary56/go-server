@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"net/http"
 	"strings"
@@ -15,7 +16,7 @@ type KeyCheckResult struct {
 	ID       int64  `json:"id"`
 	Provider string `json:"provider"`
 	Name     string `json:"name"`
-	Status   string `json:"status"`  // healthy | unhealthy
+	Status   string `json:"status"` // healthy | unhealthy
 	Error    string `json:"error,omitempty"`
 }
 
@@ -83,16 +84,17 @@ func (s *ModerationService) CheckAnthropicKeyByID(id int64) KeyCheckResult {
 	if s.db == nil {
 		return KeyCheckResult{ID: id, Provider: "anthropic", Status: "unhealthy", Error: "db not available"}
 	}
-	keys, _ := s.db.ListAnthropicKeys()
-	for _, k := range keys {
-		if k.ID == id {
-			ok, errMsg := s.pingAnthropicKey(k.Key)
-			status := statusOf(ok)
-			s.db.UpdateAnthropicKeyStatus(id, status)
-			return KeyCheckResult{ID: id, Provider: "anthropic", Name: k.Name, Status: status, Error: errMsg}
+	k, err := s.db.GetAnthropicKeyByID(id)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return KeyCheckResult{ID: id, Provider: "anthropic", Status: "unhealthy", Error: "key not found"}
 		}
+		return KeyCheckResult{ID: id, Provider: "anthropic", Status: "unhealthy", Error: err.Error()}
 	}
-	return KeyCheckResult{ID: id, Provider: "anthropic", Status: "unhealthy", Error: "key not found"}
+	ok, errMsg := s.pingAnthropicKey(k.Key)
+	status := statusOf(ok)
+	s.db.UpdateAnthropicKeyStatus(id, status)
+	return KeyCheckResult{ID: id, Provider: "anthropic", Name: k.Name, Status: status, Error: errMsg}
 }
 
 // CheckProviderKeyByID 检测单个 OpenAI/Grok key
@@ -100,18 +102,17 @@ func (s *ModerationService) CheckProviderKeyByID(id int64) KeyCheckResult {
 	if s.db == nil {
 		return KeyCheckResult{ID: id, Status: "unhealthy", Error: "db not available"}
 	}
-	for _, provider := range []string{"openai", "grok"} {
-		keys, _ := s.db.ListProviderKeys(provider)
-		for _, k := range keys {
-			if k.ID == id {
-				ok, errMsg := s.pingProviderKey(k.Key, provider)
-				status := statusOf(ok)
-				s.db.UpdateProviderKeyStatus(id, status)
-				return KeyCheckResult{ID: id, Provider: provider, Name: k.Name, Status: status, Error: errMsg}
-			}
+	k, err := s.db.GetProviderKeyByID(id)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return KeyCheckResult{ID: id, Status: "unhealthy", Error: "key not found"}
 		}
+		return KeyCheckResult{ID: id, Status: "unhealthy", Error: err.Error()}
 	}
-	return KeyCheckResult{ID: id, Status: "unhealthy", Error: "key not found"}
+	ok, errMsg := s.pingProviderKey(k.Key, k.Provider)
+	status := statusOf(ok)
+	s.db.UpdateProviderKeyStatus(id, status)
+	return KeyCheckResult{ID: id, Provider: k.Provider, Name: k.Name, Status: status, Error: errMsg}
 }
 
 // MarkAnthropicKeyUnhealthy 在请求中遇到 auth 错误时立即标记

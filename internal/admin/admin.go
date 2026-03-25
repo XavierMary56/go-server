@@ -98,12 +98,12 @@ func (ah *AdminHandler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/v1/admin/projects/logs", ah.withAdminAuth(ah.handleProjectLogs))
 	mux.HandleFunc("/v1/admin/projects/stats", ah.withAdminAuth(ah.handleProjectStats))
 
-	// Anthropic Keys 管理
+	// Anthropic 密钥管理
 	mux.HandleFunc("/v1/admin/anthropic-keys", ah.withAdminAuth(ah.handleAnthropicKeys))
 	mux.HandleFunc("/v1/admin/anthropic-keys/", ah.withAdminAuth(ah.handleAnthropicKeyDetail))
 	mux.HandleFunc("/v1/admin/anthropic-keys/verify", ah.withAdminAuth(ah.handleVerifyAnthropicKey))
 
-	// Provider Keys 管理 (OpenAI / Grok)
+	// Provider 密钥管理（OpenAI / Grok）
 	mux.HandleFunc("/v1/admin/provider-keys", ah.withAdminAuth(ah.handleProviderKeys))
 	mux.HandleFunc("/v1/admin/provider-keys/", ah.withAdminAuth(ah.handleProviderKeyDetail))
 
@@ -172,7 +172,7 @@ func (ah *AdminHandler) handleKeyDetail(w http.ResponseWriter, r *http.Request) 
 
 	key, err := url.PathUnescape(parts[4])
 	if err != nil {
-		ah.jsonError(w, http.StatusBadRequest, "瀵嗛挜鏍煎紡鏃犳晥")
+		ah.jsonError(w, http.StatusBadRequest, "密钥格式无效")
 		return
 	}
 	switch r.Method {
@@ -574,7 +574,7 @@ func (ah *AdminHandler) loadKeysFromDB() {
 	}
 }
 
-// ── Anthropic Keys 管理 ───────────────────────────────────
+// ── Anthropic 密钥管理 ───────────────────────────────────
 
 func (ah *AdminHandler) handleAnthropicKeys(w http.ResponseWriter, r *http.Request) {
 	if ah.db == nil {
@@ -588,16 +588,16 @@ func (ah *AdminHandler) handleAnthropicKeys(w http.ResponseWriter, r *http.Reque
 			ah.jsonError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
-		// 脱敏显示
+		// 返回脱敏后的密钥信息
 		type safeKey struct {
 			ID         int64      `json:"id"`
 			Name       string     `json:"name"`
 			KeyMasked  string     `json:"key_masked"`
 			Enabled    bool       `json:"enabled"`
-			Status     string     `json:"status"` // ✨ 新增：对应 healthy/unhealthy
+			Status     string     `json:"status"` // healthy / unhealthy / unknown
 			UsageCount int64      `json:"usage_count"`
 			LastUsedAt *time.Time `json:"last_used_at"`
-			CheckedAt  *time.Time `json:"checked_at"` // ✨ 新增：检测时间
+			CheckedAt  *time.Time `json:"checked_at"` // 最近检测时间
 			CreatedAt  time.Time  `json:"created_at"`
 		}
 		var safe []safeKey
@@ -627,12 +627,12 @@ func (ah *AdminHandler) handleAnthropicKeys(w http.ResponseWriter, r *http.Reque
 		body, _ := io.ReadAll(r.Body)
 		json.Unmarshal(body, &req)
 		if req.Name == "" || req.Key == "" {
-			ah.jsonError(w, http.StatusBadRequest, "名称和 Key 不能为空")
+			ah.jsonError(w, http.StatusBadRequest, "名称和密钥不能为空")
 			return
 		}
 		k, err := ah.db.AddAnthropicKey(req.Name, req.Key)
 		if err != nil {
-			ah.jsonError(w, http.StatusConflict, "Key 已存在或保存失败: "+err.Error())
+			ah.jsonError(w, http.StatusConflict, "密钥已存在或保存失败: "+err.Error())
 			return
 		}
 		ah.jsonOK(w, http.StatusCreated, map[string]interface{}{"code": 201, "data": k})
@@ -678,7 +678,7 @@ func (ah *AdminHandler) handleAnthropicKeyDetail(w http.ResponseWriter, r *http.
 	}
 }
 
-// handleVerifyAnthropicKey 验证 Anthropic Key 是否有效（通过 ID 从 DB 取真实 Key）
+// handleVerifyAnthropicKey 验证 Anthropic 密钥是否有效（通过 ID 从 DB 取真实密钥）
 func (ah *AdminHandler) handleVerifyAnthropicKey(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		ah.jsonError(w, http.StatusMethodNotAllowed, "方法不允许")
@@ -707,7 +707,7 @@ func (ah *AdminHandler) handleVerifyAnthropicKey(w http.ResponseWriter, r *http.
 		}
 	}
 	if actualKey == "" {
-		ah.jsonError(w, http.StatusNotFound, "Key 不存在")
+		ah.jsonError(w, http.StatusNotFound, "密钥不存在")
 		return
 	}
 
@@ -728,12 +728,12 @@ func (ah *AdminHandler) handleVerifyAnthropicKey(w http.ResponseWriter, r *http.
 	valid := resp.StatusCode != 401 && resp.StatusCode != 403
 	reason := "验证通过"
 	if !valid {
-		reason = "Key 无效或已过期"
+		reason = "密钥无效或已过期"
 	}
 	ah.jsonOK(w, http.StatusOK, map[string]interface{}{"code": 200, "valid": valid, "reason": reason})
 }
 
-// ── 模型管理 ─────────────────────────────────────────────
+// ── 模型管理 ────────────────────────────────────────────
 
 func (ah *AdminHandler) handleModels(w http.ResponseWriter, r *http.Request) {
 	if ah.db == nil {
@@ -848,14 +848,14 @@ func (ah *AdminHandler) handleModelDetail(w http.ResponseWriter, r *http.Request
 	}
 }
 
-// ── Provider Keys (OpenAI / Grok) 管理 ──────────────────────
+// ── Provider 密钥管理（OpenAI / Grok） ─────────────────────
 
 func (ah *AdminHandler) handleProviderKeys(w http.ResponseWriter, r *http.Request) {
 	if ah.db == nil {
 		ah.jsonError(w, http.StatusServiceUnavailable, "数据库未初始化")
 		return
 	}
-	// 从查询参数获取 provider，默认列出所有
+	// 从查询参数读取 provider；为空时返回全部提供方密钥
 	provider := r.URL.Query().Get("provider")
 
 	switch r.Method {
@@ -920,12 +920,12 @@ func (ah *AdminHandler) handleProviderKeys(w http.ResponseWriter, r *http.Reques
 			return
 		}
 		if req.Name == "" || req.Key == "" {
-			ah.jsonError(w, http.StatusBadRequest, "名称和 Key 不能为空")
+			ah.jsonError(w, http.StatusBadRequest, "名称和密钥不能为空")
 			return
 		}
 		k, err := ah.db.AddProviderKey(req.Provider, req.Name, req.Key)
 		if err != nil {
-			ah.jsonError(w, http.StatusConflict, "Key 已存在或保存失败: "+err.Error())
+			ah.jsonError(w, http.StatusConflict, "密钥已存在或保存失败: "+err.Error())
 			return
 		}
 		ah.jsonOK(w, http.StatusCreated, map[string]interface{}{"code": 201, "data": k})
@@ -934,9 +934,9 @@ func (ah *AdminHandler) handleProviderKeys(w http.ResponseWriter, r *http.Reques
 	}
 }
 
-// ── 健康检测 ──────────────────────────────────────────────
+// ── 健康检测 ─────────────────────────────────────────────
 
-// handleCheckAllKeys POST /v1/admin/keys/check-all 检测所有 key
+// handleCheckAllKeys POST /v1/admin/keys/check-all 检测所有密钥
 func (ah *AdminHandler) handleCheckAllKeys(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		ah.jsonError(w, http.StatusMethodNotAllowed, "方法不允许")
@@ -950,7 +950,7 @@ func (ah *AdminHandler) handleCheckAllKeys(w http.ResponseWriter, r *http.Reques
 	ah.jsonOK(w, http.StatusOK, map[string]interface{}{"code": 200, "data": results})
 }
 
-// handleCheckAnthropicKey POST /v1/admin/anthropic-keys/check 检测单个 Anthropic key
+// handleCheckAnthropicKey POST /v1/admin/anthropic-keys/check 检测单个 Anthropic 密钥
 func (ah *AdminHandler) handleCheckAnthropicKey(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		ah.jsonError(w, http.StatusMethodNotAllowed, "方法不允许")
@@ -973,7 +973,7 @@ func (ah *AdminHandler) handleCheckAnthropicKey(w http.ResponseWriter, r *http.R
 	ah.jsonOK(w, http.StatusOK, map[string]interface{}{"code": 200, "data": result})
 }
 
-// handleCheckProviderKey POST /v1/admin/provider-keys/check 检测单个 provider key
+// handleCheckProviderKey POST /v1/admin/provider-keys/check 检测单个 Provider 密钥
 func (ah *AdminHandler) handleCheckProviderKey(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		ah.jsonError(w, http.StatusMethodNotAllowed, "方法不允许")
