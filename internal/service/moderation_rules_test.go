@@ -131,6 +131,46 @@ func TestApplyHardBlockRulesVariantCoverage(t *testing.T) {
 	}
 }
 
+func TestApplyHardBlockRulesPoliticsStrictCoverage(t *testing.T) {
+	cases := []string{
+		"讨论某国总统选举和议会局势",
+		"president election and parliament politics",
+		"президент выборы и парламент",
+	}
+
+	for _, content := range cases {
+		result := applyHardBlockRules(content)
+		if result == nil {
+			t.Fatalf("expected politics hard block result: %s", content)
+		}
+		if result.Category != "politics" {
+			t.Fatalf("unexpected politics category for %s: %s", content, result.Category)
+		}
+		if result.Verdict != "rejected" {
+			t.Fatalf("unexpected politics verdict for %s: %s", content, result.Verdict)
+		}
+	}
+}
+
+func TestNormalizeModelDecisionAlwaysRejectsPolitics(t *testing.T) {
+	result := normalizeModelDecision(&aiResult{
+		Verdict:    "flagged",
+		Category:   "politics",
+		Confidence: 0.88,
+		Reason:     "political content",
+	}, "ordinary political text")
+
+	if result == nil {
+		t.Fatal("expected normalized politics result")
+	}
+	if result.Verdict != "rejected" {
+		t.Fatalf("expected rejected verdict, got %s", result.Verdict)
+	}
+	if result.Category != "politics" {
+		t.Fatalf("expected politics category, got %s", result.Category)
+	}
+}
+
 func TestApplyHardBlockRulesFraudCoverage(t *testing.T) {
 	cases := []string{
 		"兼职日结高薪，带你赚钱，稳赚不赔",
@@ -238,18 +278,17 @@ func TestLooksLikeAdOrContactCoversMultilingualDrainPhrases(t *testing.T) {
 	}
 }
 
-
 func TestContainsDirectContactSignalCoversURLPatterns(t *testing.T) {
-    cases := []string{
-        "https://example.com/free-video",
-        "http://abc.test/path",
-        "www.example.com",
-        "join at moviehub.com right now",
-    }
+	cases := []string{
+		"https://example.com/free-video",
+		"http://abc.test/path",
+		"www.example.com",
+		"join at moviehub.com right now",
+	}
 
-    for _, content := range cases {
-        if !containsDirectContactSignal(content) {
-            t.Fatalf("expected URL-like signal to be detected: %s", content)
-        }
-    }
+	for _, content := range cases {
+		if !containsDirectContactSignal(content) {
+			t.Fatalf("expected URL-like signal to be detected: %s", content)
+		}
+	}
 }
