@@ -1,4 +1,4 @@
-# 🚀 部署和功能完整指南
+﻿# 🚀 部署和功能完整指南
 
 ## 📋 快速导航
 
@@ -117,7 +117,7 @@ curl -X POST http://localhost:8080/v1/moderate \
 {
   "code": 200,
   "verdict": "approved",           # approved | flagged | rejected
-  "category": "normal",            # normal | spam | abuse | politics | adult
+  "category": "none",              # none | spam | abuse | politics | adult | fraud | violence
   "confidence": 0.98,
   "reason": "内容正常",
   "model_used": "claude-sonnet-4-20250514",
@@ -149,8 +149,9 @@ curl -X POST http://localhost:8080/v1/moderate/async \
 POST https://yourapp.com/webhook
 {
   "task_id": "task_1234567890",
+  "status": "done",
   "verdict": "approved",
-  "category": "normal",
+  "category": "none",
   "confidence": 0.98,
   "reason": "内容正常",
   "model_used": "claude-sonnet-4-20250514",
@@ -171,7 +172,7 @@ curl -H "X-Project-Key: sk-proj-xxxx" \
     "task_id": "task_1234567890",
     "status": "done",
     "verdict": "approved",
-    "category": "normal",
+    "category": "none",
     "confidence": 0.98,
     "model_used": "claude-sonnet-4-20250514",
     "latency_ms": 1234

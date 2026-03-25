@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 /**
  * 内容审核回调与状态查询接口
  *
@@ -12,7 +12,7 @@
  *   POST /moderation/callback  —— go-server 回调此接口通知审核结果
  *   GET  /moderation/status    —— 查询指定内容当前审核状态
  */
-class ModerationCallbackController extends Yaf_Controller_Abstract
+class ModerationController extends Yaf_Controller_Abstract
 {
     /**
      * POST /moderation/callback

@@ -1,4 +1,4 @@
-# PHP Yaf 内容审核对接文档
+﻿# PHP Yaf 内容审核对接文档
 
 审核服务地址：`https://ai.a889.cloud`（Key 管理也在此后台）
 
@@ -42,7 +42,7 @@ strictness  = "standard"
 | api_key | 在审核平台后台创建项目后生成的 Key |
 | timeout | 请求超时秒数 |
 | async | `false` 同步（直接返回结果）/ `true` 异步（回调通知） |
-| webhook_url | 异步时审核服务回调你项目的地址，需公网可访问 |
+| webhook_url | 仅异步模式需要；当前默认同步接入可不配置 |
 | strictness | 审核严格度：`standard` / `strict` / `loose` |
 
 ```ini
@@ -102,9 +102,9 @@ if ($result['verdict'] === 'rejected') {
 
 ---
 
-## 五、异步模式（可选）
+## 五、异步模式（暂不作为当前对接方案）
 
-适合视频、长文等耗时较长的内容，提交后立即返回，审核完成由服务端回调通知。
+当前接入文档默认不走异步模式。异步接口仍然存在，但仅作为后续扩展能力保留；现阶段请优先接入同步审核 /v1/moderate。
 
 ```php
 // 提交异步审核
@@ -117,7 +117,7 @@ $result = ContentModerationService::submitForModerationAsync(
 // $result['task_id'] 可记录日志
 
 // 审核完成后，go-server 会 POST 到 webhook_url，
-// ModerationCallbackController::callbackAction 自动处理并更新数据库状态
+// ModerationController::callbackAction 自动处理并更新数据库状态
 ```
 
 使用异步前确保：
@@ -135,6 +135,6 @@ sql/create_moderation_logs_table.sql                  建表 SQL
 migrations/20260323_001.php                           建表迁移
 application/library/service/ContentModerationService.php   审核核心类
 application/models/ModerationLog.php                  日志 Model
-application/controllers/ModerationCallbackController.php   回调 + 状态查询接口
+application/controllers/ModerationController.php   回调 + 状态查询接口
 application/modules/Admin/controllers/ModerationLogsController.php  后台列表
 ```
