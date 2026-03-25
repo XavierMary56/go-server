@@ -65,31 +65,101 @@ func TestLooksLikeAdOrContactAllowsBenignResourceDiscussion(t *testing.T) {
 	content := "【N030】只是分享观看感受，没有任何资源交换。"
 
 	if result := applyHardBlockRules(content); result != nil {
-		normalized := normalizeForDetection(content)
-		var hits []string
-		for _, phrase := range weakTradeDirectPhrases {
-			if contains := len(phrase) > 0 && len(normalized) > 0 && containsNormalized(normalized, phrase); contains {
-				hits = append(hits, "phrase:"+phrase)
-			}
-		}
-		for _, token := range weakTradeTokens {
-			if containsNormalized(normalized, token) {
-				hits = append(hits, "token:"+token)
-			}
-		}
-		t.Fatalf("expected benign resource discussion to stay unblocked, got category=%s direct=%v weak=%v hits=%v", result.Category, containsDirectContactSignal(content), containsWeakTradeIntent(content), hits)
+		t.Fatalf("expected benign resource discussion to stay unblocked, got category=%s direct=%v weak=%v", result.Category, containsDirectContactSignal(content), containsWeakTradeIntent(content))
 	}
 }
 
-func containsNormalized(normalized, token string) bool {
-	return len(token) > 0 && len(normalized) > 0 && (normalized == token || len(normalized) >= len(token) && containsString(normalized, token))
+func TestApplyHardBlockRulesTreatsObfuscatedURLAsSpam(t *testing.T) {
+	content := "看资源点 hxxps://abc[.]com"
+
+	result := applyHardBlockRules(content)
+	if result == nil {
+		t.Fatal("expected obfuscated url sample to be blocked")
+	}
+	if result.Category != "spam" {
+		t.Fatalf("expected spam category, got %s", result.Category)
+	}
 }
 
-func containsString(s, sub string) bool {
-	for i := 0; i+len(sub) <= len(s); i++ {
-		if s[i:i+len(sub)] == sub {
-			return true
+func TestApplyHardBlockRulesTreatsTelegramHandleAsSpam(t *testing.T) {
+	content := "telegram：movie_hub99"
+
+	result := applyHardBlockRules(content)
+	if result == nil {
+		t.Fatal("expected telegram handle sample to be blocked")
+	}
+	if result.Category != "spam" {
+		t.Fatalf("expected spam category, got %s", result.Category)
+	}
+}
+
+func TestLooksLikeAdOrContactCoversWeiXVariant(t *testing.T) {
+	content := "微 x：test001"
+
+	if !looksLikeAdOrContact(content) {
+		t.Fatal("expected wei-x variant to be detected as contact signal")
+	}
+}
+
+func TestLooksLikeAdOrContactAllowsExtendedBenignNegation(t *testing.T) {
+	content := "普通反馈，不含任何联系方式"
+
+	if looksLikeAdOrContact(content) {
+		t.Fatal("did not expect extended benign negation to look like ad/contact")
+	}
+}
+
+func TestLooksLikeAdOrContactAllowsPlainNumbersWithoutContactCue(t *testing.T) {
+	cases := []string{
+		"普通评论，只是提到 123456 这个数字",
+		"今天价格 123456 元，不含联系方式",
+	}
+
+	for _, content := range cases {
+		if looksLikeAdOrContact(content) {
+			t.Fatalf("did not expect plain numeric content to look like ad/contact: %s", content)
 		}
 	}
-	return false
+}
+
+func TestLooksLikeAdOrContactDetectsQQGroupVariants(t *testing.T) {
+	cases := []string{
+		"q群 7654321",
+		"企鹅号 12345678",
+		"qq号 1234567",
+	}
+
+	for _, content := range cases {
+		if !looksLikeAdOrContact(content) {
+			t.Fatalf("expected qq-group variant to be detected: %s", content)
+		}
+	}
+}
+
+func TestLooksLikeAdOrContactDetectsWeixinAndTelegramVariants(t *testing.T) {
+	cases := []string{
+		"wei xin: test001",
+		"wｅｉｘｉｎ test002",
+		"薇❤: test003",
+		"飞 机 号 moviehub99",
+	}
+
+	for _, content := range cases {
+		if !looksLikeAdOrContact(content) {
+			t.Fatalf("expected hidden contact variant to be detected: %s", content)
+		}
+	}
+}
+
+func TestLooksLikeAdOrContactAllowsPlainPlatformMention(t *testing.T) {
+	cases := []string{
+		"普通评论，只是提到微信这个词但没有联系方式",
+		"普通反馈，薇信这个词只是举例说明",
+	}
+
+	for _, content := range cases {
+		if looksLikeAdOrContact(content) {
+			t.Fatalf("did not expect plain platform mention to look like ad/contact: %s", content)
+		}
+	}
 }
