@@ -26,7 +26,7 @@ var (
 func applyHardBlockRules(content string) *ModerateResult {
 	normalized := normalizeForDetection(content)
 
-	if containsKeyword(normalized, politicsStrongKeywords) || countKeywordHits(normalized, politicsContextKeywords) >= 2 {
+	if containsKeyword(normalized, politicsStrongKeywords) {
 		return &ModerateResult{
 			Verdict:    "rejected",
 			Category:   "politics",
@@ -90,6 +90,12 @@ func normalizeModelDecision(ai *aiResult, auditContent string) *aiResult {
 		normalized.Verdict = "approved"
 		normalized.Category = "none"
 		normalized.Reason = "明确说明不含联系方式或导流"
+		return &normalized
+	}
+
+	if normalized.Verdict == "flagged" && normalized.Category == "none" {
+		normalized.Verdict = "approved"
+		normalized.Reason = "正常内容，无明显违规"
 		return &normalized
 	}
 

@@ -12,3 +12,4 @@
 /logs/audit/admin-check-proj-edited/*.log
 /logs/audit/admin-check-proj/*.log
 /logs/audit/stats-delete-check/*.log
+/logs/audit/ui-check-1774420256/*.log

@@ -296,6 +296,17 @@ func (s *DB) ListAnthropicKeys() ([]*AnthropicKey, error) {
 	return keys, nil
 }
 
+func (s *DB) GetAnthropicKeyByID(id int64) (*AnthropicKey, error) {
+	row := s.db.QueryRow(`SELECT id, name, key, enabled, status, usage_count, last_used_at, checked_at, created_at FROM anthropic_keys WHERE id=?`, id)
+	k := &AnthropicKey{}
+	var enabled int
+	if err := row.Scan(&k.ID, &k.Name, &k.Key, &enabled, &k.Status, &k.UsageCount, &k.LastUsedAt, &k.CheckedAt, &k.CreatedAt); err != nil {
+		return nil, err
+	}
+	k.Enabled = enabled == 1
+	return k, nil
+}
+
 func (s *DB) AddAnthropicKey(name, key string) (*AnthropicKey, error) {
 	now := time.Now()
 	result, err := s.db.Exec(
@@ -367,11 +378,24 @@ func (s *DB) ListProviderKeys(provider string) ([]*ProviderKey, error) {
 	for rows.Next() {
 		k := &ProviderKey{}
 		var enabled int
-		rows.Scan(&k.ID, &k.Provider, &k.Name, &k.Key, &enabled, &k.Status, &k.UsageCount, &k.LastUsedAt, &k.CheckedAt, &k.CreatedAt)
+		if err := rows.Scan(&k.ID, &k.Provider, &k.Name, &k.Key, &enabled, &k.Status, &k.UsageCount, &k.LastUsedAt, &k.CheckedAt, &k.CreatedAt); err != nil {
+			return nil, err
+		}
 		k.Enabled = enabled == 1
 		keys = append(keys, k)
 	}
 	return keys, nil
+}
+
+func (s *DB) GetProviderKeyByID(id int64) (*ProviderKey, error) {
+	row := s.db.QueryRow(`SELECT id, provider, name, key, enabled, status, usage_count, last_used_at, checked_at, created_at FROM provider_keys WHERE id=?`, id)
+	k := &ProviderKey{}
+	var enabled int
+	if err := row.Scan(&k.ID, &k.Provider, &k.Name, &k.Key, &enabled, &k.Status, &k.UsageCount, &k.LastUsedAt, &k.CheckedAt, &k.CreatedAt); err != nil {
+		return nil, err
+	}
+	k.Enabled = enabled == 1
+	return k, nil
 }
 
 func (s *DB) GetEnabledProviderKeys(provider string) ([]*ProviderKey, error) {
@@ -387,7 +411,9 @@ func (s *DB) GetEnabledProviderKeys(provider string) ([]*ProviderKey, error) {
 	for rows.Next() {
 		k := &ProviderKey{}
 		var enabled int
-		rows.Scan(&k.ID, &k.Provider, &k.Name, &k.Key, &enabled, &k.Status, &k.UsageCount, &k.LastUsedAt, &k.CheckedAt, &k.CreatedAt)
+		if err := rows.Scan(&k.ID, &k.Provider, &k.Name, &k.Key, &enabled, &k.Status, &k.UsageCount, &k.LastUsedAt, &k.CheckedAt, &k.CreatedAt); err != nil {
+			return nil, err
+		}
 		k.Enabled = enabled == 1
 		keys = append(keys, k)
 	}

@@ -131,7 +131,7 @@ func TestApplyHardBlockRulesVariantCoverage(t *testing.T) {
 	}
 }
 
-func TestApplyHardBlockRulesPoliticsStrictCoverage(t *testing.T) {
+func TestApplyHardBlockRulesPoliticsContextOnlyDoesNotHardBlock(t *testing.T) {
 	cases := []string{
 		"讨论某国总统选举和议会局势",
 		"president election and parliament politics",
@@ -140,14 +140,8 @@ func TestApplyHardBlockRulesPoliticsStrictCoverage(t *testing.T) {
 
 	for _, content := range cases {
 		result := applyHardBlockRules(content)
-		if result == nil {
-			t.Fatalf("expected politics hard block result: %s", content)
-		}
-		if result.Category != "politics" {
-			t.Fatalf("unexpected politics category for %s: %s", content, result.Category)
-		}
-		if result.Verdict != "rejected" {
-			t.Fatalf("unexpected politics verdict for %s: %s", content, result.Verdict)
+		if result != nil {
+			t.Fatalf("expected broad political context to stay unblocked for %s, got %s", content, result.Category)
 		}
 	}
 }

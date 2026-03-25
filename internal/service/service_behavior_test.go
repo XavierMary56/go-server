@@ -39,7 +39,7 @@ func TestBuildAuditContentIncludesStructuredContext(t *testing.T) {
 	}
 
 	got := svc.buildAuditContent(req)
-	want := "main content:\nmain body\n\nscene: comment_review\n\ntitle:\nhello title\n\nbody:\nhello detail"
+	want := "review body:\nmain body\n\nscene: comment_review\n\ntitle:\nhello title\n\nbody:\nhello detail"
 	if got != want {
 		t.Fatalf("unexpected audit content:\nwant: %q\ngot:  %q", want, got)
 	}
