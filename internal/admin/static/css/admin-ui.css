@@ -34,7 +34,7 @@
   .btn-logout { padding: 6px 16px; background: transparent; color: #94a3b8; border: 1px solid #334155; border-radius: 6px; font-size: 13px; cursor: pointer; transition: all 0.2s; }
   .btn-logout:hover { background: #334155; color: #fff; }
 
-  .main-content { max-width: 1200px; margin: 32px auto; padding: 0 24px; }
+  .main-content { max-width: 1000px; margin: 32px auto; padding: 0 24px; }
 
   /* 标签页 */
   .tabs { display: flex; gap: 4px; margin-bottom: 24px; background: #fff; padding: 6px; border-radius: 10px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); width: fit-content; flex-wrap: wrap; }
