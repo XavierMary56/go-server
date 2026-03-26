@@ -14,11 +14,11 @@ async function updateAdminTokenSettings() {
   const newToken = document.getElementById('admin-token-new').value.trim();
   const confirmToken = document.getElementById('admin-token-confirm').value.trim();
   if (!newToken || !confirmToken) {
-    toast('新令牌和确认令牌不能为空', 'error');
+    toast('新密码和确认密码不能为空', 'error');
     return;
   }
   if (newToken !== confirmToken) {
-    toast('两次输入的令牌不一致', 'error');
+    toast('两次输入的密码不一致', 'error');
     return;
   }
 
@@ -26,17 +26,22 @@ async function updateAdminTokenSettings() {
     new_token: newToken,
     confirm_token: confirmToken
   });
-  if (!resp) return;
+  if (!resp) {
+    toast('保存失败，请联系管理员检查数据库配置', 'error');
+    return;
+  }
 
   const json = await resp.json();
   if (!resp.ok) {
-    toast(json.error || '管理员令牌更新失败', 'error');
+    // 优先展示后端详细错误
+    toast((json && (json.error || json.message)) || '管理员密码更新失败', 'error');
     return;
   }
 
   sessionStorage.setItem('adminToken', newToken);
   document.getElementById('admin-token-new').value = '';
   document.getElementById('admin-token-confirm').value = '';
-  toast(json.message || '管理员令牌已更新');
-  loadAdminTokenSettings();
+  // 先刷新设置区域内容，再弹出提示
+  await loadAdminTokenSettings();
+  toast(json.message || '管理员密码已更新');
 }
