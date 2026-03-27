@@ -63,8 +63,8 @@ func TestHandleProjectStatsReturnsAllProjectsWhenQueryIsMissing(t *testing.T) {
 	if _, ok := payload.Data["project-b"]; !ok {
 		t.Fatal("expected configured project-b zero stats in aggregated response")
 	}
-	if _, ok := payload.Data["log-only-project"]; ok {
-		t.Fatal("did not expect log-only project in aggregated project response")
+	if _, ok := payload.Data["log-only-project"]; !ok {
+		t.Fatal("expected log-only project stats in aggregated response")
 	}
 	if _, ok := payload.Data["unknown"]; ok {
 		t.Fatal("did not expect unknown audit bucket in aggregated project response")
@@ -111,29 +111,45 @@ func TestHandleListProjectsReturnsSortedProjectsWithoutUnknown(t *testing.T) {
 	if payload.Code != 200 {
 		t.Fatalf("expected code 200, got %d", payload.Code)
 	}
-	if payload.Data.TotalProjects != 2 {
-		t.Fatalf("expected 2 projects, got %d", payload.Data.TotalProjects)
+	if payload.Data.TotalProjects != 4 {
+		t.Fatalf("expected 4 projects, got %d", payload.Data.TotalProjects)
 	}
 
 	gotOrder := make([]string, 0, len(payload.Data.Projects))
+	seenLogOnly := false
 	for _, project := range payload.Data.Projects {
 		projectID, _ := project["project_id"].(string)
 		if projectID == "unknown" {
 			t.Fatal("did not expect unknown audit bucket in project list response")
 		}
 		if projectID == "log-only-project" {
-			t.Fatal("did not expect log-only project in project list response")
+			seenLogOnly = true
+			continue
 		}
 		gotOrder = append(gotOrder, projectID)
 	}
 
+	if !seenLogOnly {
+		t.Fatal("expected log-only-project to be present in project list response")
+	}
+
+	// The response now includes projects discovered from the audit log directory.
+	// We ignore log-only projects when validating configured project order.
 	wantOrder := []string{"project-b", "project-c"}
-	if len(gotOrder) != len(wantOrder) {
-		t.Fatalf("expected %d projects in response, got %d", len(wantOrder), len(gotOrder))
+	configured := make([]string, 0, len(gotOrder))
+	for _, projectID := range gotOrder {
+		if projectID == "project-a" {
+			continue
+		}
+		configured = append(configured, projectID)
+	}
+
+	if len(configured) != len(wantOrder) {
+		t.Fatalf("expected %d configured projects in response, got %d", len(wantOrder), len(configured))
 	}
 	for i := range wantOrder {
-		if gotOrder[i] != wantOrder[i] {
-			t.Fatalf("expected project order %v, got %v", wantOrder, gotOrder)
+		if configured[i] != wantOrder[i] {
+			t.Fatalf("expected configured project order %v, got %v", wantOrder, configured)
 		}
 	}
 }

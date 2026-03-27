@@ -77,7 +77,7 @@ func (ah *AdminHandler) handleProjectStats(w http.ResponseWriter, r *http.Reques
 	projectID := r.URL.Query().Get("project")
 	if projectID == "" {
 		result := make(map[string]interface{})
-		for _, pid := range ah.collectProjectIDs() {
+		for _, pid := range ah.collectAllProjectIDs() {
 			stats, err := audit.GetProjectStats(ah.cfg.AuditLogDir, pid)
 			if err != nil {
 				continue
@@ -107,7 +107,7 @@ func (ah *AdminHandler) handleProjectStats(w http.ResponseWriter, r *http.Reques
 // handleListProjects handles GET /v1/admin/projects
 func (ah *AdminHandler) handleListProjects(w http.ResponseWriter, r *http.Request) {
 	projectStats := make([]map[string]interface{}, 0)
-	for _, projectID := range ah.collectProjectIDs() {
+	for _, projectID := range ah.collectAllProjectIDs() {
 		stats, err := audit.GetProjectStats(ah.cfg.AuditLogDir, projectID)
 		if err == nil {
 			projectStats = append(projectStats, stats)
