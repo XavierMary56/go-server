@@ -28,7 +28,8 @@ function toast(msg, type = 'success') {
   el.className = `toast toast-${type}`;
   el.textContent = msg;
   document.getElementById('toast-wrap').appendChild(el);
-  setTimeout(() => el.remove(), 3000);
+  // 增加成功提示的显示时间为 4 秒，错误提示为 5 秒
+  setTimeout(() => el.remove(), type === 'success' ? 4000 : 5000);
 }
 
 function formatDate(iso) {

@@ -27,6 +27,8 @@ type AdminHandler struct {
 	svc         *service.ModerationService
 	keysMu      sync.RWMutex
 	keys        map[string]*KeyInfo // 内存中的密钥管理
+	// 保存原始的 AllowedKeys，用于数据库为空时的初始化
+	originalAllowedKeys []string
 }
 
 // KeyInfo 密钥信息
@@ -81,6 +83,11 @@ func New(cfg *config.Config, log *logger.Logger, auditLogger *audit.AuditLogger,
 	}
 
 	return handler
+}
+
+// SetOriginalAllowedKeys 设置原始的 AllowedKeys（用于数据库初始化）
+func (ah *AdminHandler) SetOriginalAllowedKeys(keys []string) {
+	ah.originalAllowedKeys = keys
 }
 
 // ── 路由处理器 ────────────────────────────────────────
@@ -318,11 +325,17 @@ func (ah *AdminHandler) loadKeysFromEnv() {
 	ah.keysMu.Lock()
 	defer ah.keysMu.Unlock()
 
-	if ah.cfg.AllowedKeys == nil || len(ah.cfg.AllowedKeys) == 0 {
+	// 优先使用 originalAllowedKeys（如果设置了），否则使用 cfg.AllowedKeys
+	allowedKeys := ah.originalAllowedKeys
+	if allowedKeys == nil || len(allowedKeys) == 0 {
+		allowedKeys = ah.cfg.AllowedKeys
+	}
+
+	if allowedKeys == nil || len(allowedKeys) == 0 {
 		return
 	}
 
-	for _, entry := range ah.cfg.AllowedKeys {
+	for _, entry := range allowedKeys {
 		entry = strings.TrimSpace(entry)
 		if entry == "" {
 			continue
@@ -449,12 +462,17 @@ func (ah *AdminHandler) loadKeysFromDB() {
 
 	// 如果数据库为空，从环境变量导入
 	if len(keys) == 0 {
+		ah.log.Info("数据库中没有项目密钥，尝试从环境变量导入", nil)
 		ah.loadKeysFromEnv()
 		// 将 env 里的 key 写入数据库
 		ah.keysMu.RLock()
 		defer ah.keysMu.RUnlock()
 		for _, k := range ah.keys {
-			ah.db.AddProjectKey(k.ProjectID, k.Key, k.RateLimit)
+			if _, err := ah.db.AddProjectKey(k.ProjectID, k.Key, k.RateLimit); err != nil {
+				ah.log.Error(fmt.Sprintf("添加项目密钥到数据库失败 [%s|%s]: %v", k.ProjectID, k.Key, err))
+			} else {
+				ah.log.Info(fmt.Sprintf("项目密钥已导入数据库: %s|%s", k.ProjectID, k.Key), nil)
+			}
 		}
 		return
 	}
@@ -471,6 +489,7 @@ func (ah *AdminHandler) loadKeysFromDB() {
 			UpdatedAt: k.UpdatedAt,
 		}
 	}
+	ah.log.Info(fmt.Sprintf("从数据库加载了 %d 个项目密钥", len(keys)), nil)
 }
 
 // ── Anthropic 密钥管理 ───────────────────────────────────

@@ -22,6 +22,8 @@ var (
 		regexp.MustCompile(`[a-z0-9._%+\-]+@[a-z0-9.\-]+\.[a-z]{2,}`),
 		regexp.MustCompile(`([a-z0-9\-]+\.)+[a-z]{2,}`),
 	}
+	// 检查5个或以上连续数字（QQ号、微信号、电话号码等）
+	consecutiveNumbersPattern = regexp.MustCompile(`\d{5,}`)
 )
 
 func applyHardBlockRules(content string) *ModerateResult {
@@ -152,6 +154,11 @@ func containsDirectContactSignal(content string) bool {
 		}
 	}
 
+	// 检查5个或以上连续数字（QQ号、微信号、电话号码等）
+	if containsConsecutiveNumbers(rawLower) {
+		return true
+	}
+
 	return false
 }
 
@@ -220,4 +227,12 @@ func countKeywordHits(normalized string, keywords []string) int {
 	}
 
 	return hits
+}
+
+func containsConsecutiveNumbers(content string) bool {
+	return consecutiveNumbersPattern.MatchString(content)
+}
+
+func TestLooksLikeAdOrContactExternal(content string) bool {
+	return looksLikeAdOrContact(content)
 }
