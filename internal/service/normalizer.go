@@ -53,6 +53,8 @@ func normalizeForDetection(content string) string {
 		"薇信", "wechat",
 		"薇❤", "wechat",
 		"薇心", "wechat",
+		"薇", "wechat",
+		"ⅴ", "v",
 		"扣扣", "qq",
 		"球球", "qq",
 		"电报", "telegram",

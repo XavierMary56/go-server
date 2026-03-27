@@ -107,6 +107,7 @@ var directContactKeywords = []string{
 	"代理", "加盟", "引流", "外链", "网址", "链接", "下载地址", "扫码", "二维码",
 	"主页联系", "看我头像", "站外继续聊", "邮箱",
 	"微信", "wechat", "wx", "vx", "vx号", "加v", "加vx", "加q", "qq",
+	"加薇", "加ⅴ", "加v信", "加微", "加wechat", "加wx", "加vx号",
 	"telegram", "tg", "whatsapp", "line", "discord", "skype", "邮箱", "email",
 	"加我", "联系", "联系我", "contactme", "dmme", "messageme", "私聊", "拉群", "群号",
 	"代理", "加盟", "引流", "外链", "网址", "链接", "下载地址", "扫码", "二维码",

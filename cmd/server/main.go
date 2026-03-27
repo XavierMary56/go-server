@@ -31,6 +31,9 @@ func main() {
 		"port":    cfg.Port,
 	})
 
+	// 保存原始的 AllowedKeys，因为可能需要导入到数据库
+	originalAllowedKeys := cfg.AllowedKeys
+
 	var db *storage.DB
 	if cfg.EnableAuth || cfg.EnableAdminAPI {
 		db, err = storage.New("/data")
@@ -59,6 +62,8 @@ func main() {
 
 	if cfg.EnableAdminAPI {
 		adminHandler := admin.New(cfg, lg, auditLogger, db, svc)
+		// 确保 AdminHandler 能够访问原始的 AllowedKeys 用于数据库初始化
+		adminHandler.SetOriginalAllowedKeys(originalAllowedKeys)
 		adminHandler.RegisterRoutes(mux)
 	}
 

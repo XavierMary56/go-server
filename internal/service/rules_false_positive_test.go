@@ -111,13 +111,14 @@ func TestLooksLikeAdOrContactAllowsExtendedBenignNegation(t *testing.T) {
 
 func TestLooksLikeAdOrContactAllowsPlainNumbersWithoutContactCue(t *testing.T) {
 	cases := []string{
-		"普通评论，只是提到 123456 这个数字",
-		"今天价格 123456 元，不含联系方式",
+		"普通评论，只是提到 1234 这个数字",
+		"今天价格 1234 元，不含联系方式",
+		"参考数字 0123 和文本",
 	}
 
 	for _, content := range cases {
 		if looksLikeAdOrContact(content) {
-			t.Fatalf("did not expect plain numeric content to look like ad/contact: %s", content)
+			t.Fatalf("did not expect plain short numeric content to look like ad/contact: %s", content)
 		}
 	}
 }
@@ -160,6 +161,73 @@ func TestLooksLikeAdOrContactAllowsPlainPlatformMention(t *testing.T) {
 	for _, content := range cases {
 		if looksLikeAdOrContact(content) {
 			t.Fatalf("did not expect plain platform mention to look like ad/contact: %s", content)
+		}
+	}
+}
+
+func TestLooksLikeAdOrContactDetectsWeixinRomanNumeral(t *testing.T) {
+	cases := []string{
+		"加薇看后01",
+		"加Ⅴ看后01",
+		"加v看后01",
+		"加V看后01",
+		"加vx看后01",
+		"加VX看后01",
+		"加微信xxx",
+		"加v信xxx",
+	}
+
+	for _, content := range cases {
+		if !looksLikeAdOrContact(content) {
+			t.Fatalf("expected weixin variant to be detected: %s", content)
+		}
+	}
+}
+
+func TestLooksLikeAdOrContactDetectsQQVariants(t *testing.T) {
+	cases := []string{
+		"加q看后01",
+		"加Q看后01",
+		"加qq看后01",
+		"加QQ看后01",
+		"加Q号001",
+	}
+
+	for _, content := range cases {
+		if !looksLikeAdOrContact(content) {
+			t.Fatalf("expected qq variant to be detected: %s", content)
+		}
+	}
+}
+
+func TestLooksLikeAdOrContactDetectsConsecutiveNumbers(t *testing.T) {
+	cases := []string{
+		"我的号码 12345",
+		"联系方式 987654321",
+		"QQ号：123456789",
+		"微信：10086888",
+		"电话 13812345678",
+		"号码是555555",
+	}
+
+	for _, content := range cases {
+		if !looksLikeAdOrContact(content) {
+			t.Fatalf("expected consecutive numbers to be detected: %s", content)
+		}
+	}
+}
+
+func TestLooksLikeAdOrContactAllowsShortNumbers(t *testing.T) {
+	cases := []string{
+		"今天价格 1234 元",
+		"数量 123 个",
+		"年份 2026 年",
+		"参考号码 0123",
+	}
+
+	for _, content := range cases {
+		if looksLikeAdOrContact(content) {
+			t.Fatalf("did not expect plain short numeric content to look like ad/contact: %s", content)
 		}
 	}
 }

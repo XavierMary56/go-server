@@ -16,3 +16,4 @@
 /internal/admin/static/README.md
 /.idea
 /logs/audit/admin/*.log
+/logs/audit/51dm/*.log
