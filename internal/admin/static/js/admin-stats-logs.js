@@ -106,6 +106,15 @@ function focusProjectLogs(projectId) {
   loadProjectLogs();
 }
 
+function escapeHtml(value) {
+  return String(value == null ? '' : value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 function formatLogResult(event) {
   const details = event.details || {};
   if (Object.prototype.hasOwnProperty.call(details, 'ok')) return details.ok ? '成功' : '失败';
@@ -189,14 +198,20 @@ async function loadProjectLogs() {
 
   tbody.innerHTML = logs.map(function (event, index) {
     const details = formatLogDetails(event.details);
+    const time = escapeHtml(formatDate(event.ts));
+    const projectIdText = escapeHtml(event.project_id || '-');
+    const eventTypeText = escapeHtml(event.event_type || '-');
+    const clientIpText = escapeHtml(event.client_ip || '-');
+    const resultText = escapeHtml(formatLogResult(event));
+    const detailsText = escapeHtml(details);
     return `
       <tr>
-        <td>${formatDate(event.ts)}</td>
-        <td>${event.project_id || '-'}</td>
-        <td>${event.event_type || '-'}</td>
-        <td>${event.client_ip || '-'}</td>
-        <td>${formatLogResult(event)}</td>
-        <td title="${details.replace(/"/g, '&quot;')}">${details}</td>
+        <td>${time}</td>
+        <td>${projectIdText}</td>
+        <td>${eventTypeText}</td>
+        <td>${clientIpText}</td>
+        <td>${resultText}</td>
+        <td title="${detailsText}">${detailsText}</td>
         <td><button class="btn btn-sm btn-ghost" onclick="openLogDetailModal(${index})">查看详情</button></td>
       </tr>`;
   }).join('');

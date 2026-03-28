@@ -2,24 +2,18 @@
 /**
  * 内容审核服务
  *
- * 对接 go-server 内容审核 API，当前文档优先按同步审核 /v1/moderate 接入；异步能力保留但暂不作为默认对接方案。
+ * 当前示例仅演示如何通过配置项调用 go-server 的同步审核接口。
+ * 真实地址和项目密钥必须通过 application.ini 或环境变量提供，不应在代码中硬编码。
  *
  * API 文档：
- *   POST /v1/moderate        同步审核，直接返回结果
- *   POST /v1/moderate/async  异步审核（接口保留，当前文档不作为默认接入方案）
- *   GET  /v1/task/{task_id}  查询异步任务状态
- *   GET  /v1/health          健康检查
+ *   POST /v1/moderate  同步审核，直接返回结果
+ *   GET  /v1/health    健康检查
  *
  * 鉴权：请求头 X-Project-Key: <your_project_key>
  *
  * 使用示例：
- *   // 同步审核
  *   $result = ContentModerationService::submitForModeration(123, 'post', ['content' => '文本内容']);
  *   if ($result && $result['verdict'] === 'rejected') { ... }
- *
- *   // 异步审核（结果通过 webhook 回调）
- *   $result = ContentModerationService::submitForModerationAsync(123, 'post', ['content' => '...']);
- *   // $result['task_id'] 可保存，后续通过 /v1/task/{id} 查询
  */
 class ContentModerationService
 {
@@ -42,8 +36,8 @@ class ContentModerationService
         }
 
         return [
-            'endpoint'    => self::cfgGet($cfg, 'endpoint',    'MODERATION_ENDPOINT',    'https://zyaokkmo.cc/'),
-            'api_key'     => self::cfgGet($cfg, 'api_key',     'MODERATION_API_KEY',     'proj_91prona_def456'),
+            'endpoint'    => self::cfgGet($cfg, 'endpoint',    'MODERATION_ENDPOINT',    ''),
+            'api_key'     => self::cfgGet($cfg, 'api_key',     'MODERATION_API_KEY',     ''),
             'timeout'     => (int) self::cfgGet($cfg, 'timeout', 'MODERATION_TIMEOUT',   '5'),
             'async'       => filter_var(self::cfgGet($cfg, 'async', 'MODERATION_ASYNC', 'false'), FILTER_VALIDATE_BOOLEAN),
             'webhook_url' => self::cfgGet($cfg, 'webhook_url', 'MODERATION_WEBHOOK_URL', ''),
