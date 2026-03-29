@@ -17,3 +17,5 @@
 /.idea
 /logs/audit/admin/*.log
 /logs/audit/51dm/*.log
+/.claude/settings.local.json
+/.claude/worktrees/
