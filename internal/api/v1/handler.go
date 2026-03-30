@@ -1,9 +1,10 @@
-package apiv2
+package v1
 
 import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"regexp"
 	"strings"
 	"time"
 
@@ -15,54 +16,34 @@ import (
 	"github.com/XavierMary56/automatic_review/go-server/internal/storage"
 )
 
+type syncMap interface {
+	Load(key any) (value any, ok bool)
+	Store(key, value any)
+}
+
 type Handler struct {
 	svc   *service.ModerationService
 	log   *logger.Logger
 	cfg   *config.Config
 	db    *storage.DB
 	audit *audit.AuditLogger
-	tasks *syncTaskStore
-}
-
-type syncTaskStore struct {
-	data syncMap
-}
-
-type syncMap interface {
-	Load(key any) (value any, ok bool)
-	Store(key, value any)
-}
-
-type moderationResult struct {
-	Verdict    string  `json:"verdict"`
-	Category   string  `json:"category"`
-	Confidence float64 `json:"confidence"`
-	Reason     string  `json:"reason"`
-	ModelUsed  string  `json:"model_used"`
-	LatencyMs  int64   `json:"latency_ms"`
-	FromCache  bool    `json:"from_cache"`
+	tasks syncMap
 }
 
 func New(svc *service.ModerationService, log *logger.Logger, cfg *config.Config, db *storage.DB, auditLogger *audit.AuditLogger, tasks syncMap) *Handler {
-	return &Handler{
-		svc:   svc,
-		log:   log,
-		cfg:   cfg,
-		db:    db,
-		audit: auditLogger,
-		tasks: &syncTaskStore{data: tasks},
-	}
+	return &Handler{svc: svc, log: log, cfg: cfg, db: db, audit: auditLogger, tasks: tasks}
 }
 
 func (h *Handler) RegisterRoutes(mux *http.ServeMux, middleware func(http.HandlerFunc) http.HandlerFunc) {
-	mux.HandleFunc("/v2/moderations", middleware(h.handleModeration))
-	mux.HandleFunc("/v2/moderations/async", middleware(h.handleModerationAsync))
-	mux.HandleFunc("/v2/tasks/", middleware(h.handleTaskQuery))
-	mux.HandleFunc("/v2/models", middleware(h.handleModels))
-	mux.HandleFunc("/v2/health", h.handleHealth)
+	mux.HandleFunc("/v1/moderate", middleware(h.handleModerate))
+	mux.HandleFunc("/v1/moderate/async", middleware(h.handleModerateAsync))
+	mux.HandleFunc("/v1/task/", middleware(h.handleTaskQuery))
+	mux.HandleFunc("/v1/models", middleware(h.handleModels))
+	mux.HandleFunc("/v1/stats", middleware(h.handleStats))
+	mux.HandleFunc("/v1/health", h.handleHealth)
 }
 
-func (h *Handler) handleModeration(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) handleModerate(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		api.JSONError(w, http.StatusMethodNotAllowed, "only POST is supported")
 		return
@@ -79,27 +60,19 @@ func (h *Handler) handleModeration(w http.ResponseWriter, r *http.Request) {
 	}
 
 	result := h.svc.Moderate(&req)
-	responseID := fmt.Sprintf("mod_%d", time.Now().UnixNano())
 	api.JSONOK(w, http.StatusOK, map[string]any{
-		"code":    200,
-		"message": "ok",
-		"data": map[string]any{
-			"id":     responseID,
-			"status": "completed",
-			"result": moderationResult{
-				Verdict:    result.Verdict,
-				Category:   result.Category,
-				Confidence: result.Confidence,
-				Reason:     result.Reason,
-				ModelUsed:  result.ModelUsed,
-				LatencyMs:  result.LatencyMs,
-				FromCache:  result.FromCache,
-			},
-		},
+		"code":       200,
+		"verdict":    result.Verdict,
+		"category":   result.Category,
+		"confidence": result.Confidence,
+		"reason":     result.Reason,
+		"model_used": result.ModelUsed,
+		"latency_ms": result.LatencyMs,
+		"from_cache": result.FromCache,
 	})
 }
 
-func (h *Handler) handleModerationAsync(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) handleModerateAsync(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		api.JSONError(w, http.StatusMethodNotAllowed, "only POST is supported")
 		return
@@ -116,8 +89,7 @@ func (h *Handler) handleModerationAsync(w http.ResponseWriter, r *http.Request) 
 	}
 
 	taskID := fmt.Sprintf("task_%d", time.Now().UnixNano())
-	h.tasks.data.Store(taskID, map[string]any{
-		"task_id":    taskID,
+	h.tasks.Store(taskID, map[string]any{
 		"status":     "pending",
 		"created_at": time.Now().Unix(),
 	})
@@ -125,19 +97,16 @@ func (h *Handler) handleModerationAsync(w http.ResponseWriter, r *http.Request) 
 	go func() {
 		result := h.svc.Moderate(&req)
 		taskData := map[string]any{
-			"task_id": taskID,
-			"status":  "done",
-			"result": moderationResult{
-				Verdict:    result.Verdict,
-				Category:   result.Category,
-				Confidence: result.Confidence,
-				Reason:     result.Reason,
-				ModelUsed:  result.ModelUsed,
-				LatencyMs:  result.LatencyMs,
-				FromCache:  result.FromCache,
-			},
+			"status":     "done",
+			"verdict":    result.Verdict,
+			"category":   result.Category,
+			"confidence": result.Confidence,
+			"reason":     result.Reason,
+			"model_used": result.ModelUsed,
+			"latency_ms": result.LatencyMs,
+			"task_id":    taskID,
 		}
-		h.tasks.data.Store(taskID, taskData)
+		h.tasks.Store(taskID, taskData)
 		if req.WebhookURL != "" {
 			go api.TriggerWebhook(req.WebhookURL, taskData)
 		}
@@ -145,11 +114,8 @@ func (h *Handler) handleModerationAsync(w http.ResponseWriter, r *http.Request) 
 
 	api.JSONOK(w, http.StatusAccepted, map[string]any{
 		"code":    202,
-		"message": "accepted",
-		"data": map[string]any{
-			"task_id": taskID,
-			"status":  "pending",
-		},
+		"task_id": taskID,
+		"message": "task accepted",
 	})
 }
 
@@ -159,24 +125,20 @@ func (h *Handler) handleTaskQuery(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	prefix := "/v2/tasks/"
-	if !strings.HasPrefix(r.URL.Path, prefix) || len(r.URL.Path) <= len(prefix) {
+	re := regexp.MustCompile(`^/v1/task/(.+)$`)
+	matches := re.FindStringSubmatch(r.URL.Path)
+	if len(matches) < 2 {
 		api.JSONError(w, http.StatusBadRequest, "missing task_id")
 		return
 	}
-	taskID := strings.TrimPrefix(r.URL.Path, prefix)
+	taskID := matches[1]
 
-	val, ok := h.tasks.data.Load(taskID)
+	val, ok := h.tasks.Load(taskID)
 	if !ok {
 		api.JSONError(w, http.StatusNotFound, "task not found: "+taskID)
 		return
 	}
-
-	api.JSONOK(w, http.StatusOK, map[string]any{
-		"code":    200,
-		"message": "ok",
-		"data":    val,
-	})
+	api.JSONOK(w, http.StatusOK, map[string]any{"code": 200, "data": val})
 }
 
 func (h *Handler) handleModels(w http.ResponseWriter, r *http.Request) {
@@ -191,24 +153,18 @@ func (h *Handler) handleModels(w http.ResponseWriter, r *http.Request) {
 			"status":   "active",
 		})
 	}
-	api.JSONOK(w, http.StatusOK, map[string]any{
-		"code":    200,
-		"message": "ok",
-		"data": map[string]any{
-			"models": list,
-		},
-	})
+	api.JSONOK(w, http.StatusOK, map[string]any{"code": 200, "models": list})
+}
+
+func (h *Handler) handleStats(w http.ResponseWriter, r *http.Request) {
+	api.JSONOK(w, http.StatusOK, map[string]any{"code": 200, "data": h.svc.GetStats()})
 }
 
 func (h *Handler) handleHealth(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	api.JSONOK(w, http.StatusOK, map[string]any{
-		"code":    200,
-		"message": "ok",
-		"data": map[string]any{
-			"status":  "ok",
-			"version": "2.0.0",
-			"time":    time.Now().Format(time.RFC3339),
-		},
+		"status":  "ok",
+		"version": "2.0.0",
+		"time":    time.Now().Format(time.RFC3339),
 	})
 }
