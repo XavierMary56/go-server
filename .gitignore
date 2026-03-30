@@ -19,3 +19,4 @@
 /logs/audit/51dm/*.log
 /.claude/settings.local.json
 /.claude/worktrees/
+/dashboard.html
