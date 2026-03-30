@@ -35,7 +35,8 @@ type Config struct {
 	GrokAPIURL string
 
 	// 模型池
-	Models []ModelConfig
+	Models                    []ModelConfig
+	EnableModelConfigFallback bool // 数据库无模型配置时是否回退到配置模型
 
 	// 请求配置
 	APITimeout int // 单次 API 超时（秒）
@@ -86,7 +87,8 @@ func Load() (*Config, error) {
 		Models: []ModelConfig{
 			{ID: "claude-sonnet-4-20250514", Name: "Claude Sonnet 4", Weight: 100, Priority: 1, Provider: "anthropic"},
 		},
-		APITimeout:      getEnvInt("API_TIMEOUT", 10),
+		EnableModelConfigFallback: getEnvBool("ENABLE_MODEL_CONFIG_FALLBACK", true),
+		APITimeout:                getEnvInt("API_TIMEOUT", 10),
 		MaxRetries:      getEnvInt("MAX_RETRIES", 2),
 		CacheDriver:     getEnv("CACHE_DRIVER", "memory"),
 		CacheTTL:        getEnvInt("CACHE_TTL", 60),

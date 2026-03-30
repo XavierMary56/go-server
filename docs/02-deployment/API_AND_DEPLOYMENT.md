@@ -610,6 +610,9 @@ ADMIN_TOKEN=admin-token-default
 
 # 可以配置多个令牌（逗号分隔）
 ADMIN_TOKEN=token1,token2,token3
+
+# 当数据库中没有模型配置时，是否回退到配置默认模型
+ENABLE_MODEL_CONFIG_FALLBACK=true
 ```
 
 ### 审计日志配置
