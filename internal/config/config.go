@@ -83,6 +83,9 @@ func Load() (*Config, error) {
 		OpenAIAPIURL:    getEnv("OPENAI_API_URL", "https://api.openai.com/v1/chat/completions"),
 		GrokAPIKey:      getEnv("GROK_API_KEY", ""),
 		GrokAPIURL:      getEnv("GROK_API_URL", "https://api.x.ai/v1/chat/completions"),
+		Models: []ModelConfig{
+			{ID: "claude-sonnet-4-20250514", Name: "Claude Sonnet 4", Weight: 100, Priority: 1, Provider: "anthropic"},
+		},
 		APITimeout:      getEnvInt("API_TIMEOUT", 10),
 		MaxRetries:      getEnvInt("MAX_RETRIES", 2),
 		CacheDriver:     getEnv("CACHE_DRIVER", "memory"),

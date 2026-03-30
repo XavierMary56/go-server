@@ -241,26 +241,31 @@ async function loadModels() {
       openai: 'badge-checking',
       grok: 'badge-valid'
     }[provider] || 'badge-inactive';
+    const isFallback = m.source === 'config-fallback';
+    const sourceHint = isFallback ? '<br><small style="color:#94a3b8">配置回退</small>' : '';
+    const actions = isFallback
+      ? '<span style="color:#94a3b8;font-size:12px;">请先在后台保存为正式模型</span>'
+      : `<div class="actions">
+        <button class="btn btn-sm ${m.enabled ? 'btn-warning' : 'btn-success'}" onclick="updateModel(${m.id}, { enabled: ${!m.enabled} }).then(() => loadModels())">${m.enabled ? '停用' : '启用'}</button>
+        <button class="btn btn-sm btn-danger" onclick="confirmDelete('/v1/admin/models/${m.id}', '模型 ${m.name}', loadModels)">删除</button>
+      </div>`;
     return `
     <tr>
-      <td><span class="model-id-cell">${m.model_id}</span></td>
+      <td><span class="model-id-cell">${m.model_id}</span>${sourceHint}</td>
       <td>${m.name}</td>
       <td><span class="badge ${providerBadge}">${formatProviderName(provider)}</span></td>
       <td>
         <div class="weight-bar">
-          <input class="inline-num" type="number" value="${m.weight}" min="1" max="100" onchange="updateModel(${m.id}, { weight: parseInt(this.value) })" />
+          <input class="inline-num" type="number" value="${m.weight}" min="1" max="100" ${isFallback ? 'disabled' : ''} onchange="updateModel(${m.id}, { weight: parseInt(this.value) })" />
           <div class="weight-bar-inner"><div class="weight-bar-fill" style="width:${Math.round(m.weight / maxWeight * 100)}%"></div></div>
           <span style="font-size:12px;color:#94a3b8">${m.weight}</span>
         </div>
       </td>
       <td>
-        <input class="inline-num" type="number" value="${m.priority}" min="1" onchange="updateModel(${m.id}, { priority: parseInt(this.value) })" />
+        <input class="inline-num" type="number" value="${m.priority}" min="1" ${isFallback ? 'disabled' : ''} onchange="updateModel(${m.id}, { priority: parseInt(this.value) })" />
       </td>
       <td><span class="badge ${m.enabled ? 'badge-active' : 'badge-inactive'}">${m.enabled ? '已启用' : '已停用'}</span></td>
-      <td><div class="actions">
-        <button class="btn btn-sm ${m.enabled ? 'btn-warning' : 'btn-success'}" onclick="updateModel(${m.id}, { enabled: ${!m.enabled} }).then(() => loadModels())">${m.enabled ? '停用' : '启用'}</button>
-        <button class="btn btn-sm btn-danger" onclick="confirmDelete('/v1/admin/models/${m.id}', '模型 ${m.name}', loadModels)">删除</button>
-      </div></td>
+      <td>${actions}</td>
     </tr>`;
   }).join('');
 }

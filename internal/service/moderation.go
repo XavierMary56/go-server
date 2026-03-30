@@ -185,12 +185,12 @@ func providerOf(modelID string) string {
 
 func (s *ModerationService) getActiveModels() []config.ModelConfig {
 	if s.db == nil {
-		return nil
+		return append([]config.ModelConfig(nil), s.cfg.Models...)
 	}
 
 	dbModels, err := s.db.ListModels()
 	if err != nil || len(dbModels) == 0 {
-		return nil
+		return append([]config.ModelConfig(nil), s.cfg.Models...)
 	}
 
 	models := make([]config.ModelConfig, 0, len(dbModels))
@@ -211,6 +211,10 @@ func (s *ModerationService) getActiveModels() []config.ModelConfig {
 			Priority: m.Priority,
 			Provider: provider,
 		})
+	}
+
+	if len(models) == 0 {
+		return append([]config.ModelConfig(nil), s.cfg.Models...)
 	}
 
 	return models

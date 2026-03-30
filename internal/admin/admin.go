@@ -665,6 +665,44 @@ func (ah *AdminHandler) handleModels(w http.ResponseWriter, r *http.Request) {
 			ah.jsonError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
+		if len(models) == 0 && len(ah.cfg.Models) > 0 {
+			type fallbackModel struct {
+				ID       int64  `json:"id"`
+				ModelID  string `json:"model_id"`
+				Name     string `json:"name"`
+				Provider string `json:"provider"`
+				Weight   int    `json:"weight"`
+				Priority int    `json:"priority"`
+				Enabled  bool   `json:"enabled"`
+				Source   string `json:"source"`
+			}
+			fallbacks := make([]fallbackModel, 0, len(ah.cfg.Models))
+			for i, m := range ah.cfg.Models {
+				provider := m.Provider
+				if provider == "" {
+					switch {
+					case strings.HasPrefix(m.ID, "gpt-"), strings.HasPrefix(m.ID, "o1-"), strings.HasPrefix(m.ID, "o3-"), strings.HasPrefix(m.ID, "o4-"):
+						provider = "openai"
+					case strings.HasPrefix(m.ID, "grok-"):
+						provider = "grok"
+					default:
+						provider = "anthropic"
+					}
+				}
+				fallbacks = append(fallbacks, fallbackModel{
+					ID:       int64(-(i + 1)),
+					ModelID:  m.ID,
+					Name:     m.Name,
+					Provider: provider,
+					Weight:   m.Weight,
+					Priority: m.Priority,
+					Enabled:  true,
+					Source:   "config-fallback",
+				})
+			}
+			ah.jsonOK(w, http.StatusOK, map[string]interface{}{"code": 200, "data": fallbacks})
+			return
+		}
 		if models == nil {
 			models = []*storage.ModelConfig{}
 		}
