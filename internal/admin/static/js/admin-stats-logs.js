@@ -1,4 +1,63 @@
 // Project stats and audit log management for the admin web UI.
+var logsPageSize = 20;
+var currentLogsPage = 1;
+
+function renderProjectLogs() {
+  var tbody = document.getElementById('project-logs-tbody');
+  if (!currentProjectLogs.length) {
+    tbody.innerHTML = '<tr class="empty-row"><td colspan="7">当前筛选条件下暂无日志</td></tr>';
+    document.getElementById('logs-pagination').innerHTML = '';
+    return;
+  }
+  var total = currentProjectLogs.length;
+  var totalPages = Math.ceil(total / logsPageSize);
+  if (currentLogsPage > totalPages) currentLogsPage = totalPages;
+  if (currentLogsPage < 1) currentLogsPage = 1;
+  var start = (currentLogsPage - 1) * logsPageSize;
+  var pageItems = currentProjectLogs.slice(start, start + logsPageSize);
+
+  tbody.innerHTML = pageItems.map(function (event, i) {
+    var index = start + i;
+    var details = formatLogDetails(event.details);
+    var time = escapeHtml(formatDate(event.ts));
+    var projectIdText = escapeHtml(event.project_id || '-');
+    var eventTypeText = escapeHtml(event.event_type || '-');
+    var clientIpText = escapeHtml(event.client_ip || '-');
+    var resultText = escapeHtml(formatLogResult(event));
+    var detailsText = escapeHtml(details);
+    return '<tr>' +
+      '<td>' + time + '</td>' +
+      '<td>' + projectIdText + '</td>' +
+      '<td>' + eventTypeText + '</td>' +
+      '<td>' + clientIpText + '</td>' +
+      '<td>' + resultText + '</td>' +
+      '<td title="' + detailsText + '">' + detailsText + '</td>' +
+      '<td><button class="btn btn-sm btn-ghost" onclick="openLogDetailModal(' + index + ')">查看详情</button></td>' +
+      '</tr>';
+  }).join('');
+
+  var pager = document.getElementById('logs-pagination');
+  if (totalPages <= 1) { pager.innerHTML = ''; return; }
+  var html = '<div class="pagination">';
+  html += '<span class="page-info">共 ' + total + ' 条，第 ' + currentLogsPage + ' / ' + totalPages + ' 页</span>';
+  html += '<button class="btn btn-sm btn-ghost" onclick="logsGoPage(1)" ' + (currentLogsPage === 1 ? 'disabled' : '') + '>首页</button>';
+  html += '<button class="btn btn-sm btn-ghost" onclick="logsGoPage(' + (currentLogsPage - 1) + ')" ' + (currentLogsPage === 1 ? 'disabled' : '') + '>上一页</button>';
+  var from = Math.max(1, currentLogsPage - 2);
+  var to = Math.min(totalPages, currentLogsPage + 2);
+  for (var p = from; p <= to; p++) {
+    html += '<button class="btn btn-sm ' + (p === currentLogsPage ? 'btn-primary' : 'btn-ghost') + '" onclick="logsGoPage(' + p + ')">' + p + '</button>';
+  }
+  html += '<button class="btn btn-sm btn-ghost" onclick="logsGoPage(' + (currentLogsPage + 1) + ')" ' + (currentLogsPage === totalPages ? 'disabled' : '') + '>下一页</button>';
+  html += '<button class="btn btn-sm btn-ghost" onclick="logsGoPage(' + totalPages + ')" ' + (currentLogsPage === totalPages ? 'disabled' : '') + '>末页</button>';
+  html += '</div>';
+  pager.innerHTML = html;
+}
+
+function logsGoPage(p) {
+  currentLogsPage = p;
+  renderProjectLogs();
+}
+
 async function loadStats() {
   document.getElementById('stats-tbody').innerHTML = '<tr class="empty-row"><td colspan="7"><span class="spinner"></span> 加载中...</td></tr>';
   const responses = await Promise.all([
@@ -191,28 +250,6 @@ async function loadProjectLogs() {
 
   const logs = body.data && body.data.logs || [];
   currentProjectLogs = logs;
-  if (!logs.length) {
-    tbody.innerHTML = '<tr class="empty-row"><td colspan="7">当前筛选条件下暂无日志</td></tr>';
-    return;
-  }
-
-  tbody.innerHTML = logs.map(function (event, index) {
-    const details = formatLogDetails(event.details);
-    const time = escapeHtml(formatDate(event.ts));
-    const projectIdText = escapeHtml(event.project_id || '-');
-    const eventTypeText = escapeHtml(event.event_type || '-');
-    const clientIpText = escapeHtml(event.client_ip || '-');
-    const resultText = escapeHtml(formatLogResult(event));
-    const detailsText = escapeHtml(details);
-    return `
-      <tr>
-        <td>${time}</td>
-        <td>${projectIdText}</td>
-        <td>${eventTypeText}</td>
-        <td>${clientIpText}</td>
-        <td>${resultText}</td>
-        <td title="${detailsText}">${detailsText}</td>
-        <td><button class="btn btn-sm btn-ghost" onclick="openLogDetailModal(${index})">查看详情</button></td>
-      </tr>`;
-  }).join('');
+  currentLogsPage = 1;
+  renderProjectLogs();
 }

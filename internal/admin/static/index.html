@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-<script>window.STATIC_VERSION = '20260326';</script>
+<script>window.STATIC_VERSION = '20260331';</script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>审核服务管理后台</title>
@@ -37,6 +37,7 @@
     </div>
     <div class="topbar-right">
       <span class="topbar-user" id="topbar-host"></span>
+      <button class="btn-logout" style="margin-right:6px;background:#334155" onclick="openChangePwdModal()">修改密码</button>
       <button class="btn-logout" onclick="logout()">退出登录</button>
     </div>
   </div>
@@ -49,8 +50,6 @@
       <button class="tab-btn" onclick="switchTab('grok',this)">Grok 密钥</button>
       <button class="tab-btn" onclick="switchTab('models',this)">模型管理</button>
       <button class="tab-btn" onclick="switchTab('stats',this)">项目统计</button>
-      <button class="tab-btn" onclick="switchTab('account',this)">账号管理</button>
-      <button class="tab-btn" onclick="switchTab('settings',this)">系统设置</button>
     </div>
 
     <!-- 标签：项目密钥 -->
@@ -283,77 +282,37 @@
             <tbody id="project-logs-tbody"><tr class="empty-row"><td colspan="7">请选择项目后查看日志明细</td></tr></tbody>
           </table>
         </div>
+        <div id="logs-pagination"></div>
       </div>
     </div>
   </div>
 </div>
 
-    <div id="tab-account" class="tab-panel">
-      <div class="card">
-        <div class="card-header">
-          <div>
-            <h2>账号管理</h2>
-            <div class="sub">管理员密码支持数据库优先，环境变量兜底。</div>
-          </div>
-          <button class="btn btn-ghost btn-sm" onclick="loadAdminTokenSettings()">刷新</button>
-        </div>
-        <div class="add-form show">
-          <div class="form-grid-3 add-form-grid">
-            <div class="form-group">
-              <label>当前来源</label>
-              <input type="text" id="admin-token-source" readonly />
-            </div>
-            <div class="form-group">
-              <label>是否已配置</label>
-              <input type="text" id="admin-token-configured" readonly />
-            </div>
-            <div class="form-group">
-              <label>最近更新时间</label>
-              <input type="text" id="admin-token-updated-at" readonly />
-            </div>
-          </div>
-        </div>
+
+
+
+<!-- 修改密码弹窗 -->
+<div class="modal-overlay" id="change-pwd-modal">
+  <div class="modal">
+    <h3>修改管理员密码</h3>
+    <p>保存成功后，当前后台登录会自动切换到新密码。</p>
+    <div class="modal-form">
+      <div class="form-group">
+        <label>新管理员密码</label>
+        <input type="password" id="admin-token-new" placeholder="请输入新密码（12-128位）" />
+        <div class="helper-text">12-128位可打印ASCII字符，不能有空格</div>
       </div>
-      <div class="card">
-        <div class="card-header">
-          <div>
-            <h2>修改管理员密码</h2>
-            <div class="sub">保存成功后，当前后台登录会自动切换到新密码。</div>
-          </div>
-        </div>
-        <div class="add-form show">
-          <div class="form-grid-2 add-form-grid">
-            <div class="form-group">
-              <label>新管理员密码</label>
-              <input type="password" id="admin-token-new" placeholder="请输入新密码（12-128位）" />
-              <div class="helper-text">12-128位可打印ASCII字符，不能有空格</div>
-            </div>
-            <div class="form-group">
-              <label>确认新密码</label>
-              <input type="password" id="admin-token-confirm" placeholder="再次输入新密码" />
-            </div>
-          </div>
-          <div class="add-form-actions">
-            <button class="btn btn-primary" onclick="updateAdminTokenSettings()">保存管理员密码</button>
-          </div>
-        </div>
+      <div class="form-group">
+        <label>确认新密码</label>
+        <input type="password" id="admin-token-confirm" placeholder="再次输入新密码" />
       </div>
     </div>
-
-    <div id="tab-settings" class="tab-panel">
-      <div class="card">
-        <div class="card-header">
-          <div>
-            <h2>系统设置</h2>
-            <div class="sub">系统级配置项与运行状态展示。</div>
-          </div>
-        </div>
-        <div class="add-form show">
-          <div class="helper-text">管理员密码已移到“账号管理”标签页，系统设置仅保留系统级配置。</div>
-        </div>
-      </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal('change-pwd-modal')">取消</button>
+      <button class="btn btn-primary" onclick="updateAdminTokenSettings()">保存</button>
     </div>
-
+  </div>
+</div>
 
 <!-- 删除确认弹窗 -->
 <div class="modal-overlay" id="delete-modal">

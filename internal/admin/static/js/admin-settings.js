@@ -1,4 +1,11 @@
 // Admin settings for the admin web UI.
+function openChangePwdModal() {
+  document.getElementById('admin-token-new').value = '';
+  document.getElementById('admin-token-confirm').value = '';
+  document.getElementById('change-pwd-modal').classList.add('show');
+  loadAdminTokenSettings();
+}
+
 async function loadAdminTokenSettings() {
   const resp = await api('GET', '/v1/admin/settings/admin-token');
   if (!resp) return;
@@ -41,6 +48,7 @@ async function updateAdminTokenSettings() {
   sessionStorage.setItem('adminToken', newToken);
   document.getElementById('admin-token-new').value = '';
   document.getElementById('admin-token-confirm').value = '';
+  closeModal('change-pwd-modal');
   // 先刷新设置区域内容，再弹出提示
   await loadAdminTokenSettings();
   toast(json.message || '管理员密码已更新');
