@@ -2,12 +2,18 @@
 /**
  * 内容审核服务
  *
- * 当前示例仅演示如何通过配置项调用 go-server 的同步审核接口。
+ * 当前示例支持对接 go-server 的 V1 / V2 审核接口，推荐新接入优先使用 V2。
  * 真实地址和项目密钥必须通过 application.ini 或环境变量提供，不应在代码中硬编码。
  *
  * API 文档：
- *   POST /v1/moderate  同步审核，直接返回结果
- *   GET  /v1/health    健康检查
+ *   POST /v2/moderations        同步审核（推荐）
+ *   POST /v2/moderations/async  异步审核（推荐）
+ *   GET  /v2/tasks/{task_id}    查询异步任务状态
+ *   POST /v1/moderate           兼容旧版同步接口
+ *   POST /v1/moderate/async     兼容旧版异步接口
+ *   GET  /v1/task/{task_id}     兼容旧版任务查询
+ *   GET  /v1/health             健康检查
+ *   GET  /v2/health             健康检查
  *
  * 鉴权：请求头 X-Project-Key: <your_project_key>
  *
@@ -22,7 +28,7 @@ class ContentModerationService
     /**
      * 从 Yaf 配置或环境变量中读取审核服务配置。
      *
-     * @return array{endpoint:string, api_key:string, timeout:int, async:bool, webhook_url:string, strictness:string}
+     * @return array{endpoint:string, api_key:string, timeout:int, async:bool, webhook_url:string, strictness:string, api_version:string}
      */
     private static function getConfig(): array
     {
@@ -42,6 +48,7 @@ class ContentModerationService
             'async'       => filter_var(self::cfgGet($cfg, 'async', 'MODERATION_ASYNC', 'false'), FILTER_VALIDATE_BOOLEAN),
             'webhook_url' => self::cfgGet($cfg, 'webhook_url', 'MODERATION_WEBHOOK_URL', ''),
             'strictness'  => self::cfgGet($cfg, 'strictness',  'MODERATION_STRICTNESS',  'standard'),
+            'api_version' => strtolower(self::cfgGet($cfg, 'api_version', 'MODERATION_API_VERSION', 'v2')),
         ];
     }
 
@@ -101,20 +108,26 @@ class ContentModerationService
             'updated_at'   => time(),
         ]);
 
-        // 调用同步审核接口
-        $response = self::httpPost($cfg['endpoint'] . '/v1/moderate', $payload, $cfg['api_key'], $cfg['timeout']);
+        // 同时兼容 V1 / V2，默认优先走 V2
+        $response = self::httpPost(self::buildModerationEndpoint($cfg, false), $payload, $cfg['api_key'], $cfg['timeout']);
 
         if ($response === null) {
             self::updateLog($log, ModerationLogModel::STATUS_ERROR, null, '', 'request failed');
             return null;
         }
 
-        $verdict   = $response['verdict']   ?? 'approved';
-        $category  = $response['category']  ?? 'none';
+        $normalized = self::normalizeModerationResponse($response);
+        if ($normalized === null) {
+            self::updateLog($log, ModerationLogModel::STATUS_ERROR, null, '', 'invalid moderation response');
+            return null;
+        }
+
+        $verdict   = $normalized['verdict']  ?? 'approved';
+        $category  = $normalized['category'] ?? 'none';
         $status    = ($verdict === 'rejected') ? ModerationLogModel::STATUS_REJECTED : ModerationLogModel::STATUS_PASSED;
 
-        self::updateLog($log, $status, $response, $category);
-        return $response;
+        self::updateLog($log, $status, $normalized, $category);
+        return $normalized;
     }
 
     // ── 异步审核 ────────────────────────────────────────────────────────────
@@ -158,9 +171,10 @@ class ContentModerationService
             ]
         );
 
-        $response = self::httpPost($cfg['endpoint'] . '/v1/moderate/async', $payload, $cfg['api_key'], $cfg['timeout']);
+        $response = self::httpPost(self::buildModerationEndpoint($cfg, true), $payload, $cfg['api_key'], $cfg['timeout']);
 
-        if ($response === null || empty($response['task_id'])) {
+        $taskId = self::extractTaskId($response);
+        if ($response === null || $taskId === '') {
             ModerationLogModel::where('request_id', $requestId)
                 ->update(['status' => ModerationLogModel::STATUS_ERROR, 'error_msg' => 'async request failed', 'updated_at' => time()]);
             return null;
@@ -168,9 +182,13 @@ class ContentModerationService
 
         // 保存 task_id 到 remark 备用
         ModerationLogModel::where('request_id', $requestId)
-            ->update(['remark' => 'task_id:' . $response['task_id'], 'updated_at' => time()]);
+            ->update(['remark' => 'task_id:' . $taskId, 'updated_at' => time()]);
 
-        return $response;
+        return [
+            'task_id' => $taskId,
+            'message' => $response['message'] ?? 'task accepted',
+            'raw'     => $response,
+        ];
     }
 
     // ── Webhook 回调处理 ────────────────────────────────────────────────────
@@ -240,7 +258,63 @@ class ContentModerationService
     public static function queryTask(string $taskId): ?array
     {
         $cfg = self::getConfig();
-        return self::httpGet($cfg['endpoint'] . '/v1/task/' . urlencode($taskId), $cfg['api_key'], $cfg['timeout']);
+        $response = self::httpGet(self::buildTaskEndpoint($cfg, $taskId), $cfg['api_key'], $cfg['timeout']);
+        if ($response === null) {
+            return null;
+        }
+
+        if (isset($response['data']) && is_array($response['data'])) {
+            return $response['data'];
+        }
+
+        return $response;
+    }
+
+    private static function buildModerationEndpoint(array $cfg, bool $async): string
+    {
+        $version = ($cfg['api_version'] ?? 'v2') === 'v1' ? 'v1' : 'v2';
+        $base = rtrim($cfg['endpoint'], '/');
+
+        if ($version === 'v1') {
+            return $base . ($async ? '/v1/moderate/async' : '/v1/moderate');
+        }
+
+        return $base . ($async ? '/v2/moderations/async' : '/v2/moderations');
+    }
+
+    private static function buildTaskEndpoint(array $cfg, string $taskId): string
+    {
+        $version = ($cfg['api_version'] ?? 'v2') === 'v1' ? 'v1' : 'v2';
+        $base = rtrim($cfg['endpoint'], '/');
+        $path = $version === 'v1' ? '/v1/task/' : '/v2/tasks/';
+        return $base . $path . urlencode($taskId);
+    }
+
+    private static function extractTaskId(?array $response): string
+    {
+        if (!$response) {
+            return '';
+        }
+        if (!empty($response['task_id'])) {
+            return (string) $response['task_id'];
+        }
+        if (isset($response['data']['task_id'])) {
+            return (string) $response['data']['task_id'];
+        }
+        return '';
+    }
+
+    private static function normalizeModerationResponse(array $response): ?array
+    {
+        if (isset($response['data']['result']) && is_array($response['data']['result'])) {
+            return $response['data']['result'];
+        }
+
+        if (isset($response['verdict'])) {
+            return $response;
+        }
+
+        return null;
     }
 
     // ── 内部工具方法 ────────────────────────────────────────────────────────

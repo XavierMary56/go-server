@@ -29,7 +29,7 @@
 管理员会返回给你：
 - **API Key**：`sk-proj-51dm-a1b2c3d4e5f6g7h8`
 - **API 地址**：`https://ai.a889.cloud`
-- **API 版本**：`v1`
+- **API 版本**：默认推荐 `v2`（兼容保留 `v1`）
 
 ### Step 2️⃣：在你的代码中配置
 
@@ -39,6 +39,7 @@
 # 审核服务配置
 MODERATION_API_URL=https://ai.a889.cloud
 MODERATION_API_KEY=sk-proj-51dm-a1b2c3d4e5f6g7h8
+MODERATION_API_VERSION=v2
 MODERATION_API_TIMEOUT=10000  # 毫秒
 ```
 
@@ -49,6 +50,23 @@ MODERATION_API_TIMEOUT=10000  # 毫秒
 ---
 
 ## 2. API 调用示例
+
+### 2.0 V1 / V2 版本选择
+
+- **推荐新接入**：使用 V2
+  - `POST /v2/moderations`
+  - `POST /v2/moderations/async`
+  - `GET /v2/tasks/{id}`
+- **兼容旧项目**：继续使用 V1
+  - `POST /v1/moderate`
+  - `POST /v1/moderate/async`
+  - `GET /v1/task/{id}`
+
+主要区别：
+- V1 是动作式路径
+- V2 是资源式路径
+- V2 统一使用 `code + message + data`
+- V2 同步审核结果位于 `data.result`
 
 ### 2.1 PHP 集成（推荐）
 
@@ -71,32 +89,41 @@ class ContentModerationClient {
     private $apiKey;
     private $timeout;
 
-    public function __construct($apiUrl, $apiKey, $timeout = 10) {
+    public function __construct($apiUrl, $apiKey, $timeout = 10, $apiVersion = 'v2') {
         $this->apiUrl = $apiUrl;
         $this->apiKey = $apiKey;
         $this->timeout = $timeout;
+        $this->apiVersion = strtolower($apiVersion) === 'v1' ? 'v1' : 'v2';
     }
 
     /**
      * 同步审核内容
      */
     public function moderate($content, $type = 'comment') {
-        $endpoint = $this->apiUrl . '/v1/moderate';
+        $endpoint = $this->apiVersion === 'v1'
+            ? $this->apiUrl . '/v1/moderate'
+            : $this->apiUrl . '/v2/moderations';
 
         $payload = [
             'content' => $content,
-            'type' => $type,  // comment | post
+            'type' => $type,
             'strictness' => 'standard'
         ];
 
-        return $this->request('POST', $endpoint, $payload);
+        $response = $this->request('POST', $endpoint, $payload);
+        if ($this->apiVersion === 'v2' && isset($response['data']['result'])) {
+            return $response['data']['result'];
+        }
+        return $response;
     }
 
     /**
-     * 异步审核内容（接口保留，当前接入默认不优先使用）
+     * 异步审核内容
      */
     public function moderateAsync($content, $webhookUrl, $type = 'comment') {
-        $endpoint = $this->apiUrl . '/v1/moderate/async';
+        $endpoint = $this->apiVersion === 'v1'
+            ? $this->apiUrl . '/v1/moderate/async'
+            : $this->apiUrl . '/v2/moderations/async';
 
         $payload = [
             'content' => $content,
@@ -104,25 +131,19 @@ class ContentModerationClient {
             'webhook_url' => $webhookUrl
         ];
 
-        $response = $this->request('POST', $endpoint, $payload);
-
-        if ($response['code'] === 202) {
-            return [
-                'success' => true,
-                'task_id' => $response['task_id'],
-                'message' => '任务已提交，结果将通过 Webhook 回调'
-            ];
-        }
-
-        return ['success' => false, 'error' => $response['error']];
+        return $this->request('POST', $endpoint, $payload);
     }
 
     /**
      * 查询任务结果
      */
     public function getTaskResult($taskId) {
-        $endpoint = $this->apiUrl . '/v1/task/' . $taskId;
-        return $this->request('GET', $endpoint, null);
+        $endpoint = $this->apiVersion === 'v1'
+            ? $this->apiUrl . '/v1/task/' . $taskId
+            : $this->apiUrl . '/v2/tasks/' . $taskId;
+
+        $response = $this->request('GET', $endpoint, null);
+        return $response['data'] ?? $response;
     }
 
     /**
@@ -184,18 +205,18 @@ class ContentModerationClient {
 
 $moderator = new ContentModerationClient(
     'https://ai.a889.cloud',
-    'sk-proj-51dm-a1b2c3d4e5f6g7h8'
+    'sk-proj-51dm-a1b2c3d4e5f6g7h8',
+    10,
+    'v2' // 新项目推荐 v2
 );
 
 // 同步审核
 $result = $moderator->moderate('这是一条用户评论');
 
-if ($result['code'] === 200) {
-    echo "审核结果: " . $result['verdict'] . "\n";
-    echo "置信度: " . $result['confidence'] . "\n";
-    echo "使用的模型: " . $result['model_used'] . "\n";
+if (($result['verdict'] ?? '') === 'approved') {
+    echo "审核通过\n";
 } else {
-    echo "审核失败: " . $result['error'] . "\n";
+    echo "审核结果: " . ($result['verdict'] ?? 'unknown') . "\n";
 }
 
 // 异步审核（接口保留，当前接入默认不优先使用）
@@ -368,7 +389,7 @@ testModerate();
 #### 同步审核
 
 ```bash
-curl -X POST https://ai.a889.cloud/v1/moderate \
+curl -X POST https://ai.a889.cloud/v2/moderations \
   -H "Content-Type: application/json" \
   -H "X-Project-Key: sk-proj-51dm-a1b2c3d4e5f6g7h8" \
   -d '{
@@ -378,10 +399,12 @@ curl -X POST https://ai.a889.cloud/v1/moderate \
   }'
 ```
 
+> 如需兼容旧项目，可继续使用 `/v1/moderate`。
+
 #### 异步审核（保留能力，当前接入暂不优先对接）
 
 ```bash
-curl -X POST https://ai.a889.cloud/v1/moderate/async \
+curl -X POST https://ai.a889.cloud/v2/moderations/async \
   -H "Content-Type: application/json" \
   -H "X-Project-Key: sk-proj-51dm-a1b2c3d4e5f6g7h8" \
   -d '{
@@ -395,7 +418,7 @@ curl -X POST https://ai.a889.cloud/v1/moderate/async \
 
 ```bash
 curl -H "X-Project-Key: sk-proj-51dm-a1b2c3d4e5f6g7h8" \
-  https://ai.a889.cloud/v1/task/task_1234567890
+  https://ai.a889.cloud/v2/tasks/task_1234567890
 ```
 
 #### 查看模型

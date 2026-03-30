@@ -4,13 +4,13 @@
 
 ---
 
-## 一、建表
+## 一、说明
 
-执行 `sql/create_moderation_logs_table.sql` 创建审核日志表，或运行迁移文件：
+当前示例同时支持：
+- **V2（推荐）**：`/v2/moderations`、`/v2/moderations/async`、`/v2/tasks/{id}`
+- **V1（兼容）**：`/v1/moderate`、`/v1/moderate/async`、`/v1/task/{id}`
 
-```php
-(new Migration20260323_001())->up();
-```
+新项目建议优先接入 **V2**。如果已有旧项目在使用 V1，可继续保留。
 
 ---
 
@@ -21,18 +21,11 @@
 ```ini
 [develop.moderation]
 endpoint    = "https://ai.a889.cloud"
-api_key     = "51dm_ghi789"
+api_key     = "your_project_key"
+api_version = "v2"
 timeout     = 5
 async       = false
 webhook_url = "http://91pa.test/api.php/moderation/callback"
-strictness  = "standard"
-
-[product.moderation]
-endpoint    = "https://ai.a889.cloud"
-api_key     = "51dm_ghi789"
-timeout     = 5
-async       = false
-webhook_url = "https://dx-075-api1.ympxbys.xyz/api.php/moderation/callback"
 strictness  = "standard"
 ```
 
@@ -40,28 +33,20 @@ strictness  = "standard"
 |------|------|
 | endpoint | 审核服务地址，固定填 `https://ai.a889.cloud` |
 | api_key | 在审核平台后台创建项目后生成的 Key |
+| api_version | `v2`（推荐）或 `v1`（兼容旧版） |
 | timeout | 请求超时秒数 |
 | async | `false` 同步（直接返回结果）/ `true` 异步（回调通知） |
 | webhook_url | 仅异步模式需要；当前默认同步接入可不配置 |
 | strictness | 审核严格度：`standard` / `strict` / `loose` |
 
-```ini
-[moderation]
-endpoint = "https://ai.a889.cloud"
-api_key  = "your_project_key"
-timeout  = 5
-async    = false
-webhook_url = "http://your-domain.com/moderation/callback"
-strictness = "standard"
-```
+---
 
 ## 三、路由注册
 
-在 `Bootstrap.php` 中注册回调接口路由：
+只需要一个示例路由即可（用于验证对接是否通）：
 
 ```php
-$router->addRoute('moderation_callback', new Yaf_Route_Static('/moderation/callback'));
-$router->addRoute('moderation_status',   new Yaf_Route_Static('/moderation/status'));
+$router->addRoute('moderation_demo', new Yaf_Route_Static('/moderation/demo'));
 ```
 
 ---
@@ -71,10 +56,10 @@ $router->addRoute('moderation_status',   new Yaf_Route_Static('/moderation/statu
 将 `ContentModerationService.php` 放入 `application/library/service/`，在内容保存后调用：
 
 ```php
-// 同步审核（推荐，直接拿到结果）
+// 默认按 api_version 配置选择 V2 或 V1
 $result = ContentModerationService::submitForModeration(
-    $post->id,       // 内容ID
-    'post',          // 内容类型：post / comment / video 等
+    $post->id,
+    'post',
     ['content' => $post->content],
     (string) $currentUserId
 );
@@ -84,57 +69,50 @@ if ($result === null) {
 }
 
 if ($result['verdict'] === 'rejected') {
-    // 违规，拒绝发布
     throw new Exception('内容违规：' . $result['category']);
 }
-
-// approved = 通过，flagged = 疑似（可人工复核），均可正常发布
 ```
 
-审核结果字段：
-
-| 字段 | 值 | 说明 |
-|------|----|------|
-| verdict | `approved` / `flagged` / `rejected` | 审核结论 |
-| category | `none` / `spam` / `abuse` / `adult` / `politics` / `fraud` / `violence` | 违规类型 |
-| confidence | 0.0 ～ 1.0 | 置信度 |
-| reason | 字符串 | 审核说明 |
+### V1 与 V2 返回差异
+- V1 直接返回：`verdict / category / confidence / reason / model_used / latency_ms`
+- V2 原始返回包装在 `data.result`
+- 示例服务类已经做了统一兼容，业务层仍可直接读取：
+  - `verdict`
+  - `category`
+  - `confidence`
+  - `reason`
+  - `model_used`
+  - `latency_ms`
 
 ---
 
-## 五、异步模式（暂不作为当前对接方案）
-
-当前接入文档默认不走异步模式。异步接口仍然存在，但仅作为后续扩展能力保留；现阶段请优先接入同步审核 /v1/moderate。
+## 五、异步模式
 
 ```php
-// 提交异步审核
 $result = ContentModerationService::submitForModerationAsync(
     $video->id,
     'video',
     ['content' => $video->description],
     (string) $currentUserId
 );
-// $result['task_id'] 可记录日志
 
-// 审核完成后，go-server 会 POST 到 webhook_url，
-// ModerationController::callbackAction 自动处理并更新数据库状态
+if ($result !== null) {
+    $taskId = $result['task_id'];
+}
 ```
 
-使用异步前确保：
-1. `async = true` 且 `webhook_url` 填写正确
-2. 回调地址公网可访问
-3. 回调接口路由已注册（见第三步）
+任务查询同样会自动兼容 V1 / V2：
+
+```php
+$task = ContentModerationService::queryTask($taskId);
+```
 
 ---
 
 ## 六、文件清单
 
 ```
-conf/application.ini                                  配置文件
-sql/create_moderation_logs_table.sql                  建表 SQL
-migrations/20260323_001.php                           建表迁移
-application/library/service/ContentModerationService.php   审核核心类
-application/models/ModerationLog.php                  日志 Model
-application/controllers/ModerationController.php   回调 + 状态查询接口
-application/modules/Admin/controllers/ModerationLogsController.php  后台列表
+conf/application.ini                                       配置文件
+application/library/service/ContentModerationService.php    审核核心类（兼容 V1 / V2）
+application/controllers/ModerationController.php            demo 接口（用于验证对接）
 ```
