@@ -49,6 +49,7 @@
       <button class="tab-btn" onclick="switchTab('grok',this)">Grok 密钥</button>
       <button class="tab-btn" onclick="switchTab('models',this)">模型管理</button>
       <button class="tab-btn" onclick="switchTab('stats',this)">项目统计</button>
+      <button class="tab-btn" onclick="switchTab('account',this)">账号管理</button>
       <button class="tab-btn" onclick="switchTab('settings',this)">系统设置</button>
     </div>
 
@@ -287,11 +288,11 @@
   </div>
 </div>
 
-    <div id="tab-settings" class="tab-panel">
+    <div id="tab-account" class="tab-panel">
       <div class="card">
         <div class="card-header">
           <div>
-            <h2>系统设置</h2>
+            <h2>账号管理</h2>
             <div class="sub">管理员密码支持数据库优先，环境变量兜底。</div>
           </div>
           <button class="btn btn-ghost btn-sm" onclick="loadAdminTokenSettings()">刷新</button>
@@ -335,6 +336,20 @@
           <div class="add-form-actions">
             <button class="btn btn-primary" onclick="updateAdminTokenSettings()">保存管理员密码</button>
           </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="tab-settings" class="tab-panel">
+      <div class="card">
+        <div class="card-header">
+          <div>
+            <h2>系统设置</h2>
+            <div class="sub">系统级配置项与运行状态展示。</div>
+          </div>
+        </div>
+        <div class="add-form show">
+          <div class="helper-text">管理员密码已移到“账号管理”标签页，系统设置仅保留系统级配置。</div>
         </div>
       </div>
     </div>

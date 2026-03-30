@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	apiv2 "github.com/XavierMary56/automatic_review/go-server/internal/api/v2"
 	"github.com/XavierMary56/automatic_review/go-server/internal/audit"
 	"github.com/XavierMary56/automatic_review/go-server/internal/config"
 	"github.com/XavierMary56/automatic_review/go-server/internal/logger"
@@ -76,6 +77,9 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/v1/models", h.withMiddleware(h.handleModels))
 	mux.HandleFunc("/v1/stats", h.withMiddleware(h.handleStats))
 	mux.HandleFunc("/v1/health", h.handleHealth)
+
+	v2Handler := apiv2.New(h.svc, h.log, h.cfg, h.db, h.audit, &h.tasks)
+	v2Handler.RegisterRoutes(mux, h.withMiddleware)
 }
 
 func (h *Handler) withMiddleware(next http.HandlerFunc) http.HandlerFunc {

@@ -32,6 +32,7 @@
 完整的部署方案和配置说明。
 
 - **[API_AND_DEPLOYMENT.md](./02-deployment/API_AND_DEPLOYMENT.md)** - 部署 + 完整 API 文档 ⭐ 必读
+  - 包含 V1 与推荐的 V2 公开接口说明
 - **[DEPLOYMENT.md](./02-deployment/DEPLOYMENT.md)** - 详细的生产部署指南
 - **examples/** - 配置文件示例
   - `.env.production.example` - 环境配置模板

@@ -256,6 +256,144 @@ curl -H "X-Project-Key: sk-proj-xxxx" \
 
 ---
 
+### 📍 业务 API V2（推荐新接入使用）
+
+V2 保留与现有审核能力一致的核心逻辑，但调整了路由命名和响应结构，便于后续扩展。旧版 `/v1/*` 仍然兼容，建议新项目优先接入 `/v2/*`。
+
+#### GET /v2/health
+**功能**：服务健康检查（V2 结构化响应）
+```bash
+curl http://localhost:8080/v2/health
+
+# 返回
+{
+  "code": 200,
+  "message": "ok",
+  "data": {
+    "status": "ok",
+    "version": "2.0.0",
+    "time": "2026-03-30T10:30:45Z"
+  }
+}
+```
+
+#### POST /v2/moderations
+**功能**：同步内容审核（推荐）
+```bash
+curl -X POST http://localhost:8080/v2/moderations \
+  -H "Content-Type: application/json" \
+  -H "X-Project-Key: sk-proj-xxxx" \
+  -d '{
+    "content": "待审核内容",
+    "type": "comment",
+    "strictness": "standard",
+    "model": "auto",
+    "context": {
+      "biz_id": "post_123"
+    }
+  }'
+
+# 返回
+{
+  "code": 200,
+  "message": "ok",
+  "data": {
+    "id": "mod_1743290000000000000",
+    "status": "completed",
+    "result": {
+      "verdict": "approved",
+      "category": "none",
+      "confidence": 0.98,
+      "reason": "内容正常",
+      "model_used": "claude-sonnet-4-20250514",
+      "latency_ms": 1234,
+      "from_cache": false
+    }
+  }
+}
+```
+
+#### POST /v2/moderations/async
+**功能**：异步内容审核
+```bash
+curl -X POST http://localhost:8080/v2/moderations/async \
+  -H "Content-Type: application/json" \
+  -H "X-Project-Key: sk-proj-xxxx" \
+  -d '{
+    "content": "待审核内容",
+    "type": "comment",
+    "webhook_url": "https://yourapp.com/webhook"
+  }'
+
+# 返回
+{
+  "code": 202,
+  "message": "accepted",
+  "data": {
+    "task_id": "task_1743290000000000000",
+    "status": "pending"
+  }
+}
+```
+
+#### GET /v2/tasks/{id}
+**功能**：查询异步任务结果
+```bash
+curl -H "X-Project-Key: sk-proj-xxxx" \
+  http://localhost:8080/v2/tasks/task_1743290000000000000
+
+# 返回
+{
+  "code": 200,
+  "message": "ok",
+  "data": {
+    "task_id": "task_1743290000000000000",
+    "status": "done",
+    "result": {
+      "verdict": "approved",
+      "category": "none",
+      "confidence": 0.98,
+      "reason": "内容正常",
+      "model_used": "claude-sonnet-4-20250514",
+      "latency_ms": 1234,
+      "from_cache": false
+    }
+  }
+}
+```
+
+#### GET /v2/models
+**功能**：查看可用模型列表（V2 结构化响应）
+```bash
+curl -H "X-Project-Key: sk-proj-xxxx" \
+  http://localhost:8080/v2/models
+
+# 返回
+{
+  "code": 200,
+  "message": "ok",
+  "data": {
+    "models": [
+      {
+        "id": "claude-sonnet-4-20250514",
+        "name": "Claude Sonnet 4",
+        "weight": 60,
+        "priority": 1,
+        "status": "active"
+      }
+    ]
+  }
+}
+```
+
+#### V1 与 V2 的主要区别
+- V1 使用动作式路径：`/v1/moderate`、`/v1/moderate/async`
+- V2 使用资源式路径：`/v2/moderations`、`/v2/moderations/async`
+- V2 统一采用 `code + message + data` 响应结构
+- V2 将审核结果包装在 `data.result` 中，便于后续扩展状态、ID、元数据
+
+---
+
 ### 📍 管理 API（需要管理员令牌）
 
 #### 密钥管理

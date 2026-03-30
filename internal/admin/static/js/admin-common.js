@@ -104,6 +104,7 @@ function showDashboard() {
   document.getElementById('dashboard').style.display = 'block';
   document.getElementById('topbar-host').textContent = window.location.host;
   loadProjectKeys();
+  loadAdminTokenSettings();
 }
 
 function switchTab(name, btn) {
@@ -120,7 +121,7 @@ function switchTab(name, btn) {
   if (name === 'openai') loadProviderKeys('openai');
   if (name === 'grok') loadProviderKeys('grok');
   if (name === 'models') loadModels();
-  if (name === 'settings') loadAdminTokenSettings();
+  if (name === 'account') loadAdminTokenSettings();
 }
 
 function confirmDelete(apiPath, label, onSuccess) {
