@@ -1,206 +1,208 @@
-# 📚 AI 内容审核服务 - 文档中心
+# go-server 文档
 
-完整的部署、集成、对接文档库。
+## 数据库
 
-🔗 **文档位置**：所有文档都已按分类整理到子目录
-
----
-
-## 🚀 快速开始（按需求选择）
-
-| 🎯 我要... | 📖 读这个文档 | ⏱️ 耗时 |
-|-----------|-------------|-------|
-| **🌟 从零开始了解** | [01-gettingstarted/00-START-HERE.md](./01-gettingstarted/00-START-HERE.md) | 5分钟 |
-| **👨‍💼 部署这套系统** | [02-deployment/API_AND_DEPLOYMENT.md](./02-deployment/API_AND_DEPLOYMENT.md) | 20分钟 |
-| **👥 让新项目对接** | [03-integration/CLIENT_INTEGRATION.md](./03-integration/CLIENT_INTEGRATION.md) | 30分钟 |
-| **⚙️ 配置和管理** | [04-operations/AUTH_AND_MONITORING.md](./04-operations/AUTH_AND_MONITORING.md) | 15分钟 |
-| **🔨 运行脚本命令** | [04-operations/SCRIPTS_GUIDE.md](./04-operations/SCRIPTS_GUIDE.md) | 10分钟 |
-| **🔧 集成代码** | [03-integration/INTEGRATION_GUIDE.md](./03-integration/INTEGRATION_GUIDE.md) | 20分钟 |
-| **📋 部署检查清单** | [01-gettingstarted/DEPLOYMENT_CHECKLIST.md](./01-gettingstarted/DEPLOYMENT_CHECKLIST.md) | 10分钟 |
+SQLite（`modernc.org/sqlite`，WAL 模式），文件路径：`/data/moderation.db`。
 
 ---
 
-## 📁 文档分类结构
+## 快速启动
 
-### 📂 1️⃣ 01-gettingstarted（快速开始）
-快速上手文档，适合第一次接触。
-
-- **[00-START-HERE.md](./01-gettingstarted/00-START-HERE.md)** - 5 分钟快速导览
-- **[DEPLOYMENT_CHECKLIST.md](./01-gettingstarted/DEPLOYMENT_CHECKLIST.md)** - 部署前检查清单
-
-### 📂 2️⃣ 02-deployment（部署指南）
-完整的部署方案和配置说明。
-
-- **[API_AND_DEPLOYMENT.md](./02-deployment/API_AND_DEPLOYMENT.md)** - 部署 + 完整 API 文档 ⭐ 必读
-  - 包含 V1 与推荐的 V2 公开接口说明
-- **[DEPLOYMENT.md](./02-deployment/DEPLOYMENT.md)** - 详细的生产部署指南
-- **examples/** - 配置文件示例
-  - `.env.production.example` - 环境配置模板
-  - `nginx.conf.production` - Nginx 反向代理配置
-  - `moderation.service` - systemd 服务配置
-  - `README.md` - 配置文件使用说明
-
-### 📂 3️⃣ 03-integration（集成和对接）
-代码集成和新项目对接文档。
-
-- **[CLIENT_INTEGRATION.md](./03-integration/CLIENT_INTEGRATION.md)** - 客户对接指南 + 完整 Demo ⭐ 必读
-  - 3 步对接流程
-  - PHP SDK 完整代码
-  - Node.js SDK 完整代码
-  - Webhook 回调处理
-  - cURL 命令示例
-- **[INTEGRATION_GUIDE.md](./03-integration/INTEGRATION_GUIDE.md)** - 代码集成深度指南
-  - handler.go 和 main.go 修改步骤
-  - 鉴权模块集成
-  - 监控模块集成
-
-### 📂 4️⃣ 04-operations（运维管理）
-日常运维、监控、密钥管理文档。
-
-- **[AUTH_AND_MONITORING.md](./04-operations/AUTH_AND_MONITORING.md)** - 鉴权 + 监控 + 日志
-  - API 密钥管理
-  - 监控指标说明
-  - 日志查看和查询
-  - 告警规则设置
-- **[SCRIPTS_GUIDE.md](./04-operations/SCRIPTS_GUIDE.md)** - 脚本使用指南
-  - deploy.sh - 部署脚本
-  - manage-keys.sh - 密钥管理脚本
-  - monitor.sh - 监控脚本
-  - push-go-to-github.sh - GitHub 推送脚本
-  - 日常运维流程
-  - 最佳实践
-
----
-
-## 👥 按角色快速查找
-
-### 👨‍💻 开发者
-1. [01-gettingstarted/00-START-HERE.md](./01-gettingstarted/00-START-HERE.md) - 快速了解整体
-2. [03-integration/CLIENT_INTEGRATION.md](./03-integration/CLIENT_INTEGRATION.md) - 学习如何对接
-3. [02-deployment/API_AND_DEPLOYMENT.md](./02-deployment/API_AND_DEPLOYMENT.md) - 查看 API 文档
-
-### 👨‍🔧 运维 / DBA
-1. [01-gettingstarted/DEPLOYMENT_CHECKLIST.md](./01-gettingstarted/DEPLOYMENT_CHECKLIST.md) - 了解部署要求
-2. [02-deployment/API_AND_DEPLOYMENT.md](./02-deployment/API_AND_DEPLOYMENT.md) - 部署方式
-3. [04-operations/AUTH_AND_MONITORING.md](./04-operations/AUTH_AND_MONITORING.md) - 日常管理
-4. [04-operations/SCRIPTS_GUIDE.md](./04-operations/SCRIPTS_GUIDE.md) - 脚本命令
-
-### 🏗️ 架构师
-1. [02-deployment/API_AND_DEPLOYMENT.md](./02-deployment/API_AND_DEPLOYMENT.md) - 系统架构
-2. [04-operations/AUTH_AND_MONITORING.md](./04-operations/AUTH_AND_MONITORING.md) - 整体设计
-
-### 👨‍💼 PM / 产品经理
-1. [01-gettingstarted/00-START-HERE.md](./01-gettingstarted/00-START-HERE.md) - 功能概览
-2. [02-deployment/API_AND_DEPLOYMENT.md](./02-deployment/API_AND_DEPLOYMENT.md) - 功能清单
-3. [03-integration/CLIENT_INTEGRATION.md](./03-integration/CLIENT_INTEGRATION.md) - 对接流程
-
----
-
-## 📋 按任务快速查找
-
-| 任务 | 文档 | 位置 |
-|-----|------|------|
-| 第一次部署 | API_AND_DEPLOYMENT.md | 02-deployment/ |
-| 生成 API 密钥 | SCRIPTS_GUIDE.md | 04-operations/ |
-| 对接新项目 | CLIENT_INTEGRATION.md | 03-integration/ |
-| 查看日志 | AUTH_AND_MONITORING.md | 04-operations/ |
-| 监控服务 | SCRIPTS_GUIDE.md | 04-operations/ |
-| 配置鉴权 | AUTH_AND_MONITORING.md | 04-operations/ |
-| 运行脚本 | SCRIPTS_GUIDE.md | 04-operations/ |
-| 查看 API 文档 | API_AND_DEPLOYMENT.md | 02-deployment/ |
-| 获取 SDK 代码 | CLIENT_INTEGRATION.md | 03-integration/ |
-
----
-
-## 🎯 快速命令速查
-
-### 部署相关
+**编译并启动：**
 ```bash
-# 一键部署
-bash deploy.sh
-
-# 查看完整部署指南
-cat docs/02-deployment/API_AND_DEPLOYMENT.md | grep -A 20 "快速开始"
+go build -o moderation-server ./cmd/server
+./moderation-server
 ```
 
-### 密钥管理
+**Docker 启动：**
 ```bash
-# 列出所有密钥
-bash manage-keys.sh list
-
-# 生成新密钥
-bash manage-keys.sh create 51dm_service 300
-
-# 测试密钥
-bash manage-keys.sh test sk-proj-xxxx
+cp .env.production .env
+# 编辑 .env，填入必要配置
+docker compose up -d
 ```
 
-### 监控日志
+**验证服务：**
 ```bash
-# 查看服务状态
-bash monitor.sh status
-
-# 查看实时日志
-bash monitor.sh logs -n 100
-
-# 查看项目审计日志
-bash monitor.sh audit --project 51dm_service
+curl http://localhost:8080/v1/health
 ```
 
 ---
 
-## 📊 文档统计
+## 环境变量配置
 
-| 分类 | 文件数 | 说明 |
-|-----|-------|------|
-| 01-gettingstarted | 2 | 快速上手指南 |
-| 02-deployment | 2 + examples | 部署方案和配置 |
-| 03-integration | 2 | 对接和集成 |
-| 04-operations | 2 | 运维管理和脚本 |
-| **总计** | **10 + examples** | 全覆盖，均为中文 |
+```env
+# 服务
+PORT=8080
+APP_ENV=production
 
----
+# Anthropic API（必填）
+ANTHROPIC_API_KEY=sk-ant-xxx
 
-## 🔔 重要提醒
+# OpenAI / Grok（可选）
+OPENAI_API_KEY=
+GROK_API_KEY=
 
-- 📌 **第一次使用？** → 从 [01-gettingstarted/00-START-HERE.md](./01-gettingstarted/00-START-HERE.md) 开始
-- 🔑 **要添加新项目？** → [03-integration/CLIENT_INTEGRATION.md](./03-integration/CLIENT_INTEGRATION.md)
-- ⚙️ **要管理系统？** → [04-operations/SCRIPTS_GUIDE.md](./04-operations/SCRIPTS_GUIDE.md)
-- 💡 **遇到问题？** → 查看对应文档中的"常见问题"部分
-- 📝 **需要配置示例？** → [02-deployment/examples/](./02-deployment/examples/)
+# 鉴权
+ENABLE_AUTH=true
+ALLOWED_KEYS=forum_service|sk-proj-xxxx|300,bbs_service|sk-proj-yyyy|200
 
----
+# 管理员
+ENABLE_ADMIN_API=true
+ADMIN_TOKEN=your-admin-token
 
-## 📂 完整目录树
+# 审计日志
+ENABLE_AUDIT=true
+AUDIT_LOG_DIR=logs/audit
 
-```
-docs/
-├── README.md                           ← 你在这里（导航中心）
-│
-├── 01-gettingstarted/                 【快速开始】
-│   ├── 00-START-HERE.md               5分钟快速导览
-│   └── DEPLOYMENT_CHECKLIST.md        部署前检查
-│
-├── 02-deployment/                     【部署指南】
-│   ├── API_AND_DEPLOYMENT.md          部署 + API 文档 ⭐ 必读
-│   ├── DEPLOYMENT.md                  详细部署指南
-│   └── examples/
-│       ├── .env.production.example
-│       ├── nginx.conf.production
-│       ├── moderation.service
-│       └── README.md
-│
-├── 03-integration/                    【集成对接】
-│   ├── CLIENT_INTEGRATION.md          客户对接指南 ⭐ 必读
-│   └── INTEGRATION_GUIDE.md           代码集成步骤
-│
-└── 04-operations/                     【运维管理】
-    ├── AUTH_AND_MONITORING.md         鉴权 + 监控
-    └── SCRIPTS_GUIDE.md               脚本使用
+# 缓存（可选，默认 memory）
+CACHE_DRIVER=redis
+REDIS_ADDR=localhost:6379
+REDIS_DB=0
 ```
 
 ---
 
-**最后更新**：2026-03-23
-**文档版本**：3.1.0（分类组织版）
-**状态**：✅ 生产级
+## API 接口
+
+### 健康检查（无需鉴权）
+
+```
+GET /v1/health
+```
+
+### 内容审核（需要 X-Project-Key）
+
+```
+POST /v1/moderate
+```
+```json
+{
+  "content": "待审核内容",
+  "type": "comment",
+  "strictness": "standard"
+}
+```
+
+返回：
+```json
+{
+  "code": 200,
+  "verdict": "approved",
+  "category": "none",
+  "confidence": 0.98,
+  "reason": "内容正常",
+  "model_used": "claude-sonnet-4-20250514",
+  "latency_ms": 1234
+}
+```
+
+`verdict`：`approved` / `flagged` / `rejected`
+`type`：`comment` / `post`
+`strictness`：`loose` / `standard` / `strict`
+
+### 异步审核（需要 X-Project-Key）
+
+```
+POST /v1/moderate/async
+```
+立即返回 `task_id`，结果通过 Webhook 回调。
+
+### 管理 API（需要 Authorization: Bearer <ADMIN_TOKEN>）
+
+| 接口 | 说明 |
+|------|------|
+| `GET /v1/admin/keys` | 列出项目密钥 |
+| `POST /v1/admin/keys` | 添加密钥 |
+| `PUT /v1/admin/keys/:key` | 更新密钥 |
+| `DELETE /v1/admin/keys/:key` | 删除密钥 |
+| `GET /v1/admin/projects/stats` | 项目统计 |
+| `GET /v1/admin/projects/logs?project=xxx` | 审计日志查询 |
+| `GET /v1/admin/anthropic-keys` | Anthropic 密钥列表 |
+| `GET /v1/admin/models` | 模型配置列表 |
+
+---
+
+## 部署（Linux + systemd）
+
+**1. 编译二进制：**
+```bash
+go build -o moderation-server ./cmd/server
+cp moderation-server /opt/moderation/
+cp .env.production /opt/moderation/.env
+```
+
+**2. 安装 systemd 服务：**
+```bash
+cp deploy/moderation.service /etc/systemd/system/
+systemctl daemon-reload
+systemctl enable moderation
+systemctl start moderation
+```
+
+**3. Nginx 反向代理：**
+```bash
+cp deploy/nginx.conf.production /etc/nginx/sites-available/moderation
+ln -s /etc/nginx/sites-available/moderation /etc/nginx/sites-enabled/
+nginx -t && systemctl reload nginx
+```
+
+配置示例见 `deploy/` 目录。
+
+---
+
+## 运维脚本
+
+| 脚本 | 说明 |
+|------|------|
+| `bash deploy.sh` | 一键 Docker 部署 |
+| `bash manage-keys.sh list` | 列出所有密钥 |
+| `bash manage-keys.sh create <项目> <限流>` | 生成新密钥 |
+| `bash manage-keys.sh test <key>` | 测试密钥有效性 |
+| `bash monitor.sh status` | 查看服务状态 |
+| `bash monitor.sh logs -n 100` | 查看最近日志 |
+| `bash monitor.sh clean` | 清理 30 天前的日志 |
+| `bash monitor.sh backup` | 备份审计日志 |
+
+**通过管理 API 添加密钥：**
+```bash
+curl -X POST http://localhost:8080/v1/admin/keys \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"project_id": "my_project", "key": "sk-proj-xxx", "rate_limit": 300}'
+```
+
+---
+
+## 日志位置
+
+```
+logs/
+├── moderation_YYYY-MM-DD.log       # 应用日志
+└── audit/
+    └── <project_id>/
+        └── audit_YYYY-MM-DD.log    # 各项目审计日志
+```
+
+**查看日志：**
+```bash
+tail -f logs/moderation_$(date +%Y-%m-%d).log
+bash monitor.sh audit --project forum_service
+```
+
+**定时清理（crontab）：**
+```bash
+0 2 * * * cd /opt/moderation && bash monitor.sh clean
+0 3 * * 0 cd /opt/moderation && bash monitor.sh backup
+```
+
+---
+
+## 错误码
+
+| 状态码 | 含义 |
+|--------|------|
+| 200 | 成功 |
+| 400 | 请求参数错误 |
+| 401 | 鉴权失败（密钥无效） |
+| 429 | 触发速率限制 |
+| 500 | 服务内部错误 |
