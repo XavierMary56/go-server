@@ -36,9 +36,14 @@ func main() {
 
 	var db *storage.DB
 	if cfg.EnableAuth || cfg.EnableAdminAPI {
-		db, err = storage.New("/data")
+		dsn := fmt.Sprintf("%s:%s@tcp(%s:%d)/%s?parseTime=true&charset=utf8mb4&loc=Local",
+			cfg.DBUser, cfg.DBPass, cfg.DBHost, cfg.DBPort, cfg.DBName)
+		db, err = storage.New(dsn)
 		if err != nil {
-			lg.Error("database init failed: " + err.Error())
+			if cfg.DBRequired {
+				log.Fatalf("database init failed (DB_REQUIRED=true): %v", err)
+			}
+			lg.Error("database init failed, continuing without DB: " + err.Error())
 			db = nil
 		} else {
 			// When DB is available, project key auth is sourced from SQLite at runtime.

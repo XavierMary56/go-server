@@ -20,7 +20,7 @@ func TestHandleProjectStatsReturnsAllProjectsWhenQueryIsMissing(t *testing.T) {
 	}
 
 	filename := filepath.Join(projectDir, "audit_"+time.Now().Format("2006-01-02")+".log")
-	if err := os.WriteFile(filename, []byte(`{"timestamp":"2026-03-25T12:00:00Z","event_type":"api_call","project_id":"project-a","status_code":200}`+"\n"), 0o644); err != nil {
+	if err := os.WriteFile(filename, []byte(`{"timestamp":"2026-03-25T12:00:00Z","event_type":"api_call","project_name":"project-a","status_code":200}`+"\n"), 0o644); err != nil {
 		t.Fatalf("write file failed: %v", err)
 	}
 	if err := os.MkdirAll(filepath.Join(auditDir, "unknown"), 0o755); err != nil {
@@ -33,8 +33,8 @@ func TestHandleProjectStatsReturnsAllProjectsWhenQueryIsMissing(t *testing.T) {
 	handler := &AdminHandler{
 		cfg: &config.Config{AuditLogDir: auditDir},
 		keys: map[string]*KeyInfo{
-			"key-a": {ProjectID: projectID},
-			"key-b": {ProjectID: "project-b"},
+			"key-a": {ProjectName: projectID},
+			"key-b": {ProjectName: "project-b"},
 		},
 	}
 
@@ -84,8 +84,8 @@ func TestHandleListProjectsReturnsSortedProjectsWithoutUnknown(t *testing.T) {
 	handler := &AdminHandler{
 		cfg: &config.Config{AuditLogDir: auditDir},
 		keys: map[string]*KeyInfo{
-			"key-b": {ProjectID: "project-b"},
-			"key-c": {ProjectID: "project-c"},
+			"key-b": {ProjectName: "project-b"},
+			"key-c": {ProjectName: "project-c"},
 		},
 	}
 
@@ -118,7 +118,7 @@ func TestHandleListProjectsReturnsSortedProjectsWithoutUnknown(t *testing.T) {
 	gotOrder := make([]string, 0, len(payload.Data.Projects))
 	seenLogOnly := false
 	for _, project := range payload.Data.Projects {
-		projectID, _ := project["project_id"].(string)
+		projectID, _ := project["project_name"].(string)
 		if projectID == "unknown" {
 			t.Fatal("did not expect unknown audit bucket in project list response")
 		}

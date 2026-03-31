@@ -184,13 +184,20 @@ func providerOf(modelID string) string {
 }
 
 func (s *ModerationService) getActiveModels() []config.ModelConfig {
+	fallbackModels := func() []config.ModelConfig {
+		if !s.cfg.EnableModelConfigFallback {
+			return nil
+		}
+		return append([]config.ModelConfig(nil), s.cfg.Models...)
+	}
+
 	if s.db == nil {
-		return nil
+		return fallbackModels()
 	}
 
 	dbModels, err := s.db.ListModels()
 	if err != nil || len(dbModels) == 0 {
-		return nil
+		return fallbackModels()
 	}
 
 	models := make([]config.ModelConfig, 0, len(dbModels))
@@ -211,6 +218,10 @@ func (s *ModerationService) getActiveModels() []config.ModelConfig {
 			Priority: m.Priority,
 			Provider: provider,
 		})
+	}
+
+	if len(models) == 0 {
+		return fallbackModels()
 	}
 
 	return models

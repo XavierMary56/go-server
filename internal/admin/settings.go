@@ -8,6 +8,8 @@ import (
 	"time"
 )
 
+const staticVersionSettingKey = "static_version"
+
 var printableAdminTokenPattern = regexp.MustCompile(`^[!-~]{12,128}$`)
 
 func (ah *AdminHandler) handleAdminTokenSettings(w http.ResponseWriter, r *http.Request) {
@@ -94,6 +96,75 @@ func (ah *AdminHandler) updateAdminTokenSettings(w http.ResponseWriter, r *http.
 		"message": "管理员令牌已更新",
 		"data": map[string]interface{}{
 			"source": "database",
+		},
+	})
+}
+
+func (ah *AdminHandler) handleStaticVersionSettings(w http.ResponseWriter, r *http.Request) {
+	if ah.db == nil {
+		ah.jsonError(w, http.StatusServiceUnavailable, "数据库未初始化")
+		return
+	}
+
+	switch r.Method {
+	case http.MethodGet:
+		ah.getStaticVersionSettings(w)
+	case http.MethodPut:
+		ah.updateStaticVersionSettings(w, r)
+	default:
+		ah.jsonError(w, http.StatusMethodNotAllowed, "方法不允许")
+	}
+}
+
+func (ah *AdminHandler) getStaticVersionSettings(w http.ResponseWriter) {
+	setting, err := ah.db.GetAdminSetting(staticVersionSettingKey)
+	if err != nil {
+		ah.jsonError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	version := ""
+	var updatedAt *time.Time
+	if setting != nil && strings.TrimSpace(setting.Value) != "" {
+		version = setting.Value
+		updatedAt = setting.UpdatedAt
+	}
+
+	ah.jsonOK(w, http.StatusOK, map[string]interface{}{
+		"code": 200,
+		"data": map[string]interface{}{
+			"version":    version,
+			"updated_at": updatedAt,
+		},
+	})
+}
+
+func (ah *AdminHandler) updateStaticVersionSettings(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Version string `json:"version"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		ah.jsonError(w, http.StatusBadRequest, "请求体解析失败")
+		return
+	}
+
+	req.Version = strings.TrimSpace(req.Version)
+	if req.Version == "" {
+		ah.jsonError(w, http.StatusBadRequest, "版本号不能为空")
+		return
+	}
+
+	if err := ah.db.SetAdminSetting(staticVersionSettingKey, req.Version); err != nil {
+		ah.jsonError(w, http.StatusInternalServerError, "保存版本号失败")
+		return
+	}
+
+	ah.jsonOK(w, http.StatusOK, map[string]interface{}{
+		"code":    200,
+		"message": "静态资源版本号已更新",
+		"data": map[string]interface{}{
+			"version": req.Version,
 		},
 	})
 }

@@ -6,6 +6,39 @@ import (
 	"github.com/XavierMary56/automatic_review/go-server/internal/config"
 )
 
+func TestGetActiveModelsFallsBackToConfigWhenDBUnavailable(t *testing.T) {
+	svc := NewModerationService(&config.Config{
+		CacheTTL:                  60,
+		EnableModelConfigFallback: true,
+		Models: []config.ModelConfig{
+			{ID: "claude-sonnet-4-20250514", Name: "Claude Sonnet 4", Weight: 100, Priority: 1, Provider: "anthropic"},
+		},
+	}, nil, nil)
+
+	models := svc.getActiveModels()
+	if len(models) != 1 {
+		t.Fatalf("expected 1 fallback model, got %d", len(models))
+	}
+	if models[0].ID != "claude-sonnet-4-20250514" {
+		t.Fatalf("expected fallback model claude-sonnet-4-20250514, got %q", models[0].ID)
+	}
+}
+
+func TestGetActiveModelsDoesNotFallbackWhenDisabled(t *testing.T) {
+	svc := NewModerationService(&config.Config{
+		CacheTTL:                  60,
+		EnableModelConfigFallback: false,
+		Models: []config.ModelConfig{
+			{ID: "claude-sonnet-4-20250514", Name: "Claude Sonnet 4", Weight: 100, Priority: 1, Provider: "anthropic"},
+		},
+	}, nil, nil)
+
+	models := svc.getActiveModels()
+	if len(models) != 0 {
+		t.Fatalf("expected no fallback models when disabled, got %d", len(models))
+	}
+}
+
 func TestApplyRequestDefaultsFillsMissingFields(t *testing.T) {
 	svc := NewModerationService(&config.Config{CacheTTL: 60}, nil, nil)
 	req := &ModerateRequest{

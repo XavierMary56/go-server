@@ -1,19 +1,27 @@
+# 环境配置
 /.env
-/logs/*.log
-/server.log
+
+# 编译产物
 /moderation-server
 /moderation-server~
+
+# 日志
+/server.log
+/logs/
+
+# 临时文件
+/.tmp-go/
+/dashboard.html
+
+# IDE
+/.idea/
+
+# 工具
+/.claude/settings.local.json
+/.claude/worktrees/
+
+# 文档（自动生成）
+/internal/admin/static/README.md
 /.github/*.md
 /tests/*.md
 /tests/*.ps1
-/.tmp-go
-/logs/audit/91prona/*.log
-/logs/audit/unknown/*.log
-/logs/audit/admin-check-proj-edited/*.log
-/logs/audit/admin-check-proj/*.log
-/logs/audit/stats-delete-check/*.log
-/logs/audit/ui-check-1774420256/*.log
-/internal/admin/static/README.md
-/.idea
-/logs/audit/admin/*.log
-/logs/audit/51dm/*.log

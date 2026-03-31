@@ -1,4 +1,25 @@
 services:
+  mariadb:
+    image: mariadb:11
+    container_name: moderation-mariadb
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: root123
+      MYSQL_DATABASE: moderation
+      MYSQL_USER: moderation
+      MYSQL_PASSWORD: moderation123
+    volumes:
+      - mariadb-data:/var/lib/mysql
+      - ./deploy/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - moderation-net
+
   moderation:
     build:
       context: .
@@ -23,11 +44,19 @@ services:
       - ADMIN_TOKEN=${ADMIN_TOKEN}
       - ENABLE_AUDIT=${ENABLE_AUDIT:-true}
       - AUDIT_LOG_DIR=${AUDIT_LOG_DIR:-/logs/audit}
+      - DB_HOST=${DB_HOST:-mariadb}
+      - DB_PORT=${DB_PORT:-3306}
+      - DB_USER=${DB_USER:-moderation}
+      - DB_PASS=${DB_PASS}
+      - DB_NAME=${DB_NAME:-moderation}
     volumes:
       - ./logs:/logs
       - moderation-data:/data
+      - ./internal/admin/static:/admin-static:ro
     depends_on:
       redis:
+        condition: service_healthy
+      mariadb:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:8080/v1/health"]
@@ -56,6 +85,7 @@ services:
 volumes:
   redis-data:
   moderation-data:
+  mariadb-data:
 
 networks:
   moderation-net:

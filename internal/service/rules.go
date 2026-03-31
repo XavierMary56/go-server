@@ -24,6 +24,8 @@ var (
 	}
 	// 检查5个或以上连续数字（QQ号、微信号、电话号码等）
 	consecutiveNumbersPattern = regexp.MustCompile(`\d{5,}`)
+	// 内容去掉空格后几乎全是数字（纯数字灌水评论）
+	pureNumberContentPattern = regexp.MustCompile(`^[\d\s]{5,}$`)
 )
 
 func applyHardBlockRules(content string) *ModerateResult {
@@ -56,6 +58,16 @@ func applyHardBlockRules(content string) *ModerateResult {
 					ModelUsed:  "hard-rule",
 				}
 			}
+		}
+	}
+
+	if pureNumberContentPattern.MatchString(strings.TrimSpace(content)) {
+		return &ModerateResult{
+			Verdict:    "rejected",
+			Category:   "spam",
+			Confidence: 0.99,
+			Reason:     "纯数字内容，疑似号码或无意义灌水",
+			ModelUsed:  "hard-rule",
 		}
 	}
 

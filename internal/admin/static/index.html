@@ -1,13 +1,11 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-<script>window.STATIC_VERSION = '20260327';</script>
+<script>window.STATIC_VERSION = '{{STATIC_VERSION}}';</script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>审核服务管理后台</title>
-<script>
-  document.write('<link rel="stylesheet" href="css/admin-ui.css?v=' + window.STATIC_VERSION + '">');
-</script>
+<link rel="stylesheet" href="css/admin-ui.css?v={{STATIC_VERSION}}">
 </head>
 <body>
 
@@ -37,32 +35,33 @@
     </div>
     <div class="topbar-right">
       <span class="topbar-user" id="topbar-host"></span>
+      <button class="btn-logout" style="margin-right:6px;background:#334155" onclick="openChangePwdModal()">修改密码</button>
+      <button class="btn-logout" style="margin-right:6px;background:#1e40af" onclick="openSettingsModal()">系统设置</button>
       <button class="btn-logout" onclick="logout()">退出登录</button>
     </div>
   </div>
 
   <div class="main-content">
     <div class="tabs">
-      <button class="tab-btn active" onclick="switchTab('keys',this)">项目密钥</button>
+      <button class="tab-btn active" onclick="switchTab('keys',this)">项目管理</button>
+      <button class="tab-btn" onclick="switchTab('stats',this)">项目统计</button>
       <button class="tab-btn" onclick="switchTab('anthropic',this)">Anthropic 密钥</button>
       <button class="tab-btn" onclick="switchTab('openai',this)">OpenAI 密钥</button>
       <button class="tab-btn" onclick="switchTab('grok',this)">Grok 密钥</button>
       <button class="tab-btn" onclick="switchTab('models',this)">模型管理</button>
-      <button class="tab-btn" onclick="switchTab('stats',this)">项目统计</button>
-      <button class="tab-btn" onclick="switchTab('settings',this)">系统设置</button>
     </div>
 
     <!-- 标签：项目密钥 -->
     <div id="tab-keys" class="tab-panel active">
       <div class="card">
         <div class="card-header">
-          <div><h2>项目密钥管理</h2><div class="sub" id="keys-count">加载中...</div></div>
+          <div><h2>项目管理</h2><div class="sub" id="keys-count">加载中...</div></div>
           <button class="btn btn-primary" onclick="toggleAddForm('add-keys-form')">添加密钥</button>
         </div>
         <div class="add-form" id="add-keys-form">
           <div class="add-form-title">添加新项目密钥</div>
           <div class="form-grid-3 add-form-grid">
-            <div class="form-group"><label>项目 ID</label><input type="text" id="new-proj-id" placeholder="例如：forum_service" oninput="syncProjectKeyDraft()" /></div>
+            <div class="form-group"><label>项目名称</label><input type="text" id="new-proj-id" placeholder="例如：forum_service" oninput="syncProjectKeyDraft()" /></div>
             <div class="form-group"><label>密钥（Key）</label><input type="text" id="new-proj-key" placeholder="留空时自动生成" data-auto-generated="1" /></div>
             <div class="form-group"><label>速率限制（次/分钟）</label><input type="number" id="new-proj-rate" placeholder="60" min="0" /></div>
           </div>
@@ -74,14 +73,67 @@
           </div>
         </div>
         <div class="toolbar-row">
-          <input class="search-input" type="text" id="keys-search" placeholder="按项目 ID 或密钥搜索" oninput="renderProjectKeys()" />
+          <input class="search-input" type="text" id="keys-search" placeholder="按项目名称或密钥搜索" oninput="renderProjectKeys()" />
         </div>
         <div class="table-wrap">
           <table>
-            <thead><tr><th>项目 ID</th><th>密钥</th><th>速率限制</th><th>创建时间</th><th>状态</th><th>操作</th></tr></thead>
-            <tbody id="keys-tbody"><tr class="empty-row"><td colspan="6"><span class="spinner"></span> 加载中...</td></tr></tbody>
+            <thead><tr><th>ID</th><th>项目名称</th><th>密钥</th><th>速率限制</th><th>创建时间</th><th>状态</th><th>操作</th></tr></thead>
+            <tbody id="keys-tbody"><tr class="empty-row"><td colspan="7"><span class="spinner"></span> 加载中...</td></tr></tbody>
           </table>
         </div>
+      </div>
+    </div>
+
+    <!-- 标签：项目统计 -->
+    <div id="tab-stats" class="tab-panel">
+      <div class="stats-grid" id="stats-summary" style="margin-top:16px"></div>
+      <div class="card" style="margin-top:16px">
+        <div class="card-header">
+          <h2>项目统计</h2>
+          <button class="btn btn-ghost btn-sm" onclick="loadStats()">刷新</button>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>项目名称</th><th>API 调用</th><th>认证次数</th><th>限流次数</th><th>错误次数</th><th>日志大小</th><th>操作</th></tr></thead>
+            <tbody id="stats-tbody"><tr class="empty-row"><td colspan="7">加载中...</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+      <div class="card" style="margin-top:16px">
+        <div class="card-header">
+          <div>
+            <h2>项目日志明细</h2>
+            <div class="sub">在线查看审计日志，支持按项目、日期和事件类型筛选。</div>
+          </div>
+          <button class="btn btn-ghost btn-sm" onclick="loadProjectLogs()">刷新日志</button>
+        </div>
+        <div class="add-form show">
+          <div class="form-grid-4 add-form-grid">
+            <div class="form-group"><label>项目</label><select id="log-project"></select></div>
+            <div class="form-group"><label>开始日期</label><input type="date" id="log-start" /></div>
+            <div class="form-group"><label>结束日期</label><input type="date" id="log-end" /></div>
+            <div class="form-group"><label>事件类型</label>
+              <select id="log-type">
+                <option value="">全部事件</option>
+                <option value="api_call">API 调用</option>
+                <option value="auth_attempt">认证尝试</option>
+                <option value="rate_limit_exceeded">限流事件</option>
+                <option value="config_change">配置变更</option>
+              </select>
+            </div>
+          </div>
+          <div class="add-form-actions">
+            <button class="btn btn-primary" onclick="loadProjectLogs()">查询日志</button>
+            <button class="btn btn-ghost" onclick="resetProjectLogFilters()">重置筛选</button>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>时间</th><th>项目</th><th>事件类型</th><th>IP</th><th>结果</th><th>摘要</th><th>操作</th></tr></thead>
+            <tbody id="project-logs-tbody"><tr class="empty-row"><td colspan="7">请选择项目后查看日志明细</td></tr></tbody>
+          </table>
+        </div>
+        <div id="logs-pagination"></div>
       </div>
     </div>
 
@@ -111,8 +163,8 @@
         </div>
         <div class="table-wrap">
           <table>
-            <thead><tr><th>备注名称</th><th>密钥（脱敏）</th><th>使用量（次）</th><th>最后使用</th><th>健康状态</th><th>启用状态</th><th>操作</th></tr></thead>
-            <tbody id="ak-tbody"><tr class="empty-row"><td colspan="7">加载中...</td></tr></tbody>
+            <thead><tr><th>ID</th><th>备注名称</th><th>密钥（脱敏）</th><th>使用量（次）</th><th>最后使用</th><th>健康状态</th><th>启用状态</th><th>操作</th></tr></thead>
+            <tbody id="ak-tbody"><tr class="empty-row"><td colspan="8">加载中...</td></tr></tbody>
           </table>
         </div>
       </div>
@@ -144,8 +196,8 @@
         </div>
         <div class="table-wrap">
           <table>
-            <thead><tr><th>备注名称</th><th>密钥（脱敏）</th><th>使用量（次）</th><th>最后使用</th><th>健康状态</th><th>启用状态</th><th>操作</th></tr></thead>
-            <tbody id="oai-tbody"><tr class="empty-row"><td colspan="7">加载中...</td></tr></tbody>
+            <thead><tr><th>ID</th><th>备注名称</th><th>密钥（脱敏）</th><th>使用量（次）</th><th>最后使用</th><th>健康状态</th><th>启用状态</th><th>操作</th></tr></thead>
+            <tbody id="oai-tbody"><tr class="empty-row"><td colspan="8">加载中...</td></tr></tbody>
           </table>
         </div>
       </div>
@@ -177,8 +229,8 @@
         </div>
         <div class="table-wrap">
           <table>
-            <thead><tr><th>备注名称</th><th>密钥（脱敏）</th><th>使用量（次）</th><th>最后使用</th><th>健康状态</th><th>启用状态</th><th>操作</th></tr></thead>
-            <tbody id="grok-tbody"><tr class="empty-row"><td colspan="7">加载中...</td></tr></tbody>
+            <thead><tr><th>ID</th><th>备注名称</th><th>密钥（脱敏）</th><th>使用量（次）</th><th>最后使用</th><th>健康状态</th><th>启用状态</th><th>操作</th></tr></thead>
+            <tbody id="grok-tbody"><tr class="empty-row"><td colspan="8">加载中...</td></tr></tbody>
           </table>
         </div>
       </div>
@@ -216,70 +268,8 @@
         </div>
         <div class="table-wrap">
           <table>
-            <thead><tr><th>模型 ID</th><th>显示名称</th><th>提供方</th><th>权重</th><th>优先级</th><th>状态</th><th>操作</th></tr></thead>
-            <tbody id="models-tbody"><tr class="empty-row"><td colspan="7">加载中...</td></tr></tbody>
-          </table>
-        </div>
-      </div>
-    </div>
-
-    <!-- 标签：项目统计 -->
-    <div id="tab-stats" class="tab-panel">
-      <div class="stats-grid" id="stats-summary"></div>
-      <div class="card">
-        <div class="card-header">
-          <h2>项目详细统计</h2>
-          <button class="btn btn-ghost btn-sm" onclick="loadStats()">刷新</button>
-        </div>
-        <div class="table-wrap">
-          <table>
-            <thead><tr><th>项目 ID</th><th>API 调用</th><th>认证次数</th><th>限流次数</th><th>错误次数</th><th>日志大小</th><th>操作</th></tr></thead>
-            <tbody id="stats-tbody"><tr class="empty-row"><td colspan="7">请切换到此标签查看统计</td></tr></tbody>
-          </table>
-        </div>
-      </div>
-      <div class="card">
-        <div class="card-header">
-          <div>
-            <h2>项目日志明细</h2>
-            <div class="sub">在线查看审计日志，支持按项目、日期和事件类型筛选。</div>
-          </div>
-          <button class="btn btn-ghost btn-sm" onclick="loadProjectLogs()">刷新日志</button>
-        </div>
-        <div class="add-form show">
-          <div class="form-grid-4 add-form-grid">
-            <div class="form-group">
-              <label>项目</label>
-              <select id="log-project"></select>
-            </div>
-            <div class="form-group">
-              <label>开始日期</label>
-              <input type="date" id="log-start" />
-            </div>
-            <div class="form-group">
-              <label>结束日期</label>
-              <input type="date" id="log-end" />
-            </div>
-            <div class="form-group">
-              <label>事件类型</label>
-              <select id="log-type">
-                <option value="">全部事件</option>
-                <option value="api_call">API 调用</option>
-                <option value="auth_attempt">认证尝试</option>
-                <option value="rate_limit_exceeded">限流事件</option>
-                <option value="config_change">配置变更</option>
-              </select>
-            </div>
-          </div>
-          <div class="add-form-actions">
-            <button class="btn btn-primary" onclick="loadProjectLogs()">查询日志</button>
-            <button class="btn btn-ghost" onclick="resetProjectLogFilters()">重置筛选</button>
-          </div>
-        </div>
-        <div class="table-wrap">
-          <table>
-            <thead><tr><th>时间</th><th>项目 ID</th><th>事件类型</th><th>IP</th><th>结果</th><th>摘要</th><th>操作</th></tr></thead>
-            <tbody id="project-logs-tbody"><tr class="empty-row"><td colspan="7">请选择项目后查看日志明细</td></tr></tbody>
+            <thead><tr><th>ID</th><th>模型 ID</th><th>显示名称</th><th>提供方</th><th>权重</th><th>优先级</th><th>状态</th><th>操作</th></tr></thead>
+            <tbody id="models-tbody"><tr class="empty-row"><td colspan="8">加载中...</td></tr></tbody>
           </table>
         </div>
       </div>
@@ -287,58 +277,75 @@
   </div>
 </div>
 
-    <div id="tab-settings" class="tab-panel">
-      <div class="card">
-        <div class="card-header">
-          <div>
-            <h2>系统设置</h2>
-            <div class="sub">管理员密码支持数据库优先，环境变量兜底。</div>
-          </div>
-          <button class="btn btn-ghost btn-sm" onclick="loadAdminTokenSettings()">刷新</button>
-        </div>
-        <div class="add-form show">
-          <div class="form-grid-3 add-form-grid">
-            <div class="form-group">
-              <label>当前来源</label>
-              <input type="text" id="admin-token-source" readonly />
-            </div>
-            <div class="form-group">
-              <label>是否已配置</label>
-              <input type="text" id="admin-token-configured" readonly />
-            </div>
-            <div class="form-group">
-              <label>最近更新时间</label>
-              <input type="text" id="admin-token-updated-at" readonly />
-            </div>
-          </div>
-        </div>
+
+
+
+<!-- 修改密码弹窗 -->
+<div class="modal-overlay" id="change-pwd-modal">
+  <div class="modal">
+    <h3>修改管理员密码</h3>
+    <p>保存成功后，当前后台登录会自动切换到新密码。</p>
+    <div class="modal-form">
+      <div class="form-group">
+        <label>新管理员密码</label>
+        <input type="password" id="admin-token-new" placeholder="请输入新密码（12-128位）" />
+        <div class="helper-text">12-128位可打印ASCII字符，不能有空格</div>
       </div>
-      <div class="card">
-        <div class="card-header">
-          <div>
-            <h2>修改管理员密码</h2>
-            <div class="sub">保存成功后，当前后台登录会自动切换到新密码。</div>
-          </div>
-        </div>
-        <div class="add-form show">
-          <div class="form-grid-2 add-form-grid">
-            <div class="form-group">
-              <label>新管理员密码</label>
-              <input type="password" id="admin-token-new" placeholder="请输入新密码（12-128位）" />
-              <div class="helper-text">12-128位可打印ASCII字符，不能有空格</div>
-            </div>
-            <div class="form-group">
-              <label>确认新密码</label>
-              <input type="password" id="admin-token-confirm" placeholder="再次输入新密码" />
-            </div>
-          </div>
-          <div class="add-form-actions">
-            <button class="btn btn-primary" onclick="updateAdminTokenSettings()">保存管理员密码</button>
-          </div>
-        </div>
+      <div class="form-group">
+        <label>确认新密码</label>
+        <input type="password" id="admin-token-confirm" placeholder="再次输入新密码" />
       </div>
     </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal('change-pwd-modal')">取消</button>
+      <button class="btn btn-primary" onclick="updateAdminTokenSettings()">保存密码</button>
+    </div>
+  </div>
+</div>
 
+<!-- 系统设置弹窗 -->
+<div class="modal-overlay" id="settings-modal">
+  <div class="modal">
+    <h3>系统设置</h3>
+    <div class="modal-form">
+      <div style="font-weight:600;margin-bottom:8px;color:#94a3b8;font-size:12px;text-transform:uppercase;letter-spacing:.05em">静态资源版本号</div>
+      <div class="form-group">
+        <label>当前版本号</label>
+        <input type="text" id="static-version-current" readonly style="background:#1e293b;color:#64748b;cursor:default" />
+      </div>
+      <div class="form-group">
+        <label>更新时间</label>
+        <input type="text" id="static-version-updated-at" readonly style="background:#1e293b;color:#64748b;cursor:default" />
+      </div>
+      <div class="form-group">
+        <label>新版本号</label>
+        <input type="text" id="static-version-new" placeholder="如 20260401，留空则使用当前时间戳" />
+        <div class="helper-text">保存后刷新页面生效，用于强制浏览器加载最新 JS/CSS</div>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal('settings-modal')">关闭</button>
+      <button class="btn btn-primary" onclick="updateStaticVersionSettings()">保存版本号</button>
+    </div>
+  </div>
+</div>
+
+<!-- 编辑供应商密钥备注弹窗 -->
+<div class="modal-overlay" id="edit-provider-key-modal">
+  <div class="modal">
+    <h3 id="edit-provider-key-title">编辑密钥备注</h3>
+    <div class="modal-form">
+      <div class="form-group">
+        <label>备注名称</label>
+        <input type="text" id="edit-provider-key-name" placeholder="请输入备注名称" />
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal('edit-provider-key-modal')">取消</button>
+      <button class="btn btn-primary" onclick="saveProviderKeyName()">保存</button>
+    </div>
+  </div>
+</div>
 
 <!-- 删除确认弹窗 -->
 <div class="modal-overlay" id="delete-modal">
@@ -425,13 +432,24 @@
   </div>
 </div>
 
+<div id="toast-wrap" style="position:fixed;bottom:24px;right:24px;z-index:9999;display:flex;flex-direction:column;gap:8px;"></div>
+
 <script>
-  var v = window.STATIC_VERSION;
-  document.write('<script src="js/admin-common.js?v=' + v + '"><\/script>');
-  document.write('<script src="js/admin-project-keys.js?v=' + v + '"><\/script>');
-  document.write('<script src="js/admin-stats-logs.js?v=' + v + '"><\/script>');
-  document.write('<script src="js/admin-providers-models.js?v=' + v + '"><\/script>');
-  document.write('<script src="js/admin-settings.js?v=' + v + '"><\/script>');
+(function() {
+  var v = window.STATIC_VERSION || '';
+  var scripts = [
+    'js/admin-common.js',
+    'js/admin-project-keys.js',
+    'js/admin-providers-models.js',
+    'js/admin-stats-logs.js',
+    'js/admin-settings.js'
+  ];
+  scripts.forEach(function(src) {
+    var el = document.createElement('script');
+    el.src = v ? src + '?v=' + v : src;
+    document.body.appendChild(el);
+  });
+})();
 </script>
 </body>
 </html>

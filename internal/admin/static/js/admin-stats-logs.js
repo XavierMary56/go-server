@@ -1,6 +1,66 @@
 // Project stats and audit log management for the admin web UI.
+var logsPageSize = 20;
+var currentLogsPage = 1;
+
+function renderProjectLogs() {
+  var tbody = document.getElementById('project-logs-tbody');
+  if (!currentProjectLogs.length) {
+    tbody.innerHTML = '<tr class="empty-row"><td colspan="7">当前筛选条件下暂无日志</td></tr>';
+    document.getElementById('logs-pagination').innerHTML = '';
+    return;
+  }
+  var total = currentProjectLogs.length;
+  var totalPages = Math.ceil(total / logsPageSize);
+  if (currentLogsPage > totalPages) currentLogsPage = totalPages;
+  if (currentLogsPage < 1) currentLogsPage = 1;
+  var start = (currentLogsPage - 1) * logsPageSize;
+  var pageItems = currentProjectLogs.slice(start, start + logsPageSize);
+
+  tbody.innerHTML = pageItems.map(function (event, i) {
+    var index = start + i;
+    var details = formatLogDetails(event.details);
+    var time = escapeHtml(formatDate(event.ts));
+    var projectIdText = escapeHtml(event.project_name || '-');
+    var eventTypeText = escapeHtml(event.event_type || '-');
+    var clientIpText = escapeHtml(event.client_ip || '-');
+    var resultText = escapeHtml(formatLogResult(event));
+    var detailsText = escapeHtml(details);
+    return '<tr>' +
+      '<td>' + time + '</td>' +
+      '<td>' + projectIdText + '</td>' +
+      '<td>' + eventTypeText + '</td>' +
+      '<td>' + clientIpText + '</td>' +
+      '<td>' + resultText + '</td>' +
+      '<td title="' + detailsText + '">' + detailsText + '</td>' +
+      '<td><button class="btn btn-sm btn-ghost" onclick="openLogDetailModal(' + index + ')">查看详情</button></td>' +
+      '</tr>';
+  }).join('');
+
+  var pager = document.getElementById('logs-pagination');
+  if (totalPages <= 1) { pager.innerHTML = ''; return; }
+  var html = '<div class="pagination">';
+  html += '<span class="page-info">共 ' + total + ' 条，第 ' + currentLogsPage + ' / ' + totalPages + ' 页</span>';
+  html += '<button class="btn btn-sm btn-ghost" onclick="logsGoPage(1)" ' + (currentLogsPage === 1 ? 'disabled' : '') + '>首页</button>';
+  html += '<button class="btn btn-sm btn-ghost" onclick="logsGoPage(' + (currentLogsPage - 1) + ')" ' + (currentLogsPage === 1 ? 'disabled' : '') + '>上一页</button>';
+  var from = Math.max(1, currentLogsPage - 2);
+  var to = Math.min(totalPages, currentLogsPage + 2);
+  for (var p = from; p <= to; p++) {
+    html += '<button class="btn btn-sm ' + (p === currentLogsPage ? 'btn-primary' : 'btn-ghost') + '" onclick="logsGoPage(' + p + ')">' + p + '</button>';
+  }
+  html += '<button class="btn btn-sm btn-ghost" onclick="logsGoPage(' + (currentLogsPage + 1) + ')" ' + (currentLogsPage === totalPages ? 'disabled' : '') + '>下一页</button>';
+  html += '<button class="btn btn-sm btn-ghost" onclick="logsGoPage(' + totalPages + ')" ' + (currentLogsPage === totalPages ? 'disabled' : '') + '>末页</button>';
+  html += '</div>';
+  pager.innerHTML = html;
+}
+
+function logsGoPage(p) {
+  currentLogsPage = p;
+  renderProjectLogs();
+}
+
 async function loadStats() {
-  document.getElementById('stats-tbody').innerHTML = '<tr class="empty-row"><td colspan="7"><span class="spinner"></span> 加载中...</td></tr>';
+  const statsTbody = document.getElementById('stats-tbody');
+  if (statsTbody) statsTbody.innerHTML = '<tr class="empty-row"><td colspan="7"><span class="spinner"></span> 加载中...</td></tr>';
   const responses = await Promise.all([
     api('GET', '/v1/admin/projects/stats'),
     api('GET', '/v1/admin/projects')
@@ -12,7 +72,7 @@ async function loadStats() {
   const stats = (await statsResp.json()).data || {};
   const projectsData = (await projectsResp.json()).data || {};
   statsProjectIds = (projectsData.projects || []).map(function (project) {
-    return project.project_id;
+    return project.project_name;
   }).filter(Boolean);
   syncProjectLogProjectOptions();
 
@@ -26,7 +86,8 @@ async function loadStats() {
     totalRateLimited += item.rate_limited || 0;
   });
 
-  document.getElementById('stats-summary').innerHTML = `
+  const statsSummary = document.getElementById('stats-summary');
+  if (statsSummary) statsSummary.innerHTML = `
     <div class="stat-card"><div class="label">项目总数</div><div class="value">${projectCount}</div><div class="sub">当前活跃项目</div></div>
     <div class="stat-card"><div class="label">API 调用</div><div class="value">${totalCalls.toLocaleString()}</div><div class="sub">累计请求次数</div></div>
     <div class="stat-card"><div class="label">认证次数</div><div class="value">${totalAuth.toLocaleString()}</div><div class="sub">鉴权请求总量</div></div>
@@ -40,12 +101,11 @@ async function loadStats() {
   });
 
   if (!entries.length) {
-    tbody.innerHTML = '<tr class="empty-row"><td colspan="7">暂无统计数据</td></tr>';
-    document.getElementById('project-logs-tbody').innerHTML = '<tr class="empty-row"><td colspan="6">暂无可查询项目</td></tr>';
+    if (tbody) tbody.innerHTML = '<tr class="empty-row"><td colspan="7">暂无统计数据</td></tr>';
     return;
   }
 
-  tbody.innerHTML = entries.map(function (entry) {
+  if (tbody) tbody.innerHTML = entries.map(function (entry) {
     const pid = entry[0];
     const statsItem = entry[1];
     return `
@@ -60,7 +120,7 @@ async function loadStats() {
     </tr>`;
   }).join('');
 
-  loadProjectLogs();
+  resetProjectLogFilters();
 }
 
 function resetProjectLogFilters() {
@@ -106,6 +166,15 @@ function focusProjectLogs(projectId) {
   loadProjectLogs();
 }
 
+function escapeHtml(value) {
+  return String(value == null ? '' : value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 function formatLogResult(event) {
   const details = event.details || {};
   if (Object.prototype.hasOwnProperty.call(details, 'ok')) return details.ok ? '成功' : '失败';
@@ -142,7 +211,7 @@ function openLogDetailModal(index) {
   }
 
   const details = event.details || {};
-  document.getElementById('log-detail-project').value = event.project_id || '-';
+  document.getElementById('log-detail-project').value = event.project_name || '-';
   document.getElementById('log-detail-type').value = event.event_type || '-';
   document.getElementById('log-detail-time').value = formatDate(event.ts);
   document.getElementById('log-detail-ip').value = event.client_ip || '-';
@@ -182,22 +251,6 @@ async function loadProjectLogs() {
 
   const logs = body.data && body.data.logs || [];
   currentProjectLogs = logs;
-  if (!logs.length) {
-    tbody.innerHTML = '<tr class="empty-row"><td colspan="7">当前筛选条件下暂无日志</td></tr>';
-    return;
-  }
-
-  tbody.innerHTML = logs.map(function (event, index) {
-    const details = formatLogDetails(event.details);
-    return `
-      <tr>
-        <td>${formatDate(event.ts)}</td>
-        <td>${event.project_id || '-'}</td>
-        <td>${event.event_type || '-'}</td>
-        <td>${event.client_ip || '-'}</td>
-        <td>${formatLogResult(event)}</td>
-        <td title="${details.replace(/"/g, '&quot;')}">${details}</td>
-        <td><button class="btn btn-sm btn-ghost" onclick="openLogDetailModal(${index})">查看详情</button></td>
-      </tr>`;
-  }).join('');
+  currentLogsPage = 1;
+  renderProjectLogs();
 }

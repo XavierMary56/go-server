@@ -20,20 +20,20 @@ func (ah *AdminHandler) handleProjectKeys(w http.ResponseWriter, r *http.Request
 	case http.MethodPost:
 		ah.addProjectKeyV2(w, r)
 	default:
-		ah.jsonError(w, http.StatusMethodNotAllowed, "鏂规硶涓嶅厑璁?")
+		ah.jsonError(w, http.StatusMethodNotAllowed, "方法不允许")
 	}
 }
 
 func (ah *AdminHandler) handleProjectKeyDetail(w http.ResponseWriter, r *http.Request) {
 	parts := strings.Split(r.URL.Path, "/")
 	if len(parts) < 5 {
-		ah.jsonError(w, http.StatusBadRequest, "缂哄皯瀵嗛挜")
+		ah.jsonError(w, http.StatusBadRequest, "缺少密钥")
 		return
 	}
 
 	key, err := url.PathUnescape(parts[4])
 	if err != nil {
-		ah.jsonError(w, http.StatusBadRequest, "瀵嗛挜鏍煎紡鏃犳晥")
+		ah.jsonError(w, http.StatusBadRequest, "密钥格式无效")
 		return
 	}
 
@@ -45,7 +45,7 @@ func (ah *AdminHandler) handleProjectKeyDetail(w http.ResponseWriter, r *http.Re
 	case http.MethodDelete:
 		ah.deleteProjectKeyV2(w, r, key)
 	default:
-		ah.jsonError(w, http.StatusMethodNotAllowed, "鏂规硶涓嶅厑璁?")
+		ah.jsonError(w, http.StatusMethodNotAllowed, "方法不允许")
 	}
 }
 
@@ -76,48 +76,55 @@ func (ah *AdminHandler) listProjectKeys(w http.ResponseWriter, r *http.Request) 
 func (ah *AdminHandler) addProjectKeyV2(w http.ResponseWriter, r *http.Request) {
 	var req AddKeyRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		ah.jsonError(w, http.StatusBadRequest, "璇锋眰浣撹В鏋愬け璐? "+err.Error())
+		ah.jsonError(w, http.StatusBadRequest, "请求体解析失败: "+err.Error())
 		return
 	}
 
-	req.ProjectID = strings.TrimSpace(req.ProjectID)
+	req.ProjectName = strings.TrimSpace(req.ProjectName)
 	req.Key = strings.TrimSpace(req.Key)
-	if req.ProjectID == "" {
-		ah.jsonError(w, http.StatusBadRequest, "椤圭洰 ID 涓嶈兘涓虹┖")
+	if req.ProjectName == "" {
+		ah.jsonError(w, http.StatusBadRequest, "项目名称不能为空")
 		return
 	}
 	if req.RateLimit < 0 {
-		ah.jsonError(w, http.StatusBadRequest, "閫熺巼闄愬埗涓嶈兘涓鸿礋鏁?")
+		ah.jsonError(w, http.StatusBadRequest, "速率限制不能为负数")
 		return
 	}
 	if req.Key == "" {
-		req.Key = ah.generateProjectKey(req.ProjectID)
+		req.Key = ah.generateProjectKey(req.ProjectName)
 	}
 
 	ah.keysMu.Lock()
 	defer ah.keysMu.Unlock()
 
 	if _, exists := ah.keys[req.Key]; exists {
-		ah.jsonError(w, http.StatusConflict, "瀵嗛挜宸插瓨鍦?")
+		ah.jsonError(w, http.StatusConflict, "密钥已存在")
 		return
+	}
+	for _, v := range ah.keys {
+		if strings.EqualFold(v.ProjectName, req.ProjectName) {
+			ah.jsonError(w, http.StatusConflict, "项目名称已存在，请使用其他名称")
+			return
+		}
 	}
 
 	keyInfo := &KeyInfo{
-		ProjectID: req.ProjectID,
-		Key:       req.Key,
-		RateLimit: req.RateLimit,
-		CreatedAt: time.Now(),
-		UpdatedAt: time.Now(),
-		Enabled:   true,
+		ProjectName: req.ProjectName,
+		Key:         req.Key,
+		RateLimit:   req.RateLimit,
+		CreatedAt:   time.Now(),
+		UpdatedAt:   time.Now(),
+		Enabled:     true,
 	}
 
 	if ah.db != nil {
-		dbKey, err := ah.db.AddProjectKey(req.ProjectID, req.Key, req.RateLimit)
+		dbKey, err := ah.db.AddProjectKey(req.ProjectName, req.Key, req.RateLimit)
 		if err != nil {
-			ah.jsonError(w, http.StatusConflict, "瀵嗛挜淇濆瓨澶辫触: "+err.Error())
+			ah.jsonError(w, http.StatusConflict, "密钥保存失败: "+err.Error())
 			return
 		}
-		keyInfo.ProjectID = dbKey.ProjectID
+		keyInfo.ID = dbKey.ID
+		keyInfo.ProjectName = dbKey.ProjectName
 		keyInfo.Key = dbKey.Key
 		keyInfo.RateLimit = dbKey.RateLimit
 		keyInfo.CreatedAt = dbKey.CreatedAt
@@ -130,14 +137,14 @@ func (ah *AdminHandler) addProjectKeyV2(w http.ResponseWriter, r *http.Request) 
 
 	ah.jsonOK(w, http.StatusCreated, map[string]interface{}{
 		"code":    201,
-		"message": "瀵嗛挜宸叉坊鍔?",
+		"message": "项目已添加",
 		"data":    keyInfo,
 	})
 
 	ah.auditLogger.LogEvent(&audit.AuditEvent{
 		Timestamp:  time.Now(),
 		EventType:  "admin_add_key",
-		ProjectID:  keyInfo.ProjectID,
+		ProjectName:  keyInfo.ProjectName,
 		Path:       r.RequestURI,
 		Method:     r.Method,
 		StatusCode: http.StatusCreated,
@@ -150,7 +157,7 @@ func (ah *AdminHandler) getProjectKey(w http.ResponseWriter, r *http.Request, ke
 
 	keyInfo, exists := ah.keys[key]
 	if !exists {
-		ah.jsonError(w, http.StatusNotFound, "瀵嗛挜涓嶅瓨鍦?")
+		ah.jsonError(w, http.StatusNotFound, "密钥不存在")
 		return
 	}
 
@@ -163,7 +170,7 @@ func (ah *AdminHandler) getProjectKey(w http.ResponseWriter, r *http.Request, ke
 func (ah *AdminHandler) updateProjectKeyV2(w http.ResponseWriter, r *http.Request, currentKey string) {
 	var req UpdateKeyRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		ah.jsonError(w, http.StatusBadRequest, "璇锋眰浣撹В鏋愬け璐? "+err.Error())
+		ah.jsonError(w, http.StatusBadRequest, "请求体解析失败: "+err.Error())
 		return
 	}
 
@@ -172,32 +179,40 @@ func (ah *AdminHandler) updateProjectKeyV2(w http.ResponseWriter, r *http.Reques
 
 	keyInfo, exists := ah.keys[currentKey]
 	if !exists {
-		ah.jsonError(w, http.StatusNotFound, "瀵嗛挜涓嶅瓨鍦?")
+		ah.jsonError(w, http.StatusNotFound, "密钥不存在")
 		return
 	}
 
-	newProjectID := keyInfo.ProjectID
+	newProjectID := keyInfo.ProjectName
 	newKey := keyInfo.Key
 	newRateLimit := keyInfo.RateLimit
 	newEnabled := keyInfo.Enabled
 
-	if req.ProjectID != nil {
-		value := strings.TrimSpace(*req.ProjectID)
+	if req.ProjectName != nil {
+		value := strings.TrimSpace(*req.ProjectName)
 		if value == "" {
-			ah.jsonError(w, http.StatusBadRequest, "椤圭洰 ID 涓嶈兘涓虹┖")
+			ah.jsonError(w, http.StatusBadRequest, "项目名称不能为空")
 			return
+		}
+		if !strings.EqualFold(value, keyInfo.ProjectName) {
+			for _, v := range ah.keys {
+				if v.Key != currentKey && strings.EqualFold(v.ProjectName, value) {
+					ah.jsonError(w, http.StatusConflict, "项目名称已存在，请使用其他名称")
+					return
+				}
+			}
 		}
 		newProjectID = value
 	}
 	if req.Key != nil {
 		value := strings.TrimSpace(*req.Key)
 		if value == "" {
-			ah.jsonError(w, http.StatusBadRequest, "瀵嗛挜涓嶈兘涓虹┖")
+			ah.jsonError(w, http.StatusBadRequest, "密钥不能为空")
 			return
 		}
 		if value != currentKey {
 			if _, exists := ah.keys[value]; exists {
-				ah.jsonError(w, http.StatusConflict, "瀵嗛挜宸插瓨鍦?")
+				ah.jsonError(w, http.StatusConflict, "密钥已存在")
 				return
 			}
 		}
@@ -205,7 +220,7 @@ func (ah *AdminHandler) updateProjectKeyV2(w http.ResponseWriter, r *http.Reques
 	}
 	if req.RateLimit != nil {
 		if *req.RateLimit < 0 {
-			ah.jsonError(w, http.StatusBadRequest, "閫熺巼闄愬埗涓嶈兘涓鸿礋鏁?")
+			ah.jsonError(w, http.StatusBadRequest, "速率限制不能为负数")
 			return
 		}
 		newRateLimit = *req.RateLimit
@@ -216,7 +231,7 @@ func (ah *AdminHandler) updateProjectKeyV2(w http.ResponseWriter, r *http.Reques
 
 	if ah.db != nil {
 		if err := ah.db.UpdateProjectKey(currentKey, &newProjectID, &newKey, &newEnabled, &newRateLimit); err != nil {
-			ah.jsonError(w, http.StatusConflict, "瀵嗛挜鏇存柊澶辫触: "+err.Error())
+			ah.jsonError(w, http.StatusConflict, "密钥更新失败: "+err.Error())
 			return
 		}
 	}
@@ -225,7 +240,7 @@ func (ah *AdminHandler) updateProjectKeyV2(w http.ResponseWriter, r *http.Reques
 		delete(ah.keys, currentKey)
 	}
 
-	keyInfo.ProjectID = newProjectID
+	keyInfo.ProjectName = newProjectID
 	keyInfo.Key = newKey
 	keyInfo.RateLimit = newRateLimit
 	keyInfo.Enabled = newEnabled
@@ -235,14 +250,14 @@ func (ah *AdminHandler) updateProjectKeyV2(w http.ResponseWriter, r *http.Reques
 
 	ah.jsonOK(w, http.StatusOK, map[string]interface{}{
 		"code":    200,
-		"message": "瀵嗛挜宸叉洿鏂?",
+		"message": "密钥已更新",
 		"data":    keyInfo,
 	})
 
 	ah.auditLogger.LogEvent(&audit.AuditEvent{
 		Timestamp:  time.Now(),
 		EventType:  "admin_update_key",
-		ProjectID:  keyInfo.ProjectID,
+		ProjectName:  keyInfo.ProjectName,
 		Path:       r.RequestURI,
 		Method:     r.Method,
 		StatusCode: http.StatusOK,
@@ -255,13 +270,13 @@ func (ah *AdminHandler) deleteProjectKeyV2(w http.ResponseWriter, r *http.Reques
 
 	keyInfo, exists := ah.keys[key]
 	if !exists {
-		ah.jsonError(w, http.StatusNotFound, "瀵嗛挜涓嶅瓨鍦?")
+		ah.jsonError(w, http.StatusNotFound, "密钥不存在")
 		return
 	}
 
 	if ah.db != nil {
 		if err := ah.db.DeleteProjectKey(key); err != nil {
-			ah.jsonError(w, http.StatusInternalServerError, "鍒犻櫎瀵嗛挜澶辫触: "+err.Error())
+			ah.jsonError(w, http.StatusInternalServerError, "删除密钥失败: "+err.Error())
 			return
 		}
 	}
@@ -271,7 +286,7 @@ func (ah *AdminHandler) deleteProjectKeyV2(w http.ResponseWriter, r *http.Reques
 
 	ah.jsonOK(w, http.StatusOK, map[string]interface{}{
 		"code":    200,
-		"message": "瀵嗛挜宸插垹闄?",
+		"message": "密钥已删除",
 		"data": map[string]interface{}{
 			"key": key,
 		},
@@ -280,7 +295,7 @@ func (ah *AdminHandler) deleteProjectKeyV2(w http.ResponseWriter, r *http.Reques
 	ah.auditLogger.LogEvent(&audit.AuditEvent{
 		Timestamp:  time.Now(),
 		EventType:  "admin_delete_key",
-		ProjectID:  keyInfo.ProjectID,
+		ProjectName:  keyInfo.ProjectName,
 		Path:       r.RequestURI,
 		Method:     r.Method,
 		StatusCode: http.StatusOK,

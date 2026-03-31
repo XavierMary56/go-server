@@ -18,10 +18,7 @@ func TestCheckAnthropicKeyByIDReturnsMatchedKey(t *testing.T) {
 	}))
 	defer server.Close()
 
-	db, err := storage.New(t.TempDir())
-	if err != nil {
-		t.Fatalf("db init failed: %v", err)
-	}
+	db := storage.NewForTest(t)
 	defer db.Close()
 
 	key, err := db.AddAnthropicKey("anthropic-check", "sk-ant-test")
@@ -55,10 +52,7 @@ func TestCheckProviderKeyByIDReturnsMatchedKey(t *testing.T) {
 	}))
 	defer server.Close()
 
-	db, err := storage.New(t.TempDir())
-	if err != nil {
-		t.Fatalf("db init failed: %v", err)
-	}
+	db := storage.NewForTest(t)
 	defer db.Close()
 
 	key, err := db.AddProviderKey("openai", "openai-check", "sk-openai-test")

@@ -17,7 +17,7 @@ func TestHandleProjectKeyDetailAllowsZeroRateLimit(t *testing.T) {
 		auditLogger: audit.New(t.TempDir(), false),
 		keys: map[string]*KeyInfo{
 			"key-a": {
-				ProjectID: "project-a",
+				ProjectName: "project-a",
 				Key:       "key-a",
 				RateLimit: 10,
 				CreatedAt: time.Now(),
@@ -28,7 +28,7 @@ func TestHandleProjectKeyDetailAllowsZeroRateLimit(t *testing.T) {
 	}
 
 	reqBody, err := json.Marshal(map[string]any{
-		"project_id": "project-a",
+		"project_name": "project-a",
 		"key":        "key-a",
 		"rate_limit": 0,
 		"enabled":    true,

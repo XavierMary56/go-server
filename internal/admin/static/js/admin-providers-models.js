@@ -32,6 +32,7 @@ function renderAnthropicKeys() {
   tbody.innerHTML = akData.map(function (k) {
     return `
     <tr id="ak-row-${k.id}">
+      <td>${k.id}</td>
       <td><strong>${k.name}</strong></td>
       <td><span class="key-cell">${k.key_masked}</span></td>
       <td><span class="usage-num">${(k.usage_count || 0).toLocaleString()}</span></td>
@@ -40,6 +41,7 @@ function renderAnthropicKeys() {
       <td><span class="badge ${k.enabled ? 'badge-active' : 'badge-inactive'}">${k.enabled ? '已启用' : '已停用'}</span></td>
       <td><div class="actions">
         <button class="btn btn-sm btn-info" onclick="checkAK(${k.id})">检测</button>
+        <button class="btn btn-sm btn-primary" onclick="editProviderKeyModal('anthropic', ${k.id}, ${JSON.stringify(k.name)})">编辑</button>
         <button class="btn btn-sm ${k.enabled ? 'btn-warning' : 'btn-success'}" onclick="toggleAK(${k.id}, ${!k.enabled})">${k.enabled ? '停用' : '启用'}</button>
         <button class="btn btn-sm btn-danger" onclick="confirmDelete('/v1/admin/anthropic-keys/${k.id}', '${k.name} 的密钥', loadAnthropicKeys)">删除</button>
       </div></td>
@@ -116,6 +118,34 @@ async function toggleAK(id, enable) {
   toast('操作失败', 'error');
 }
 
+var editProviderKeyState = { provider: '', id: 0 };
+
+function editProviderKeyModal(provider, id, name) {
+  editProviderKeyState = { provider, id };
+  document.getElementById('edit-provider-key-name').value = name || '';
+  const title = { anthropic: 'Anthropic', openai: 'OpenAI', grok: 'Grok' }[provider] || provider;
+  document.getElementById('edit-provider-key-title').textContent = '编辑 ' + title + ' 密钥备注';
+  document.getElementById('edit-provider-key-modal').classList.add('show');
+}
+
+async function saveProviderKeyName() {
+  const { provider, id } = editProviderKeyState;
+  const name = document.getElementById('edit-provider-key-name').value.trim();
+  if (!name) { toast('备注名称不能为空', 'error'); return; }
+  const url = provider === 'anthropic'
+    ? '/v1/admin/anthropic-keys/' + id
+    : '/v1/admin/provider-keys/' + id;
+  const resp = await api('PUT', url, { name });
+  if (resp && resp.ok) {
+    toast('备注已更新');
+    closeModal('edit-provider-key-modal');
+    if (provider === 'anthropic') loadAnthropicKeys();
+    else loadProviderKeys(provider);
+    return;
+  }
+  toast('更新失败', 'error');
+}
+
 async function loadProviderKeys(provider) {
   const tbodyId = provider === 'openai' ? 'oai-tbody' : 'grok-tbody';
   document.getElementById(tbodyId).innerHTML = '<tr class="empty-row"><td colspan="7"><span class="spinner"></span> 加载中...</td></tr>';
@@ -138,6 +168,7 @@ function renderProviderKeys(provider) {
   tbody.innerHTML = data.map(function (k) {
     return `
     <tr>
+      <td>${k.id}</td>
       <td><strong>${k.name}</strong></td>
       <td><span class="key-cell">${k.key_masked}</span></td>
       <td><span class="usage-num">${(k.usage_count || 0).toLocaleString()}</span></td>
@@ -146,6 +177,7 @@ function renderProviderKeys(provider) {
       <td><span class="badge ${k.enabled ? 'badge-active' : 'badge-inactive'}">${k.enabled ? '已启用' : '已停用'}</span></td>
       <td><div class="actions">
         <button class="btn btn-sm btn-info" onclick="checkPK('${provider}', ${k.id})">检测</button>
+        <button class="btn btn-sm btn-primary" onclick="editProviderKeyModal('${provider}', ${k.id}, ${JSON.stringify(k.name)})">编辑</button>
         <button class="btn btn-sm ${k.enabled ? 'btn-warning' : 'btn-success'}" onclick="toggleProviderKey('${provider}', ${k.id}, ${!k.enabled})">${k.enabled ? '停用' : '启用'}</button>
         <button class="btn btn-sm btn-danger" onclick="confirmDelete('/v1/admin/provider-keys/${k.id}', '${k.name} 的密钥', () => loadProviderKeys('${provider}'))">删除</button>
       </div></td>
@@ -222,14 +254,14 @@ async function toggleProviderKey(provider, id, enable) {
 }
 
 async function loadModels() {
-  document.getElementById('models-tbody').innerHTML = '<tr class="empty-row"><td colspan="7"><span class="spinner"></span> 加载中...</td></tr>';
+  document.getElementById('models-tbody').innerHTML = '<tr class="empty-row"><td colspan="8"><span class="spinner"></span> 加载中...</td></tr>';
   const resp = await api('GET', '/v1/admin/models');
   if (!resp) return;
   const json = await resp.json();
   const models = json.data || [];
   const tbody = document.getElementById('models-tbody');
   if (!models.length) {
-    tbody.innerHTML = '<tr class="empty-row"><td colspan="7">暂无模型配置，请点击右上角添加</td></tr>';
+    tbody.innerHTML = '<tr class="empty-row"><td colspan="8">暂无模型配置，请点击右上角添加</td></tr>';
     return;
   }
 
@@ -241,26 +273,32 @@ async function loadModels() {
       openai: 'badge-checking',
       grok: 'badge-valid'
     }[provider] || 'badge-inactive';
+    const isFallback = m.source === 'config-fallback';
+    const sourceHint = isFallback ? '<br><small style="color:#94a3b8">配置回退</small>' : '';
+    const actions = isFallback
+      ? '<span style="color:#94a3b8;font-size:12px;">请先在后台保存为正式模型</span>'
+      : `<div class="actions">
+        <button class="btn btn-sm ${m.enabled ? 'btn-warning' : 'btn-success'}" onclick="updateModel(${m.id}, { enabled: ${!m.enabled} }).then(() => loadModels())">${m.enabled ? '停用' : '启用'}</button>
+        <button class="btn btn-sm btn-danger" onclick="confirmDelete('/v1/admin/models/${m.id}', '模型 ${m.name}', loadModels)">删除</button>
+      </div>`;
     return `
     <tr>
-      <td><span class="model-id-cell">${m.model_id}</span></td>
+      <td>${m.id}</td>
+      <td><span class="model-id-cell">${m.model_id}</span>${sourceHint}</td>
       <td>${m.name}</td>
       <td><span class="badge ${providerBadge}">${formatProviderName(provider)}</span></td>
       <td>
         <div class="weight-bar">
-          <input class="inline-num" type="number" value="${m.weight}" min="1" max="100" onchange="updateModel(${m.id}, { weight: parseInt(this.value) })" />
+          <input class="inline-num" type="number" value="${m.weight}" min="1" max="100" ${isFallback ? 'disabled' : ''} onchange="updateModel(${m.id}, { weight: parseInt(this.value) })" />
           <div class="weight-bar-inner"><div class="weight-bar-fill" style="width:${Math.round(m.weight / maxWeight * 100)}%"></div></div>
           <span style="font-size:12px;color:#94a3b8">${m.weight}</span>
         </div>
       </td>
       <td>
-        <input class="inline-num" type="number" value="${m.priority}" min="1" onchange="updateModel(${m.id}, { priority: parseInt(this.value) })" />
+        <input class="inline-num" type="number" value="${m.priority}" min="1" ${isFallback ? 'disabled' : ''} onchange="updateModel(${m.id}, { priority: parseInt(this.value) })" />
       </td>
       <td><span class="badge ${m.enabled ? 'badge-active' : 'badge-inactive'}">${m.enabled ? '已启用' : '已停用'}</span></td>
-      <td><div class="actions">
-        <button class="btn btn-sm ${m.enabled ? 'btn-warning' : 'btn-success'}" onclick="updateModel(${m.id}, { enabled: ${!m.enabled} }).then(() => loadModels())">${m.enabled ? '停用' : '启用'}</button>
-        <button class="btn btn-sm btn-danger" onclick="confirmDelete('/v1/admin/models/${m.id}', '模型 ${m.name}', loadModels)">删除</button>
-      </div></td>
+      <td>${actions}</td>
     </tr>`;
   }).join('');
 }

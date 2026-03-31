@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"strconv"
 	"sync"
 	"time"
 )
@@ -12,7 +13,7 @@ import (
 // APIKey API 密钥配置
 type APIKey struct {
 	Key       string     // 密钥内容
-	ProjectID string     // 项目 ID
+	ProjectName string     // 项目名称
 	CreatedAt time.Time  // 创建时间
 	ExpireAt  *time.Time // 过期时间（nil = 永不过期）
 	RateLimit int        // 每分钟请求限制（0 = 无限制）
@@ -49,7 +50,7 @@ func (km *KeyManager) RegisterKey(key *APIKey) error {
 	if key.Key == "" {
 		return fmt.Errorf("密钥不能为空")
 	}
-	if key.ProjectID == "" {
+	if key.ProjectName == "" {
 		return fmt.Errorf("项目 ID 不能为空")
 	}
 
@@ -78,7 +79,7 @@ func (km *KeyManager) ValidateKey(key string) (string, error) {
 		return "", fmt.Errorf("密钥已过期")
 	}
 
-	return apiKey.ProjectID, nil
+	return apiKey.ProjectName, nil
 }
 
 // CheckRateLimit 检查速率限制
@@ -146,7 +147,7 @@ func (km *KeyManager) ListKeys() map[string]interface{} {
 		}
 
 		result[maskedKey] = map[string]interface{}{
-			"project_id": apiKey.ProjectID,
+			"project_name": apiKey.ProjectName,
 			"status":     status,
 			"created_at": apiKey.CreatedAt,
 			"expire_at":  apiKey.ExpireAt,
@@ -165,8 +166,16 @@ func GenerateSignature(secret string, timestamp string, method string, path stri
 	return hex.EncodeToString(h.Sum(nil))
 }
 
-// VerifySignature 验证签名
+// VerifySignature 验证签名，同时校验时间戳在 ±5 分钟窗口内以防重放攻击
 func VerifySignature(secret string, timestamp string, method string, path string, signature string) bool {
+	ts, err := strconv.ParseInt(timestamp, 10, 64)
+	if err != nil {
+		return false
+	}
+	diff := time.Now().Unix() - ts
+	if diff > 300 || diff < -300 {
+		return false
+	}
 	expected := GenerateSignature(secret, timestamp, method, path)
 	return hmac.Equal([]byte(expected), []byte(signature))
 }

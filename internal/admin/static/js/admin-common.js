@@ -104,6 +104,7 @@ function showDashboard() {
   document.getElementById('dashboard').style.display = 'block';
   document.getElementById('topbar-host').textContent = window.location.host;
   loadProjectKeys();
+  loadAdminTokenSettings();
 }
 
 function switchTab(name, btn) {
@@ -112,15 +113,17 @@ function switchTab(name, btn) {
   document.getElementById('tab-' + name).classList.add('active');
   btn.classList.add('active');
 
+  if (name === 'keys') {
+    loadProjectKeys();
+  }
   if (name === 'stats') {
-    resetProjectLogFilters();
     loadStats();
+    resetProjectLogFilters();
   }
   if (name === 'anthropic') loadAnthropicKeys();
   if (name === 'openai') loadProviderKeys('openai');
   if (name === 'grok') loadProviderKeys('grok');
   if (name === 'models') loadModels();
-  if (name === 'settings') loadAdminTokenSettings();
 }
 
 function confirmDelete(apiPath, label, onSuccess) {

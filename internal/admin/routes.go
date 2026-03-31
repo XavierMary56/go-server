@@ -15,6 +15,7 @@ func (ah *AdminHandler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/v1/admin/projects/logs", ah.withAdminAuth(ah.handleProjectLogs))
 	mux.HandleFunc("/v1/admin/projects/stats", ah.withAdminAuth(ah.handleProjectStats))
 	mux.HandleFunc("/v1/admin/settings/admin-token", ah.withAdminAuth(ah.handleAdminTokenSettings))
+	mux.HandleFunc("/v1/admin/settings/static-version", ah.withAdminAuth(ah.handleStaticVersionSettings))
 
 	mux.HandleFunc("/v1/admin/anthropic-keys", ah.withAdminAuth(ah.handleAnthropicKeys))
 	mux.HandleFunc("/v1/admin/anthropic-keys/", ah.withAdminAuth(ah.handleAnthropicKeyDetail))
