@@ -36,7 +36,9 @@ func main() {
 
 	var db *storage.DB
 	if cfg.EnableAuth || cfg.EnableAdminAPI {
-		db, err = storage.New("/data")
+		dsn := fmt.Sprintf("%s:%s@tcp(%s:%d)/%s?parseTime=true&charset=utf8mb4&loc=Local",
+			cfg.DBUser, cfg.DBPass, cfg.DBHost, cfg.DBPort, cfg.DBName)
+		db, err = storage.New(dsn)
 		if err != nil {
 			lg.Error("database init failed: " + err.Error())
 			db = nil

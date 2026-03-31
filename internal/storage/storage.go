@@ -4,11 +4,9 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"os"
-	"path/filepath"
 	"time"
 
-	_ "modernc.org/sqlite"
+	_ "github.com/go-sql-driver/mysql"
 )
 
 // DB 数据库实例
@@ -74,102 +72,92 @@ type AdminSetting struct {
 }
 
 // New 初始化数据库
-func New(dataDir string) (*DB, error) {
-	if err := os.MkdirAll(dataDir, 0755); err != nil {
-		return nil, fmt.Errorf("创建数据目录失败: %w", err)
-	}
-
-	dbPath := filepath.Join(dataDir, "moderation.db")
-	db, err := sql.Open("sqlite", dbPath+"?_journal_mode=WAL&_foreign_keys=on")
+func New(dsn string) (*DB, error) {
+	db, err := sql.Open("mysql", dsn)
 	if err != nil {
 		return nil, fmt.Errorf("打开数据库失败: %w", err)
+	}
+	db.SetMaxOpenConns(16)
+	db.SetMaxIdleConns(4)
+	db.SetConnMaxLifetime(5 * time.Minute)
+
+	if err := db.Ping(); err != nil {
+		return nil, fmt.Errorf("数据库连接失败: %w", err)
 	}
 
 	s := &DB{db: db}
 	if err := s.migrate(); err != nil {
 		return nil, fmt.Errorf("数据库迁移失败: %w", err)
 	}
-	s.migrateV2() // 追加列，忽略错误（列已存在时会报错）
 
 	return s, nil
 }
 
-// migrateV2 为已有表追加新列（幂等，失败静默忽略）
-func (s *DB) migrateV2() {
-	s.db.Exec(`ALTER TABLE model_configs ADD COLUMN provider TEXT NOT NULL DEFAULT ''`)
-	s.db.Exec(`ALTER TABLE anthropic_keys ADD COLUMN status TEXT NOT NULL DEFAULT 'unknown'`)
-	s.db.Exec(`ALTER TABLE anthropic_keys ADD COLUMN checked_at DATETIME`)
-	s.db.Exec(`ALTER TABLE provider_keys ADD COLUMN status TEXT NOT NULL DEFAULT 'unknown'`)
-	s.db.Exec(`ALTER TABLE provider_keys ADD COLUMN checked_at DATETIME`)
-	s.db.Exec(`ALTER TABLE project_keys ADD COLUMN deleted_at DATETIME`)
-}
+// migrateV2 保留空实现，MariaDB 建表时已包含所有列
+func (s *DB) migrateV2() {}
 
 func (s *DB) migrate() error {
-	_, err := s.db.Exec(`
-		CREATE TABLE IF NOT EXISTS project_keys (
-			id         INTEGER PRIMARY KEY AUTOINCREMENT,
-			project_id TEXT NOT NULL,
-			key        TEXT NOT NULL UNIQUE,
-			rate_limit INTEGER NOT NULL DEFAULT 60,
-			enabled    INTEGER NOT NULL DEFAULT 1,
-			deleted_at DATETIME,
-			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-			updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
-		);
-
-		CREATE TABLE IF NOT EXISTS anthropic_keys (
-			id           INTEGER PRIMARY KEY AUTOINCREMENT,
-			name         TEXT NOT NULL,
-			key          TEXT NOT NULL UNIQUE,
-			enabled      INTEGER NOT NULL DEFAULT 1,
-			status       TEXT NOT NULL DEFAULT 'unknown',
-			usage_count  INTEGER NOT NULL DEFAULT 0,
-			last_used_at DATETIME,
-			checked_at   DATETIME,
-			created_at   DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
-		);
-
-		CREATE TABLE IF NOT EXISTS provider_keys (
-			id           INTEGER PRIMARY KEY AUTOINCREMENT,
-			provider     TEXT NOT NULL,
-			name         TEXT NOT NULL,
-			key          TEXT NOT NULL UNIQUE,
-			enabled      INTEGER NOT NULL DEFAULT 1,
-			status       TEXT NOT NULL DEFAULT 'unknown',
-			usage_count  INTEGER NOT NULL DEFAULT 0,
-			last_used_at DATETIME,
-			checked_at   DATETIME,
-			created_at   DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
-		);
-
-		CREATE TABLE IF NOT EXISTS model_configs (
-			id       INTEGER PRIMARY KEY AUTOINCREMENT,
-			model_id TEXT NOT NULL UNIQUE,
-			name     TEXT NOT NULL,
-			provider TEXT NOT NULL DEFAULT '',
-			weight   INTEGER NOT NULL DEFAULT 50,
-			priority INTEGER NOT NULL DEFAULT 1,
-			enabled  INTEGER NOT NULL DEFAULT 1
-		);
-
-		CREATE TABLE IF NOT EXISTS admin_settings (
-			key        TEXT PRIMARY KEY,
-			value      TEXT NOT NULL,
-			updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
-		);
-	`)
-	return err
+	statements := []string{
+		`CREATE TABLE IF NOT EXISTS project_keys (
+			id         BIGINT AUTO_INCREMENT PRIMARY KEY,
+			project_id VARCHAR(128) NOT NULL,
+			` + "`key`" + ` VARCHAR(256) NOT NULL UNIQUE,
+			rate_limit INT         NOT NULL DEFAULT 60,
+			enabled    TINYINT(1)  NOT NULL DEFAULT 1,
+			deleted_at DATETIME    DEFAULT NULL,
+			created_at DATETIME    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			updated_at DATETIME    NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+		)`,
+		`CREATE TABLE IF NOT EXISTS anthropic_keys (
+			id           BIGINT AUTO_INCREMENT PRIMARY KEY,
+			name         VARCHAR(128) NOT NULL,
+			` + "`key`" + ` VARCHAR(512) NOT NULL UNIQUE,
+			enabled      TINYINT(1)   NOT NULL DEFAULT 1,
+			status       VARCHAR(32)  NOT NULL DEFAULT 'unknown',
+			usage_count  BIGINT       NOT NULL DEFAULT 0,
+			last_used_at DATETIME     DEFAULT NULL,
+			checked_at   DATETIME     DEFAULT NULL,
+			created_at   DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP
+		)`,
+		`CREATE TABLE IF NOT EXISTS provider_keys (
+			id           BIGINT AUTO_INCREMENT PRIMARY KEY,
+			provider     VARCHAR(32)  NOT NULL,
+			name         VARCHAR(128) NOT NULL,
+			` + "`key`" + ` VARCHAR(512) NOT NULL UNIQUE,
+			enabled      TINYINT(1)   NOT NULL DEFAULT 1,
+			status       VARCHAR(32)  NOT NULL DEFAULT 'unknown',
+			usage_count  BIGINT       NOT NULL DEFAULT 0,
+			last_used_at DATETIME     DEFAULT NULL,
+			checked_at   DATETIME     DEFAULT NULL,
+			created_at   DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP
+		)`,
+		`CREATE TABLE IF NOT EXISTS model_configs (
+			id       BIGINT AUTO_INCREMENT PRIMARY KEY,
+			model_id VARCHAR(128) NOT NULL UNIQUE,
+			name     VARCHAR(128) NOT NULL,
+			provider VARCHAR(32)  NOT NULL DEFAULT '',
+			weight   INT          NOT NULL DEFAULT 50,
+			priority INT          NOT NULL DEFAULT 1,
+			enabled  TINYINT(1)   NOT NULL DEFAULT 1
+		)`,
+		`CREATE TABLE IF NOT EXISTS admin_settings (
+			` + "`key`" + ` VARCHAR(128) PRIMARY KEY,
+			value      TEXT        NOT NULL,
+			updated_at DATETIME    NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+		)`,
+	}
+	for _, stmt := range statements {
+		if _, err := s.db.Exec(stmt); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // ── Project Keys ──────────────────────────────────────────
 
 func (s *DB) ListProjectKeys() ([]*ProjectKey, error) {
-	rows, err := s.db.Query(`
-		SELECT id, project_id, key, rate_limit, enabled, deleted_at, created_at, updated_at
-		FROM project_keys
-		WHERE deleted_at IS NULL
-		ORDER BY created_at DESC
-	`)
+	rows, err := s.db.Query("SELECT id, project_id, `key`, rate_limit, enabled, deleted_at, created_at, updated_at FROM project_keys WHERE deleted_at IS NULL ORDER BY created_at DESC")
 	if err != nil {
 		return nil, err
 	}
@@ -190,12 +178,7 @@ func (s *DB) ListProjectKeys() ([]*ProjectKey, error) {
 }
 
 func (s *DB) GetEnabledProjectKey(key string) (*ProjectKey, error) {
-	row := s.db.QueryRow(`
-		SELECT id, project_id, key, rate_limit, enabled, deleted_at, created_at, updated_at
-		FROM project_keys
-		WHERE key=? AND enabled=1 AND deleted_at IS NULL
-		LIMIT 1
-	`, key)
+	row := s.db.QueryRow("SELECT id, project_id, `key`, rate_limit, enabled, deleted_at, created_at, updated_at FROM project_keys WHERE `key`=? AND enabled=1 AND deleted_at IS NULL LIMIT 1", key)
 
 	projectKey := &ProjectKey{}
 	var enabled int
@@ -223,7 +206,7 @@ func (s *DB) GetEnabledProjectKey(key string) (*ProjectKey, error) {
 func (s *DB) AddProjectKey(projectID, key string, rateLimit int) (*ProjectKey, error) {
 	now := time.Now()
 	result, err := s.db.Exec(
-		`INSERT INTO project_keys (project_id, key, rate_limit, enabled, deleted_at, created_at, updated_at) VALUES (?, ?, ?, 1, NULL, ?, ?)`,
+		"INSERT INTO project_keys (project_id, `key`, rate_limit, enabled, deleted_at, created_at, updated_at) VALUES (?, ?, ?, 1, NULL, ?, ?)",
 		projectID, key, rateLimit, now, now,
 	)
 	if err != nil {
@@ -235,13 +218,13 @@ func (s *DB) AddProjectKey(projectID, key string, rateLimit int) (*ProjectKey, e
 
 func (s *DB) UpdateProjectKey(currentKey string, projectID *string, newKey *string, enabled *bool, rateLimit *int) error {
 	if projectID != nil {
-		_, err := s.db.Exec(`UPDATE project_keys SET project_id=?, updated_at=? WHERE key=? AND deleted_at IS NULL`, *projectID, time.Now(), currentKey)
+		_, err := s.db.Exec("UPDATE project_keys SET project_id=?, updated_at=? WHERE `key`=? AND deleted_at IS NULL", *projectID, time.Now(), currentKey)
 		if err != nil {
 			return err
 		}
 	}
 	if newKey != nil {
-		_, err := s.db.Exec(`UPDATE project_keys SET key=?, updated_at=? WHERE key=? AND deleted_at IS NULL`, *newKey, time.Now(), currentKey)
+		_, err := s.db.Exec("UPDATE project_keys SET `key`=?, updated_at=? WHERE `key`=? AND deleted_at IS NULL", *newKey, time.Now(), currentKey)
 		if err != nil {
 			return err
 		}
@@ -252,13 +235,13 @@ func (s *DB) UpdateProjectKey(currentKey string, projectID *string, newKey *stri
 		if *enabled {
 			e = 1
 		}
-		_, err := s.db.Exec(`UPDATE project_keys SET enabled=?, updated_at=? WHERE key=? AND deleted_at IS NULL`, e, time.Now(), currentKey)
+		_, err := s.db.Exec("UPDATE project_keys SET enabled=?, updated_at=? WHERE `key`=? AND deleted_at IS NULL", e, time.Now(), currentKey)
 		if err != nil {
 			return err
 		}
 	}
 	if rateLimit != nil {
-		_, err := s.db.Exec(`UPDATE project_keys SET rate_limit=?, updated_at=? WHERE key=? AND deleted_at IS NULL`, *rateLimit, time.Now(), currentKey)
+		_, err := s.db.Exec("UPDATE project_keys SET rate_limit=?, updated_at=? WHERE `key`=? AND deleted_at IS NULL", *rateLimit, time.Now(), currentKey)
 		if err != nil {
 			return err
 		}
@@ -267,12 +250,12 @@ func (s *DB) UpdateProjectKey(currentKey string, projectID *string, newKey *stri
 }
 
 func (s *DB) DeleteProjectKey(key string) error {
-	_, err := s.db.Exec(`UPDATE project_keys SET enabled=0, deleted_at=?, updated_at=? WHERE key=? AND deleted_at IS NULL`, time.Now(), time.Now(), key)
+	_, err := s.db.Exec("UPDATE project_keys SET enabled=0, deleted_at=?, updated_at=? WHERE `key`=? AND deleted_at IS NULL", time.Now(), time.Now(), key)
 	return err
 }
 
 func (s *DB) GetAdminSetting(key string) (*AdminSetting, error) {
-	row := s.db.QueryRow(`SELECT key, value, updated_at FROM admin_settings WHERE key=? LIMIT 1`, key)
+	row := s.db.QueryRow("SELECT `key`, value, updated_at FROM admin_settings WHERE `key`=? LIMIT 1", key)
 
 	setting := &AdminSetting{}
 	err := row.Scan(&setting.Key, &setting.Value, &setting.UpdatedAt)
@@ -287,18 +270,14 @@ func (s *DB) GetAdminSetting(key string) (*AdminSetting, error) {
 }
 
 func (s *DB) SetAdminSetting(key, value string) error {
-	_, err := s.db.Exec(`
-		INSERT INTO admin_settings (key, value, updated_at)
-		VALUES (?, ?, ?)
-		ON CONFLICT(key) DO UPDATE SET
-			value=excluded.value,
-			updated_at=excluded.updated_at
-	`, key, value, time.Now())
+	_, err := s.db.Exec(
+		"INSERT INTO admin_settings (`key`, value, updated_at) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE value=VALUES(value), updated_at=VALUES(updated_at)",
+		key, value, time.Now())
 	return err
 }
 
 func (s *DB) GetEnabledProjectKeys() ([]string, error) {
-	rows, err := s.db.Query(`SELECT key FROM project_keys WHERE enabled=1`)
+	rows, err := s.db.Query("SELECT `key` FROM project_keys WHERE enabled=1")
 	if err != nil {
 		return nil, err
 	}
@@ -315,7 +294,7 @@ func (s *DB) GetEnabledProjectKeys() ([]string, error) {
 // ── Anthropic Keys ────────────────────────────────────────
 
 func (s *DB) ListAnthropicKeys() ([]*AnthropicKey, error) {
-	rows, err := s.db.Query(`SELECT id, name, key, enabled, status, usage_count, last_used_at, checked_at, created_at FROM anthropic_keys ORDER BY created_at DESC`)
+	rows, err := s.db.Query("SELECT id, name, `key`, enabled, status, usage_count, last_used_at, checked_at, created_at FROM anthropic_keys ORDER BY created_at DESC")
 	if err != nil {
 		return nil, err
 	}
@@ -336,7 +315,7 @@ func (s *DB) ListAnthropicKeys() ([]*AnthropicKey, error) {
 }
 
 func (s *DB) GetAnthropicKeyByID(id int64) (*AnthropicKey, error) {
-	row := s.db.QueryRow(`SELECT id, name, key, enabled, status, usage_count, last_used_at, checked_at, created_at FROM anthropic_keys WHERE id=?`, id)
+	row := s.db.QueryRow("SELECT id, name, `key`, enabled, status, usage_count, last_used_at, checked_at, created_at FROM anthropic_keys WHERE id=?", id)
 	k := &AnthropicKey{}
 	var enabled int
 	if err := row.Scan(&k.ID, &k.Name, &k.Key, &enabled, &k.Status, &k.UsageCount, &k.LastUsedAt, &k.CheckedAt, &k.CreatedAt); err != nil {
@@ -349,7 +328,7 @@ func (s *DB) GetAnthropicKeyByID(id int64) (*AnthropicKey, error) {
 func (s *DB) AddAnthropicKey(name, key string) (*AnthropicKey, error) {
 	now := time.Now()
 	result, err := s.db.Exec(
-		`INSERT INTO anthropic_keys (name, key, enabled, created_at) VALUES (?, ?, 1, ?)`,
+		"INSERT INTO anthropic_keys (name, `key`, enabled, created_at) VALUES (?, ?, 1, ?)",
 		name, key, now,
 	)
 	if err != nil {
@@ -380,10 +359,7 @@ func (s *DB) IncrAnthropicKeyUsage(id int64) error {
 
 func (s *DB) GetEnabledAnthropicKeys() ([]*AnthropicKey, error) {
 	// 健康的 key 优先，其次 unknown，最后 unhealthy；同等状态按用量最少优先
-	rows, err := s.db.Query(`
-		SELECT id, name, key, enabled, status, usage_count, last_used_at, checked_at, created_at
-		FROM anthropic_keys WHERE enabled=1
-		ORDER BY CASE status WHEN 'healthy' THEN 0 WHEN 'unknown' THEN 1 ELSE 2 END, usage_count ASC`)
+	rows, err := s.db.Query("SELECT id, name, `key`, enabled, status, usage_count, last_used_at, checked_at, created_at FROM anthropic_keys WHERE enabled=1 ORDER BY CASE status WHEN 'healthy' THEN 0 WHEN 'unknown' THEN 1 ELSE 2 END, usage_count ASC")
 	if err != nil {
 		return nil, err
 	}
@@ -408,7 +384,7 @@ func (s *DB) UpdateAnthropicKeyStatus(id int64, status string) error {
 // ── Provider Keys (OpenAI / Grok) ─────────────────────────
 
 func (s *DB) ListProviderKeys(provider string) ([]*ProviderKey, error) {
-	rows, err := s.db.Query(`SELECT id, provider, name, key, enabled, status, usage_count, last_used_at, checked_at, created_at FROM provider_keys WHERE provider=? ORDER BY created_at DESC`, provider)
+	rows, err := s.db.Query("SELECT id, provider, name, `key`, enabled, status, usage_count, last_used_at, checked_at, created_at FROM provider_keys WHERE provider=? ORDER BY created_at DESC", provider)
 	if err != nil {
 		return nil, err
 	}
@@ -427,7 +403,7 @@ func (s *DB) ListProviderKeys(provider string) ([]*ProviderKey, error) {
 }
 
 func (s *DB) GetProviderKeyByID(id int64) (*ProviderKey, error) {
-	row := s.db.QueryRow(`SELECT id, provider, name, key, enabled, status, usage_count, last_used_at, checked_at, created_at FROM provider_keys WHERE id=?`, id)
+	row := s.db.QueryRow("SELECT id, provider, name, `key`, enabled, status, usage_count, last_used_at, checked_at, created_at FROM provider_keys WHERE id=?", id)
 	k := &ProviderKey{}
 	var enabled int
 	if err := row.Scan(&k.ID, &k.Provider, &k.Name, &k.Key, &enabled, &k.Status, &k.UsageCount, &k.LastUsedAt, &k.CheckedAt, &k.CreatedAt); err != nil {
@@ -438,10 +414,7 @@ func (s *DB) GetProviderKeyByID(id int64) (*ProviderKey, error) {
 }
 
 func (s *DB) GetEnabledProviderKeys(provider string) ([]*ProviderKey, error) {
-	rows, err := s.db.Query(`
-		SELECT id, provider, name, key, enabled, status, usage_count, last_used_at, checked_at, created_at
-		FROM provider_keys WHERE provider=? AND enabled=1
-		ORDER BY CASE status WHEN 'healthy' THEN 0 WHEN 'unknown' THEN 1 ELSE 2 END, usage_count ASC`, provider)
+	rows, err := s.db.Query("SELECT id, provider, name, `key`, enabled, status, usage_count, last_used_at, checked_at, created_at FROM provider_keys WHERE provider=? AND enabled=1 ORDER BY CASE status WHEN 'healthy' THEN 0 WHEN 'unknown' THEN 1 ELSE 2 END, usage_count ASC", provider)
 	if err != nil {
 		return nil, err
 	}
@@ -466,7 +439,7 @@ func (s *DB) UpdateProviderKeyStatus(id int64, status string) error {
 
 func (s *DB) AddProviderKey(provider, name, key string) (*ProviderKey, error) {
 	now := time.Now()
-	result, err := s.db.Exec(`INSERT INTO provider_keys (provider, name, key, enabled, created_at) VALUES (?, ?, ?, 1, ?)`, provider, name, key, now)
+	result, err := s.db.Exec("INSERT INTO provider_keys (provider, name, `key`, enabled, created_at) VALUES (?, ?, ?, 1, ?)", provider, name, key, now)
 	if err != nil {
 		return nil, err
 	}
@@ -520,7 +493,7 @@ func (s *DB) UpsertModel(modelID, name, provider string, weight, priority int, e
 	_, err := s.db.Exec(`
 		INSERT INTO model_configs (model_id, name, provider, weight, priority, enabled)
 		VALUES (?, ?, ?, ?, ?, ?)
-		ON CONFLICT(model_id) DO UPDATE SET name=excluded.name, provider=excluded.provider, weight=excluded.weight, priority=excluded.priority, enabled=excluded.enabled
+		ON DUPLICATE KEY UPDATE name=VALUES(name), provider=VALUES(provider), weight=VALUES(weight), priority=VALUES(priority), enabled=VALUES(enabled)
 	`, modelID, name, provider, weight, priority, e)
 	return err
 }

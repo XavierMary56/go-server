@@ -20,3 +20,4 @@
 /.claude/settings.local.json
 /.claude/worktrees/
 /dashboard.html
+/logs/audit/51kp/*.log

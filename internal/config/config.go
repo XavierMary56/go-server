@@ -67,6 +67,13 @@ type Config struct {
 	// 日志
 	LogDir   string
 	LogLevel string // debug | info | warn | error
+
+	// 数据库
+	DBHost string
+	DBPort int
+	DBUser string
+	DBPass string
+	DBName string
 }
 
 // Load 加载配置，优先读取环境变量，其次使用默认值
@@ -105,6 +112,11 @@ func Load() (*Config, error) {
 		MetricsPort:     getEnvInt("METRICS_PORT", 9090),
 		LogDir:          getEnv("LOG_DIR", "./logs"),
 		LogLevel:        getEnv("LOG_LEVEL", "info"),
+		DBHost:          getEnv("DB_HOST", "mariadb"),
+		DBPort:          getEnvInt("DB_PORT", 3306),
+		DBUser:          getEnv("DB_USER", "moderation"),
+		DBPass:          getEnv("DB_PASS", "moderation123"),
+		DBName:          getEnv("DB_NAME", "moderation"),
 	}
 
 	// 解析项目密钥列表
