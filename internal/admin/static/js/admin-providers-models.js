@@ -32,6 +32,7 @@ function renderAnthropicKeys() {
   tbody.innerHTML = akData.map(function (k) {
     return `
     <tr id="ak-row-${k.id}">
+      <td>${k.id}</td>
       <td><strong>${k.name}</strong></td>
       <td><span class="key-cell">${k.key_masked}</span></td>
       <td><span class="usage-num">${(k.usage_count || 0).toLocaleString()}</span></td>
@@ -167,6 +168,7 @@ function renderProviderKeys(provider) {
   tbody.innerHTML = data.map(function (k) {
     return `
     <tr>
+      <td>${k.id}</td>
       <td><strong>${k.name}</strong></td>
       <td><span class="key-cell">${k.key_masked}</span></td>
       <td><span class="usage-num">${(k.usage_count || 0).toLocaleString()}</span></td>
@@ -252,14 +254,14 @@ async function toggleProviderKey(provider, id, enable) {
 }
 
 async function loadModels() {
-  document.getElementById('models-tbody').innerHTML = '<tr class="empty-row"><td colspan="7"><span class="spinner"></span> 加载中...</td></tr>';
+  document.getElementById('models-tbody').innerHTML = '<tr class="empty-row"><td colspan="8"><span class="spinner"></span> 加载中...</td></tr>';
   const resp = await api('GET', '/v1/admin/models');
   if (!resp) return;
   const json = await resp.json();
   const models = json.data || [];
   const tbody = document.getElementById('models-tbody');
   if (!models.length) {
-    tbody.innerHTML = '<tr class="empty-row"><td colspan="7">暂无模型配置，请点击右上角添加</td></tr>';
+    tbody.innerHTML = '<tr class="empty-row"><td colspan="8">暂无模型配置，请点击右上角添加</td></tr>';
     return;
   }
 
@@ -281,6 +283,7 @@ async function loadModels() {
       </div>`;
     return `
     <tr>
+      <td>${m.id}</td>
       <td><span class="model-id-cell">${m.model_id}</span>${sourceHint}</td>
       <td>${m.name}</td>
       <td><span class="badge ${providerBadge}">${formatProviderName(provider)}</span></td>

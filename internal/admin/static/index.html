@@ -44,6 +44,7 @@
   <div class="main-content">
     <div class="tabs">
       <button class="tab-btn active" onclick="switchTab('keys',this)">项目管理</button>
+      <button class="tab-btn" onclick="switchTab('stats',this)">项目统计</button>
       <button class="tab-btn" onclick="switchTab('anthropic',this)">Anthropic 密钥</button>
       <button class="tab-btn" onclick="switchTab('openai',this)">OpenAI 密钥</button>
       <button class="tab-btn" onclick="switchTab('grok',this)">Grok 密钥</button>
@@ -81,6 +82,10 @@
           </table>
         </div>
       </div>
+    </div>
+
+    <!-- 标签：项目统计 -->
+    <div id="tab-stats" class="tab-panel">
       <div class="stats-grid" id="stats-summary" style="margin-top:16px"></div>
       <div class="card" style="margin-top:16px">
         <div class="card-header">
@@ -158,8 +163,8 @@
         </div>
         <div class="table-wrap">
           <table>
-            <thead><tr><th>备注名称</th><th>密钥（脱敏）</th><th>使用量（次）</th><th>最后使用</th><th>健康状态</th><th>启用状态</th><th>操作</th></tr></thead>
-            <tbody id="ak-tbody"><tr class="empty-row"><td colspan="7">加载中...</td></tr></tbody>
+            <thead><tr><th>ID</th><th>备注名称</th><th>密钥（脱敏）</th><th>使用量（次）</th><th>最后使用</th><th>健康状态</th><th>启用状态</th><th>操作</th></tr></thead>
+            <tbody id="ak-tbody"><tr class="empty-row"><td colspan="8">加载中...</td></tr></tbody>
           </table>
         </div>
       </div>
@@ -191,8 +196,8 @@
         </div>
         <div class="table-wrap">
           <table>
-            <thead><tr><th>备注名称</th><th>密钥（脱敏）</th><th>使用量（次）</th><th>最后使用</th><th>健康状态</th><th>启用状态</th><th>操作</th></tr></thead>
-            <tbody id="oai-tbody"><tr class="empty-row"><td colspan="7">加载中...</td></tr></tbody>
+            <thead><tr><th>ID</th><th>备注名称</th><th>密钥（脱敏）</th><th>使用量（次）</th><th>最后使用</th><th>健康状态</th><th>启用状态</th><th>操作</th></tr></thead>
+            <tbody id="oai-tbody"><tr class="empty-row"><td colspan="8">加载中...</td></tr></tbody>
           </table>
         </div>
       </div>
@@ -224,8 +229,8 @@
         </div>
         <div class="table-wrap">
           <table>
-            <thead><tr><th>备注名称</th><th>密钥（脱敏）</th><th>使用量（次）</th><th>最后使用</th><th>健康状态</th><th>启用状态</th><th>操作</th></tr></thead>
-            <tbody id="grok-tbody"><tr class="empty-row"><td colspan="7">加载中...</td></tr></tbody>
+            <thead><tr><th>ID</th><th>备注名称</th><th>密钥（脱敏）</th><th>使用量（次）</th><th>最后使用</th><th>健康状态</th><th>启用状态</th><th>操作</th></tr></thead>
+            <tbody id="grok-tbody"><tr class="empty-row"><td colspan="8">加载中...</td></tr></tbody>
           </table>
         </div>
       </div>
@@ -263,8 +268,8 @@
         </div>
         <div class="table-wrap">
           <table>
-            <thead><tr><th>模型 ID</th><th>显示名称</th><th>提供方</th><th>权重</th><th>优先级</th><th>状态</th><th>操作</th></tr></thead>
-            <tbody id="models-tbody"><tr class="empty-row"><td colspan="7">加载中...</td></tr></tbody>
+            <thead><tr><th>ID</th><th>模型 ID</th><th>显示名称</th><th>提供方</th><th>权重</th><th>优先级</th><th>状态</th><th>操作</th></tr></thead>
+            <tbody id="models-tbody"><tr class="empty-row"><td colspan="8">加载中...</td></tr></tbody>
           </table>
         </div>
       </div>

@@ -59,7 +59,8 @@ function logsGoPage(p) {
 }
 
 async function loadStats() {
-  document.getElementById('stats-tbody').innerHTML = '<tr class="empty-row"><td colspan="7"><span class="spinner"></span> 加载中...</td></tr>';
+  const statsTbody = document.getElementById('stats-tbody');
+  if (statsTbody) statsTbody.innerHTML = '<tr class="empty-row"><td colspan="7"><span class="spinner"></span> 加载中...</td></tr>';
   const responses = await Promise.all([
     api('GET', '/v1/admin/projects/stats'),
     api('GET', '/v1/admin/projects')
@@ -85,7 +86,8 @@ async function loadStats() {
     totalRateLimited += item.rate_limited || 0;
   });
 
-  document.getElementById('stats-summary').innerHTML = `
+  const statsSummary = document.getElementById('stats-summary');
+  if (statsSummary) statsSummary.innerHTML = `
     <div class="stat-card"><div class="label">项目总数</div><div class="value">${projectCount}</div><div class="sub">当前活跃项目</div></div>
     <div class="stat-card"><div class="label">API 调用</div><div class="value">${totalCalls.toLocaleString()}</div><div class="sub">累计请求次数</div></div>
     <div class="stat-card"><div class="label">认证次数</div><div class="value">${totalAuth.toLocaleString()}</div><div class="sub">鉴权请求总量</div></div>
@@ -99,12 +101,11 @@ async function loadStats() {
   });
 
   if (!entries.length) {
-    tbody.innerHTML = '<tr class="empty-row"><td colspan="7">暂无统计数据</td></tr>';
-    document.getElementById('project-logs-tbody').innerHTML = '<tr class="empty-row"><td colspan="6">暂无可查询项目</td></tr>';
+    if (tbody) tbody.innerHTML = '<tr class="empty-row"><td colspan="7">暂无统计数据</td></tr>';
     return;
   }
 
-  tbody.innerHTML = entries.map(function (entry) {
+  if (tbody) tbody.innerHTML = entries.map(function (entry) {
     const pid = entry[0];
     const statsItem = entry[1];
     return `

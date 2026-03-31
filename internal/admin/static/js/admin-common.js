@@ -104,7 +104,6 @@ function showDashboard() {
   document.getElementById('dashboard').style.display = 'block';
   document.getElementById('topbar-host').textContent = window.location.host;
   loadProjectKeys();
-  loadStats();
   loadAdminTokenSettings();
 }
 
@@ -116,6 +115,8 @@ function switchTab(name, btn) {
 
   if (name === 'keys') {
     loadProjectKeys();
+  }
+  if (name === 'stats') {
     loadStats();
     resetProjectLogFilters();
   }

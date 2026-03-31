@@ -44,11 +44,11 @@ services:
       - ADMIN_TOKEN=${ADMIN_TOKEN}
       - ENABLE_AUDIT=${ENABLE_AUDIT:-true}
       - AUDIT_LOG_DIR=${AUDIT_LOG_DIR:-/logs/audit}
-      - DB_HOST=mariadb
-      - DB_PORT=3306
-      - DB_USER=moderation
-      - DB_PASS=moderation123
-      - DB_NAME=moderation
+      - DB_HOST=${DB_HOST:-mariadb}
+      - DB_PORT=${DB_PORT:-3306}
+      - DB_USER=${DB_USER:-moderation}
+      - DB_PASS=${DB_PASS}
+      - DB_NAME=${DB_NAME:-moderation}
     volumes:
       - ./logs:/logs
       - moderation-data:/data
