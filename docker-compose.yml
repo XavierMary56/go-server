@@ -52,6 +52,7 @@ services:
     volumes:
       - ./logs:/logs
       - moderation-data:/data
+      - ./internal/admin/static:/admin-static:ro
     depends_on:
       redis:
         condition: service_healthy

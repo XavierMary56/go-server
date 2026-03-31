@@ -1,13 +1,11 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-<script>window.STATIC_VERSION = '20260402';</script>
+<script>window.STATIC_VERSION = '202604010213';</script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>审核服务管理后台</title>
-<script>
-  document.write('<link rel="stylesheet" href="css/admin-ui.css?v=' + window.STATIC_VERSION + '">');
-</script>
+<link rel="stylesheet" href="css/admin-ui.css?v=202604010213">
 </head>
 <body>
 
@@ -44,7 +42,7 @@
 
   <div class="main-content">
     <div class="tabs">
-      <button class="tab-btn active" onclick="switchTab('keys',this)">项目密钥</button>
+      <button class="tab-btn active" onclick="switchTab('keys',this)">项目管理</button>
       <button class="tab-btn" onclick="switchTab('anthropic',this)">Anthropic 密钥</button>
       <button class="tab-btn" onclick="switchTab('openai',this)">OpenAI 密钥</button>
       <button class="tab-btn" onclick="switchTab('grok',this)">Grok 密钥</button>
@@ -56,13 +54,13 @@
     <div id="tab-keys" class="tab-panel active">
       <div class="card">
         <div class="card-header">
-          <div><h2>项目密钥管理</h2><div class="sub" id="keys-count">加载中...</div></div>
+          <div><h2>项目管理</h2><div class="sub" id="keys-count">加载中...</div></div>
           <button class="btn btn-primary" onclick="toggleAddForm('add-keys-form')">添加密钥</button>
         </div>
         <div class="add-form" id="add-keys-form">
           <div class="add-form-title">添加新项目密钥</div>
           <div class="form-grid-3 add-form-grid">
-            <div class="form-group"><label>项目 ID</label><input type="text" id="new-proj-id" placeholder="例如：forum_service" oninput="syncProjectKeyDraft()" /></div>
+            <div class="form-group"><label>项目名称</label><input type="text" id="new-proj-id" placeholder="例如：forum_service" oninput="syncProjectKeyDraft()" /></div>
             <div class="form-group"><label>密钥（Key）</label><input type="text" id="new-proj-key" placeholder="留空时自动生成" data-auto-generated="1" /></div>
             <div class="form-group"><label>速率限制（次/分钟）</label><input type="number" id="new-proj-rate" placeholder="60" min="0" /></div>
           </div>
@@ -74,11 +72,11 @@
           </div>
         </div>
         <div class="toolbar-row">
-          <input class="search-input" type="text" id="keys-search" placeholder="按项目 ID 或密钥搜索" oninput="renderProjectKeys()" />
+          <input class="search-input" type="text" id="keys-search" placeholder="按项目名称或密钥搜索" oninput="renderProjectKeys()" />
         </div>
         <div class="table-wrap">
           <table>
-            <thead><tr><th>项目 ID</th><th>密钥</th><th>速率限制</th><th>创建时间</th><th>状态</th><th>操作</th></tr></thead>
+            <thead><tr><th>项目名称</th><th>密钥</th><th>速率限制</th><th>创建时间</th><th>状态</th><th>操作</th></tr></thead>
             <tbody id="keys-tbody"><tr class="empty-row"><td colspan="6"><span class="spinner"></span> 加载中...</td></tr></tbody>
           </table>
         </div>
@@ -294,9 +292,9 @@
 <!-- 修改密码弹窗 -->
 <div class="modal-overlay" id="change-pwd-modal">
   <div class="modal">
-    <h3>修改管理员密码</h3>
-    <p>保存成功后，当前后台登录会自动切换到新密码。</p>
+    <h3>后台设置</h3>
     <div class="modal-form">
+      <div style="font-weight:600;margin-bottom:8px;color:#94a3b8;font-size:12px;text-transform:uppercase;letter-spacing:.05em">修改管理员密码</div>
       <div class="form-group">
         <label>新管理员密码</label>
         <input type="password" id="admin-token-new" placeholder="请输入新密码（12-128位）" />
@@ -306,10 +304,28 @@
         <label>确认新密码</label>
         <input type="password" id="admin-token-confirm" placeholder="再次输入新密码" />
       </div>
+      <div style="margin-top:4px;margin-bottom:12px">
+        <button class="btn btn-primary" onclick="updateAdminTokenSettings()">保存密码</button>
+      </div>
+
+      <div style="font-weight:600;margin-top:16px;margin-bottom:8px;color:#94a3b8;font-size:12px;text-transform:uppercase;letter-spacing:.05em">静态资源版本号</div>
+      <div class="form-group">
+        <label>当前版本号</label>
+        <input type="text" id="static-version-current" readonly style="background:#1e293b;color:#64748b;cursor:default" />
+      </div>
+      <div class="form-group">
+        <label>更新时间</label>
+        <input type="text" id="static-version-updated-at" readonly style="background:#1e293b;color:#64748b;cursor:default" />
+      </div>
+      <div class="form-group">
+        <label>新版本号</label>
+        <input type="text" id="static-version-new" placeholder="如 20260401，留空则使用当前时间戳" />
+        <div class="helper-text">保存后刷新页面生效，用于强制浏览器加载最新 JS/CSS</div>
+      </div>
     </div>
     <div class="modal-actions">
-      <button class="btn btn-ghost" onclick="closeModal('change-pwd-modal')">取消</button>
-      <button class="btn btn-primary" onclick="updateAdminTokenSettings()">保存</button>
+      <button class="btn btn-ghost" onclick="closeModal('change-pwd-modal')">关闭</button>
+      <button class="btn btn-primary" onclick="updateStaticVersionSettings()">保存版本号</button>
     </div>
   </div>
 </div>
@@ -419,11 +435,21 @@
 <div id="toast-wrap" style="position:fixed;bottom:24px;right:24px;z-index:9999;display:flex;flex-direction:column;gap:8px;"></div>
 
 <script>
-  var v = window.STATIC_VERSION;
-  document.write('<script src="js/admin-common.js?v=' + v + '"><\/script>');
-  document.write('<script src="js/admin-project-keys.js?v=' + v + '"><\/script>');
-  document.write('<script src="js/admin-providers-models.js?v=' + v + '"><\/script>');
-  document.write('<script src="js/admin-settings.js?v=' + v + '"><\/script>');
+(function() {
+  var v = window.STATIC_VERSION || '';
+  var scripts = [
+    'js/admin-common.js',
+    'js/admin-project-keys.js',
+    'js/admin-providers-models.js',
+    'js/admin-stats-logs.js',
+    'js/admin-settings.js'
+  ];
+  scripts.forEach(function(src) {
+    var el = document.createElement('script');
+    el.src = v ? src + '?v=' + v : src;
+    document.body.appendChild(el);
+  });
+})();
 </script>
 </body>
 </html>

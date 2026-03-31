@@ -96,7 +96,7 @@ function renderProjectKeys() {
     return `${info.project_name || ''} ${info.key || ''}`.toLowerCase().includes(keyword);
   });
 
-  document.getElementById('keys-count').textContent = `共 ${rows.length} / ${projectKeysData.length} 个项目密钥`;
+  document.getElementById('keys-count').textContent = `共 ${rows.length} / ${projectKeysData.length} 个项目`;
   if (!rows.length) {
     tbody.innerHTML = '<tr class="empty-row"><td colspan="6">没有匹配的项目密钥</td></tr>';
     return;
@@ -135,7 +135,7 @@ async function addProjectKey() {
   const key = document.getElementById('new-proj-key').value.trim();
   const rate = parseInt(document.getElementById('new-proj-rate').value, 10) || 0;
   if (!pid) {
-    toast('项目 ID 不能为空', 'error');
+    toast('项目名称不能为空', 'error');
     return;
   }
   if (rate < 0) {

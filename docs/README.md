@@ -68,22 +68,81 @@ REDIS_DB=0
 
 ```
 GET /v1/health
+GET /v2/health
 ```
 
-### 内容审核（需要 X-Project-Key）
+---
 
-```
-POST /v1/moderate
-```
+### V1 内容审核
+
+#### POST /v1/moderate
+
+**请求头**
+
+| 字段 | 必填 | 说明 |
+|------|------|------|
+| `X-Project-Key` | 是 | 项目接入密钥 |
+| `Content-Type` | 是 | `application/json` |
+
+**请求体**
+
+| 字段 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| `content` | string | 是 | 待审核的文本内容 |
+| `type` | string | 否 | 内容类型：`comment`（评论）/ `post`（帖子），默认 `comment` |
+| `strictness` | string | 否 | 审核严格度：`loose` / `standard` / `strict`，默认 `standard` |
+| `model` | string | 否 | 指定模型 ID，留空由服务自动调度 |
+| `context` | object | 否 | 业务上下文，键值对，透传给审核模型 |
+
+**请求示例**
+
 ```json
 {
   "content": "待审核内容",
   "type": "comment",
-  "strictness": "standard"
+  "strictness": "standard",
+  "model": "",
+  "context": {"user_id": "1001", "scene": "forum"}
 }
 ```
 
-返回：
+**响应体**
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `code` | int | 状态码，200 表示成功 |
+| `verdict` | string | 审核结论，见下表 |
+| `category` | string | 违规分类，见下表 |
+
+**verdict 枚举值**
+
+| 值 | 含义 | 业务处理建议 |
+|----|------|-------------|
+| `approved` | 内容正常，无违规信号 | 放行 |
+| `flagged` | 可疑但不能确定违规 | 放行（如需人工复核可选择进队列） |
+| `rejected` | 明确命中违规规则 | 拒绝，不予展示 |
+
+> **接入建议：只需判断 `verdict === "rejected"` 即为拒绝，其余值均视为通过。**
+
+**category 枚举值**
+
+| 值 | 含义 |
+|----|------|
+| `none` | 无违规 |
+| `spam` | 广告、引流、留联系方式、站外交易、群组邀请 |
+| `abuse` | 毒品、管制药品相关 |
+| `politics` | 政治敏感内容 |
+| `adult` | 色情、成人内容 |
+| `fraud` | 诈骗、欺诈相关 |
+| `violence` | 暴力、武器、爆炸物、恐怖袭击相关 |
+| `confidence` | float | 置信度，0~1 |
+| `reason` | string | 审核原因说明 |
+| `model_used` | string | 实际使用的模型 ID |
+| `latency_ms` | int | 审核耗时（毫秒） |
+| `from_cache` | bool | 是否来自缓存 |
+
+**响应示例**
+
 ```json
 {
   "code": 200,
@@ -91,21 +150,156 @@ POST /v1/moderate
   "category": "none",
   "confidence": 0.98,
   "reason": "内容正常",
-  "model_used": "claude-sonnet-4-20250514",
-  "latency_ms": 1234
+  "model_used": "claude-3-5-sonnet-20241022",
+  "latency_ms": 1234,
+  "from_cache": false
 }
 ```
 
-`verdict`：`approved` / `flagged` / `rejected`
-`type`：`comment` / `post`
-`strictness`：`loose` / `standard` / `strict`
+#### POST /v1/moderate/async
 
-### 异步审核（需要 X-Project-Key）
+请求体与 `POST /v1/moderate` 完全相同，额外支持：
+
+| 字段 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| `webhook_url` | string | 否 | 审核完成后回调的 URL，POST JSON 结构与同步响应一致 |
+
+**响应示例**（立即返回）
+
+```json
+{
+  "code": 200,
+  "task_id": "task_1711900000000000000"
+}
+```
+
+**查询任务结果**
 
 ```
-POST /v1/moderate/async
+GET /v1/task/{task_id}
 ```
-立即返回 `task_id`，结果通过 Webhook 回调。
+
+```json
+{
+  "code": 200,
+  "data": {
+    "task_id": "task_1711900000000000000",
+    "status": "done",
+    "result": {
+      "verdict": "approved",
+      "category": "none",
+      "confidence": 0.98,
+      "reason": "内容正常",
+      "model_used": "claude-3-5-sonnet-20241022",
+      "latency_ms": 1234,
+      "from_cache": false
+    }
+  }
+}
+```
+
+`status`：`pending`（等待中）/ `done`（已完成）
+
+---
+
+### V2 内容审核
+
+#### POST /v2/moderations
+
+**请求头**
+
+| 字段 | 必填 | 说明 |
+|------|------|------|
+| `X-Project-Key` | 是 | 项目接入密钥 |
+| `Content-Type` | 是 | `application/json` |
+
+**请求体**（与 V1 相同）
+
+| 字段 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| `content` | string | 是 | 待审核的文本内容 |
+| `type` | string | 否 | 内容类型：`comment` / `post`，默认 `comment` |
+| `strictness` | string | 否 | 审核严格度：`loose` / `standard` / `strict`，默认 `standard` |
+| `model` | string | 否 | 指定模型 ID，留空自动调度 |
+| `context` | object | 否 | 业务上下文键值对 |
+
+**响应体**（V2 在外层多了 `data` 包装和 `id`）
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `code` | int | 200 表示成功 |
+| `message` | string | `ok` |
+| `data.id` | string | 本次请求 ID，格式 `mod_{timestamp}` |
+| `data.status` | string | `completed` |
+| `data.result.verdict` | string | 审核结论，同 V1 verdict 枚举值 |
+| `data.result.category` | string | 违规分类，同 V1 category 枚举值 |
+| `data.result.confidence` | float | 置信度 0~1 |
+| `data.result.reason` | string | 原因说明 |
+| `data.result.model_used` | string | 实际使用的模型 ID |
+| `data.result.latency_ms` | int | 审核耗时（毫秒） |
+| `data.result.from_cache` | bool | 是否来自缓存 |
+
+**响应示例**
+
+```json
+{
+  "code": 200,
+  "message": "ok",
+  "data": {
+    "id": "mod_1711900000000000000",
+    "status": "completed",
+    "result": {
+      "verdict": "approved",
+      "category": "none",
+      "confidence": 0.98,
+      "reason": "内容正常",
+      "model_used": "claude-3-5-sonnet-20241022",
+      "latency_ms": 1234,
+      "from_cache": false
+    }
+  }
+}
+```
+
+#### POST /v2/moderations/async
+
+请求体与 `POST /v2/moderations` 完全相同，额外支持 `webhook_url`。
+
+**响应示例**（立即返回）
+
+```json
+{
+  "code": 200,
+  "message": "ok",
+  "data": {
+    "task_id": "task_1711900000000000000",
+    "status": "pending",
+    "created_at": 1711900000
+  }
+}
+```
+
+**查询任务结果**
+
+```
+GET /v2/tasks/{task_id}
+```
+
+响应结构与 V1 任务查询相同，外层多 `message: "ok"` 字段。
+
+---
+
+### V1 与 V2 差异对比
+
+| 对比项 | V1 `/v1/moderate` | V2 `/v2/moderations` |
+|--------|-------------------|----------------------|
+| 响应结构 | 字段平铺在顶层 | 结果包在 `data` 对象内 |
+| 响应 ID | 无 | 有 `data.id` |
+| `message` 字段 | 无 | 有 `message: "ok"` |
+| 任务查询路径 | `/v1/task/{id}` | `/v2/tasks/{id}` |
+| 请求参数 | 完全相同 | 完全相同 |
+
+---
 
 ### 管理 API（需要 Authorization: Bearer <ADMIN_TOKEN>）
 

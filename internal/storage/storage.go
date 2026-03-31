@@ -170,6 +170,39 @@ func (s *DB) migrate() error {
 			return err
 		}
 	}
+
+	// 迁移：project_keys.project_id -> project_name（幂等）
+	var colCount int
+	err := s.db.QueryRow(`
+		SELECT COUNT(*) FROM information_schema.COLUMNS
+		WHERE TABLE_SCHEMA = DATABASE()
+		  AND TABLE_NAME   = 'project_keys'
+		  AND COLUMN_NAME  = 'project_id'`).Scan(&colCount)
+	if err != nil {
+		return fmt.Errorf("检查 project_id 列失败: %w", err)
+	}
+	if colCount > 0 {
+		if _, err := s.db.Exec(`ALTER TABLE project_keys CHANGE project_id project_name VARCHAR(128) NOT NULL`); err != nil {
+			return fmt.Errorf("迁移 project_id->project_name 失败: %w", err)
+		}
+	}
+
+	// 迁移：project_keys.project_name 加唯一约束（幂等）
+	var idxCount int
+	err = s.db.QueryRow(`
+		SELECT COUNT(*) FROM information_schema.STATISTICS
+		WHERE TABLE_SCHEMA = DATABASE()
+		  AND TABLE_NAME   = 'project_keys'
+		  AND INDEX_NAME   = 'uniq_project_name'`).Scan(&idxCount)
+	if err != nil {
+		return fmt.Errorf("检查 project_name 唯一索引失败: %w", err)
+	}
+	if idxCount == 0 {
+		if _, err := s.db.Exec(`ALTER TABLE project_keys ADD CONSTRAINT uniq_project_name UNIQUE (project_name)`); err != nil {
+			return fmt.Errorf("添加 project_name 唯一约束失败: %w", err)
+		}
+	}
+
 	return nil
 }
 

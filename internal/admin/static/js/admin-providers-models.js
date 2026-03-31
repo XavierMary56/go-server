@@ -40,7 +40,7 @@ function renderAnthropicKeys() {
       <td><span class="badge ${k.enabled ? 'badge-active' : 'badge-inactive'}">${k.enabled ? '已启用' : '已停用'}</span></td>
       <td><div class="actions">
         <button class="btn btn-sm btn-info" onclick="checkAK(${k.id})">检测</button>
-        <button class="btn btn-sm btn-primary" onclick="editProviderKeyModal('anthropic', ${k.id}, '${k.name.replace(/'/g, "&#39;")}')">编辑</button>
+        <button class="btn btn-sm btn-primary" onclick="editProviderKeyModal('anthropic', ${k.id}, ${JSON.stringify(k.name)})">编辑</button>
         <button class="btn btn-sm ${k.enabled ? 'btn-warning' : 'btn-success'}" onclick="toggleAK(${k.id}, ${!k.enabled})">${k.enabled ? '停用' : '启用'}</button>
         <button class="btn btn-sm btn-danger" onclick="confirmDelete('/v1/admin/anthropic-keys/${k.id}', '${k.name} 的密钥', loadAnthropicKeys)">删除</button>
       </div></td>
@@ -175,7 +175,7 @@ function renderProviderKeys(provider) {
       <td><span class="badge ${k.enabled ? 'badge-active' : 'badge-inactive'}">${k.enabled ? '已启用' : '已停用'}</span></td>
       <td><div class="actions">
         <button class="btn btn-sm btn-info" onclick="checkPK('${provider}', ${k.id})">检测</button>
-        <button class="btn btn-sm btn-primary" onclick="editProviderKeyModal('${provider}', ${k.id}, '${k.name.replace(/'/g, \"&#39;\")}')">编辑</button>
+        <button class="btn btn-sm btn-primary" onclick="editProviderKeyModal('${provider}', ${k.id}, ${JSON.stringify(k.name)})">编辑</button>
         <button class="btn btn-sm ${k.enabled ? 'btn-warning' : 'btn-success'}" onclick="toggleProviderKey('${provider}', ${k.id}, ${!k.enabled})">${k.enabled ? '停用' : '启用'}</button>
         <button class="btn btn-sm btn-danger" onclick="confirmDelete('/v1/admin/provider-keys/${k.id}', '${k.name} 的密钥', () => loadProviderKeys('${provider}'))">删除</button>
       </div></td>

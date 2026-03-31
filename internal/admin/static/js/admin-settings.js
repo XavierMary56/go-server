@@ -4,6 +4,7 @@ function openChangePwdModal() {
   document.getElementById('admin-token-confirm').value = '';
   document.getElementById('change-pwd-modal').classList.add('show');
   loadAdminTokenSettings();
+  loadStaticVersionSettings();
 }
 
 async function loadAdminTokenSettings() {
@@ -12,9 +13,12 @@ async function loadAdminTokenSettings() {
 
   const json = await resp.json();
   const data = json.data || {};
-  document.getElementById('admin-token-source').value = data.source === 'database' ? '数据库' : '环境变量';
-  document.getElementById('admin-token-configured').value = data.configured ? '已配置' : '未配置';
-  document.getElementById('admin-token-updated-at').value = formatDate(data.updated_at);
+  const elSource = document.getElementById('admin-token-source');
+  const elConfigured = document.getElementById('admin-token-configured');
+  const elUpdatedAt = document.getElementById('admin-token-updated-at');
+  if (elSource) elSource.value = data.source === 'database' ? '数据库' : '环境变量';
+  if (elConfigured) elConfigured.value = data.configured ? '已配置' : '未配置';
+  if (elUpdatedAt) elUpdatedAt.value = formatDate(data.updated_at);
 }
 
 async function updateAdminTokenSettings() {
@@ -40,7 +44,6 @@ async function updateAdminTokenSettings() {
 
   const json = await resp.json();
   if (!resp.ok) {
-    // 优先展示后端详细错误
     toast((json && (json.error || json.message)) || '管理员密码更新失败', 'error');
     return;
   }
@@ -48,8 +51,44 @@ async function updateAdminTokenSettings() {
   sessionStorage.setItem('adminToken', newToken);
   document.getElementById('admin-token-new').value = '';
   document.getElementById('admin-token-confirm').value = '';
-  closeModal('change-pwd-modal');
-  // 先刷新设置区域内容，再弹出提示
-  await loadAdminTokenSettings();
   toast(json.message || '管理员密码已更新');
+}
+
+async function loadStaticVersionSettings() {
+  const resp = await api('GET', '/v1/admin/settings/static-version');
+  if (!resp) return;
+
+  const json = await resp.json();
+  const data = json.data || {};
+  const elCurrent = document.getElementById('static-version-current');
+  const elUpdatedAt = document.getElementById('static-version-updated-at');
+  if (elCurrent) elCurrent.value = data.version || window.STATIC_VERSION || '-';
+  if (elUpdatedAt) elUpdatedAt.value = formatDate(data.updated_at);
+}
+
+async function updateStaticVersionSettings() {
+  var newVersion = document.getElementById('static-version-new').value.trim();
+  if (!newVersion) {
+    // 默认使用当前时间戳 yyyyMMddHHmm
+    var now = new Date();
+    var pad = function(n) { return n < 10 ? '0' + n : '' + n; };
+    newVersion = '' + now.getFullYear() + pad(now.getMonth() + 1) + pad(now.getDate()) + pad(now.getHours()) + pad(now.getMinutes());
+  }
+
+  const resp = await api('PUT', '/v1/admin/settings/static-version', { version: newVersion });
+  if (!resp) {
+    toast('保存失败', 'error');
+    return;
+  }
+
+  const json = await resp.json();
+  if (!resp.ok) {
+    toast((json && (json.error || json.message)) || '版本号更新失败', 'error');
+    return;
+  }
+
+  window.STATIC_VERSION = newVersion;
+  document.getElementById('static-version-new').value = '';
+  await loadStaticVersionSettings();
+  toast((json.message || '版本号已更新') + '，刷新页面后生效');
 }
