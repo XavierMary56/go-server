@@ -112,13 +112,22 @@ func (ah *AdminHandler) handleProviderKeyDetail(w http.ResponseWriter, r *http.R
 	switch r.Method {
 	case http.MethodPut:
 		var req struct {
-			Enabled bool `json:"enabled"`
+			Enabled *bool  `json:"enabled"`
+			Name    string `json:"name"`
 		}
 		body, _ := io.ReadAll(r.Body)
 		json.Unmarshal(body, &req)
-		if err := ah.db.UpdateProviderKey(id, req.Enabled); err != nil {
-			ah.jsonError(w, http.StatusInternalServerError, err.Error())
-			return
+		if req.Name != "" {
+			if err := ah.db.UpdateProviderKeyName(id, req.Name); err != nil {
+				ah.jsonError(w, http.StatusInternalServerError, err.Error())
+				return
+			}
+		}
+		if req.Enabled != nil {
+			if err := ah.db.UpdateProviderKey(id, *req.Enabled); err != nil {
+				ah.jsonError(w, http.StatusInternalServerError, err.Error())
+				return
+			}
 		}
 		ah.jsonOK(w, http.StatusOK, map[string]interface{}{"code": 200, "message": "已更新"})
 	case http.MethodDelete:

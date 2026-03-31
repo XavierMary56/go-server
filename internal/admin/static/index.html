@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-<script>window.STATIC_VERSION = '20260401';</script>
+<script>window.STATIC_VERSION = '20260402';</script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>审核服务管理后台</title>
@@ -310,6 +310,23 @@
     <div class="modal-actions">
       <button class="btn btn-ghost" onclick="closeModal('change-pwd-modal')">取消</button>
       <button class="btn btn-primary" onclick="updateAdminTokenSettings()">保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- 编辑供应商密钥备注弹窗 -->
+<div class="modal-overlay" id="edit-provider-key-modal">
+  <div class="modal">
+    <h3 id="edit-provider-key-title">编辑密钥备注</h3>
+    <div class="modal-form">
+      <div class="form-group">
+        <label>备注名称</label>
+        <input type="text" id="edit-provider-key-name" placeholder="请输入备注名称" />
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal('edit-provider-key-modal')">取消</button>
+      <button class="btn btn-primary" onclick="saveProviderKeyName()">保存</button>
     </div>
   </div>
 </div>

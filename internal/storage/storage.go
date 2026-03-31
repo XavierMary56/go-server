@@ -366,6 +366,11 @@ func (s *DB) UpdateAnthropicKey(id int64, enabled bool) error {
 	return err
 }
 
+func (s *DB) UpdateAnthropicKeyName(id int64, name string) error {
+	_, err := s.db.Exec(`UPDATE anthropic_keys SET name=? WHERE id=?`, name, id)
+	return err
+}
+
 func (s *DB) DeleteAnthropicKey(id int64) error {
 	_, err := s.db.Exec(`DELETE FROM anthropic_keys WHERE id=?`, id)
 	return err
@@ -472,6 +477,11 @@ func (s *DB) UpdateProviderKey(id int64, enabled bool) error {
 		e = 1
 	}
 	_, err := s.db.Exec(`UPDATE provider_keys SET enabled=? WHERE id=?`, e, id)
+	return err
+}
+
+func (s *DB) UpdateProviderKeyName(id int64, name string) error {
+	_, err := s.db.Exec(`UPDATE provider_keys SET name=? WHERE id=?`, name, id)
 	return err
 }
 

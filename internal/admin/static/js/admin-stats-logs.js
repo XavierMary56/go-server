@@ -119,7 +119,7 @@ async function loadStats() {
     </tr>`;
   }).join('');
 
-  loadProjectLogs();
+  resetProjectLogFilters();
 }
 
 function resetProjectLogFilters() {
