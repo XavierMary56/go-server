@@ -10,6 +10,7 @@ Group=www-data
 WorkingDirectory=/opt/moderation
 ExecStart=/opt/moderation/moderation-server
 EnvironmentFile=/opt/moderation/.env
+Environment=DB_PASS=moderation123
 Restart=on-failure
 RestartSec=5s
 

@@ -2,7 +2,7 @@
 
 ## 数据库
 
-SQLite（`modernc.org/sqlite`，WAL 模式），文件路径：`/data/moderation.db`。
+MariaDB (通过 `github.com/go-sql-driver/mysql`)，默认连接 `mariadb:3306`，库名 `moderation`。
 
 ---
 
@@ -58,6 +58,13 @@ AUDIT_LOG_DIR=logs/audit
 CACHE_DRIVER=redis
 REDIS_ADDR=localhost:6379
 REDIS_DB=0
+
+# 数据库 (MariaDB)
+DB_HOST=localhost
+DB_PORT=3306
+DB_USER=moderation
+DB_PASS=moderation123
+DB_NAME=moderation
 ```
 
 ---

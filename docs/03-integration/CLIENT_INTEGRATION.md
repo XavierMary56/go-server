@@ -78,7 +78,7 @@ class ContentModerationClient {
     }
 
     /**
-     * 同步审核内容
+     * 同步审核内容 (V1)
      */
     public function moderate($content, $type = 'comment') {
         $endpoint = $this->apiUrl . '/v1/moderate';
@@ -90,6 +90,26 @@ class ContentModerationClient {
         ];
 
         return $this->request('POST', $endpoint, $payload);
+    }
+
+    /**
+     * 同步审核内容 (V2 - 推荐)
+     */
+    public function moderateV2($content, $type = 'comment') {
+        $endpoint = $this->apiUrl . '/v2/moderations';
+
+        $payload = [
+            'content' => $content,
+            'type' => $type,
+            'strictness' => 'standard'
+        ];
+
+        $response = $this->request('POST', $endpoint, $payload);
+        // V2 响应结构在 data 字段下
+        if (isset($response['code']) && $response['code'] === 200 && isset($response['data'])) {
+            return $response['data'];
+        }
+        return $response;
     }
 
     /**
