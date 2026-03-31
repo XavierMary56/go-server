@@ -69,11 +69,12 @@ type Config struct {
 	LogLevel string // debug | info | warn | error
 
 	// 数据库
-	DBHost string
-	DBPort int
-	DBUser string
-	DBPass string
-	DBName string
+	DBHost     string
+	DBPort     int
+	DBUser     string
+	DBPass     string
+	DBName     string
+	DBRequired bool // true 时 DB 初始化失败直接终止启动
 }
 
 // Load 加载配置，优先读取环境变量，其次使用默认值
@@ -117,6 +118,7 @@ func Load() (*Config, error) {
 		DBUser:          getEnv("DB_USER", "moderation"),
 		DBPass:          getEnv("DB_PASS", "moderation123"),
 		DBName:          getEnv("DB_NAME", "moderation"),
+		DBRequired:      getEnvBool("DB_REQUIRED", false),
 	}
 
 	// 解析项目密钥列表

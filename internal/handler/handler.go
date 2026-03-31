@@ -23,8 +23,9 @@ type Handler struct {
 	cfg   *config.Config
 	db    *storage.DB
 	audit *audit.AuditLogger
-	tasks sync.Map
-	usage sync.Map // key -> *rateCounter
+	tasks    sync.Map
+	usageMu  sync.RWMutex
+	usage    map[string]*rateCounter
 }
 
 type rateCounter struct {
@@ -65,6 +66,7 @@ func New(svc *service.ModerationService, log *logger.Logger, cfg *config.Config,
 		cfg:   cfg,
 		db:    db,
 		audit: auditLogger,
+		usage: make(map[string]*rateCounter),
 	}
 }
 
@@ -170,10 +172,18 @@ func (h *Handler) checkRateLimit(projectKey *storage.ProjectKey) error {
 		return nil
 	}
 
-	value, _ := h.usage.LoadOrStore(projectKey.Key, &rateCounter{
-		resetAt: time.Now().Add(time.Minute),
-	})
-	counter := value.(*rateCounter)
+	h.usageMu.RLock()
+	counter, ok := h.usage[projectKey.Key]
+	h.usageMu.RUnlock()
+
+	if !ok {
+		h.usageMu.Lock()
+		if counter, ok = h.usage[projectKey.Key]; !ok {
+			counter = &rateCounter{resetAt: time.Now().Add(time.Minute)}
+			h.usage[projectKey.Key] = counter
+		}
+		h.usageMu.Unlock()
+	}
 
 	counter.mu.Lock()
 	defer counter.mu.Unlock()
@@ -198,12 +208,13 @@ func (h *Handler) jsonError(w http.ResponseWriter, status int, msg string) {
 }
 
 func (h *Handler) getClientIP(r *http.Request) string {
-	if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
-		parts := strings.Split(xff, ",")
-		return strings.TrimSpace(parts[0])
-	}
 	if xri := r.Header.Get("X-Real-IP"); xri != "" {
 		return xri
+	}
+	if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
+		// 取最后一个 IP：最后一跳由可信反向代理追加，不可被客户端伪造
+		parts := strings.Split(xff, ",")
+		return strings.TrimSpace(parts[len(parts)-1])
 	}
 	return r.RemoteAddr
 }

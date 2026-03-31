@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"strconv"
 	"sync"
 	"time"
 )
@@ -165,8 +166,16 @@ func GenerateSignature(secret string, timestamp string, method string, path stri
 	return hex.EncodeToString(h.Sum(nil))
 }
 
-// VerifySignature 验证签名
+// VerifySignature 验证签名，同时校验时间戳在 ±5 分钟窗口内以防重放攻击
 func VerifySignature(secret string, timestamp string, method string, path string, signature string) bool {
+	ts, err := strconv.ParseInt(timestamp, 10, 64)
+	if err != nil {
+		return false
+	}
+	diff := time.Now().Unix() - ts
+	if diff > 300 || diff < -300 {
+		return false
+	}
 	expected := GenerateSignature(secret, timestamp, method, path)
 	return hmac.Equal([]byte(expected), []byte(signature))
 }
