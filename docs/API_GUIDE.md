@@ -6,7 +6,7 @@
 
 ## 1. 基础信息
 
-- **基础 URL**: `https://ai.a889.cloud` (生产) 或 `http://localhost:8080` (本地)
+- **基础 URL**: `https://zyaokkmo.cc` (生产) 或 `http://localhost:8080` (本地)
 - **认证方式**:
   - **公共 API**: 在请求头中使用 `X-Project-Key`。
   - **Admin API**: 在请求头中使用 `Authorization: Bearer <ADMIN_TOKEN>`。

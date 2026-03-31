@@ -22,7 +22,7 @@ go build -o moderation-server ./cmd/server
 ## 2. 核心文档
 
 - **[API 接口文档 (V1/V2 & Admin)](docs/API_GUIDE.md)**: 业务对接与管理接口完整说明。
-- **[管理后台](http://localhost:8080/admin/)**: 动态管理项目密钥、模型权重和查看统计。
+- **[管理后台](https://zyaokkmo.cc/admin/)**: 动态管理项目密钥、模型权重和查看统计。
 
 ---
 
