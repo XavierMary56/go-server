@@ -17,8 +17,7 @@
 /.idea/
 
 # 工具
-/.claude/settings.local.json
-/.claude/worktrees/
+/.claude/
 
 # 文档（自动生成）
 /internal/admin/static/README.md
