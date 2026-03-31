@@ -29,29 +29,29 @@ type AdminHandler struct {
 
 // KeyInfo 密钥信息
 type KeyInfo struct {
-	ProjectID string    `json:"project_id"`
-	Key       string    `json:"key"`
-	RateLimit int       `json:"rate_limit"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
-	Enabled   bool      `json:"enabled"`
+	ProjectName string    `json:"project_name"`
+	Key         string    `json:"key"`
+	RateLimit   int       `json:"rate_limit"`
+	CreatedAt   time.Time `json:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at"`
+	Enabled     bool      `json:"enabled"`
 }
 
 // 请求/响应结构体
 
 // AddKeyRequest 添加密钥请求
 type AddKeyRequest struct {
-	ProjectID string `json:"project_id"`
-	Key       string `json:"key"`
-	RateLimit int    `json:"rate_limit"` // 每分钟请求限制
+	ProjectName string `json:"project_name"`
+	Key         string `json:"key"`
+	RateLimit   int    `json:"rate_limit"` // 每分钟请求限制
 }
 
 // UpdateKeyRequest 更新密钥请求
 type UpdateKeyRequest struct {
-	ProjectID *string `json:"project_id,omitempty"`
-	Key       *string `json:"key,omitempty"`
-	RateLimit *int    `json:"rate_limit,omitempty"`
-	Enabled   *bool   `json:"enabled,omitempty"`
+	ProjectName *string `json:"project_name,omitempty"`
+	Key         *string `json:"key,omitempty"`
+	RateLimit   *int    `json:"rate_limit,omitempty"`
+	Enabled     *bool   `json:"enabled,omitempty"`
 }
 
 // ListKeysResponse 密钥列表响应
@@ -114,7 +114,7 @@ func (ah *AdminHandler) GetAllowedKeys() []string {
 	var keys []string
 	for _, keyInfo := range ah.keys {
 		entry := fmt.Sprintf("%s|%s|%d",
-			keyInfo.ProjectID,
+			keyInfo.ProjectName,
 			keyInfo.Key,
 			keyInfo.RateLimit,
 		)

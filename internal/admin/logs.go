@@ -62,7 +62,7 @@ func (ah *AdminHandler) handleProjectLogs(w http.ResponseWriter, r *http.Request
 	ah.jsonOK(w, http.StatusOK, map[string]interface{}{
 		"code": 200,
 		"data": map[string]interface{}{
-			"project_id":  projectID,
+			"project_name":  projectID,
 			"total_count": len(events),
 			"start_time":  startTime.Format(time.RFC3339),
 			"end_time":    endTime.Format(time.RFC3339),
@@ -115,7 +115,7 @@ func (ah *AdminHandler) handleListProjects(w http.ResponseWriter, r *http.Reques
 		}
 
 		projectStats = append(projectStats, map[string]interface{}{
-			"project_id": projectID,
+			"project_name": projectID,
 			"status":     "configured",
 			"log_size":   int64(0),
 		})
@@ -134,8 +134,8 @@ func (ah *AdminHandler) collectProjectIDs() []string {
 	ah.keysMu.RLock()
 	projectMap := make(map[string]bool)
 	for _, keyInfo := range ah.keys {
-		if keyInfo.ProjectID != "" {
-			projectMap[keyInfo.ProjectID] = true
+		if keyInfo.ProjectName != "" {
+			projectMap[keyInfo.ProjectName] = true
 		}
 	}
 	ah.keysMu.RUnlock()
@@ -156,8 +156,8 @@ func (ah *AdminHandler) collectAllProjectIDs() []string {
 	// 从内存中的密钥列表收集项目ID
 	ah.keysMu.RLock()
 	for _, keyInfo := range ah.keys {
-		if keyInfo.ProjectID != "" {
-			projectMap[keyInfo.ProjectID] = true
+		if keyInfo.ProjectName != "" {
+			projectMap[keyInfo.ProjectName] = true
 		}
 	}
 	ah.keysMu.RUnlock()

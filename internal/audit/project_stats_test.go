@@ -39,10 +39,10 @@ func TestGetProjectStatsBuildsFrontendFriendlyCounters(t *testing.T) {
 	}
 
 	events := []AuditEvent{
-		{Timestamp: time.Now(), EventType: "auth_attempt", ProjectID: projectID, StatusCode: 200},
-		{Timestamp: time.Now(), EventType: "api_call", ProjectID: projectID, StatusCode: 200},
-		{Timestamp: time.Now(), EventType: "api_call", ProjectID: projectID, StatusCode: 500, ErrorMsg: "boom"},
-		{Timestamp: time.Now(), EventType: "rate_limit_exceeded", ProjectID: projectID, StatusCode: 429},
+		{Timestamp: time.Now(), EventType: "auth_attempt", ProjectName: projectID, StatusCode: 200},
+		{Timestamp: time.Now(), EventType: "api_call", ProjectName: projectID, StatusCode: 200},
+		{Timestamp: time.Now(), EventType: "api_call", ProjectName: projectID, StatusCode: 500, ErrorMsg: "boom"},
+		{Timestamp: time.Now(), EventType: "rate_limit_exceeded", ProjectName: projectID, StatusCode: 429},
 	}
 
 	filename := filepath.Join(projectDir, "audit_"+time.Now().Format("2006-01-02")+".log")

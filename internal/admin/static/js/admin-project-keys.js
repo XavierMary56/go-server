@@ -31,7 +31,7 @@ function setProjectKeyModalMode(mode, info) {
   const isEdit = mode === 'edit';
   document.getElementById('project-key-modal-title').textContent = isEdit ? '编辑项目密钥' : '查看项目密钥';
   document.getElementById('project-key-modal-desc').textContent = isEdit ? '修改后会立即同步到后台配置。' : '这里显示当前项目密钥的完整信息。';
-  document.getElementById('project-key-project-id').value = info && info.project_id || '';
+  document.getElementById('project-key-project-id').value = info && info.project_name || '';
   document.getElementById('project-key-value').value = info && info.key || '';
   document.getElementById('project-key-rate-limit').value = info && info.rate_limit !== undefined ? info.rate_limit : '';
   document.getElementById('project-key-status').value = info && info.enabled ? '已启用' : '已停用';
@@ -67,7 +67,7 @@ async function saveProjectKeyModal() {
   saveBtn.textContent = '保存中...';
 
   const resp = await api('PUT', '/v1/admin/keys/' + encodeURIComponent(activeProjectKey.key), {
-    project_id: projectId,
+    project_name: projectId,
     key,
     rate_limit: rateLimit,
     enabled: !!activeProjectKey.enabled
@@ -93,7 +93,7 @@ function renderProjectKeys() {
   const tbody = document.getElementById('keys-tbody');
   const rows = projectKeysData.filter(function (info) {
     if (!keyword) return true;
-    return `${info.project_id || ''} ${info.key || ''}`.toLowerCase().includes(keyword);
+    return `${info.project_name || ''} ${info.key || ''}`.toLowerCase().includes(keyword);
   });
 
   document.getElementById('keys-count').textContent = `共 ${rows.length} / ${projectKeysData.length} 个项目密钥`;
@@ -106,7 +106,7 @@ function renderProjectKeys() {
     const encodedKey = encodeURIComponent(info.key || '');
     return `
     <tr>
-      <td><strong>${info.project_id || '-'}</strong></td>
+      <td><strong>${info.project_name || '-'}</strong></td>
       <td><span class="key-cell">${info.key || '-'}</span></td>
       <td>${info.rate_limit ? info.rate_limit + ' 次/分钟' : '不限速'}</td>
       <td>${formatDate(info.created_at)}</td>
@@ -115,7 +115,7 @@ function renderProjectKeys() {
         <button class="btn btn-sm btn-info" onclick="viewProjectKey('${encodedKey}')">查看</button>
         <button class="btn btn-sm btn-primary" onclick="editProjectKey('${encodedKey}')">编辑</button>
         <button class="btn btn-sm ${info.enabled ? 'btn-warning' : 'btn-success'}" onclick="toggleProjectKey('${encodedKey}', ${!info.enabled})">${info.enabled ? '停用' : '启用'}</button>
-        <button class="btn btn-sm btn-danger" onclick="confirmDelete('/v1/admin/keys/${encodedKey}', '项目 ${info.project_id || '-'} 的密钥', loadProjectKeys)">删除</button>
+        <button class="btn btn-sm btn-danger" onclick="confirmDelete('/v1/admin/keys/${encodedKey}', '项目 ${info.project_name || '-'} 的密钥', loadProjectKeys)">删除</button>
       </div></td>
     </tr>`;
   }).join('');
@@ -149,7 +149,7 @@ async function addProjectKey() {
   submitBtn.textContent = '添加中...';
 
   const resp = await api('POST', '/v1/admin/keys', {
-    project_id: pid,
+    project_name: pid,
     key,
     rate_limit: rate
   });

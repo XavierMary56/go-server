@@ -13,7 +13,7 @@ import (
 // APIKey API 密钥配置
 type APIKey struct {
 	Key       string     // 密钥内容
-	ProjectID string     // 项目 ID
+	ProjectName string     // 项目名称
 	CreatedAt time.Time  // 创建时间
 	ExpireAt  *time.Time // 过期时间（nil = 永不过期）
 	RateLimit int        // 每分钟请求限制（0 = 无限制）
@@ -50,7 +50,7 @@ func (km *KeyManager) RegisterKey(key *APIKey) error {
 	if key.Key == "" {
 		return fmt.Errorf("密钥不能为空")
 	}
-	if key.ProjectID == "" {
+	if key.ProjectName == "" {
 		return fmt.Errorf("项目 ID 不能为空")
 	}
 
@@ -79,7 +79,7 @@ func (km *KeyManager) ValidateKey(key string) (string, error) {
 		return "", fmt.Errorf("密钥已过期")
 	}
 
-	return apiKey.ProjectID, nil
+	return apiKey.ProjectName, nil
 }
 
 // CheckRateLimit 检查速率限制
@@ -147,7 +147,7 @@ func (km *KeyManager) ListKeys() map[string]interface{} {
 		}
 
 		result[maskedKey] = map[string]interface{}{
-			"project_id": apiKey.ProjectID,
+			"project_name": apiKey.ProjectName,
 			"status":     status,
 			"created_at": apiKey.CreatedAt,
 			"expire_at":  apiKey.ExpireAt,

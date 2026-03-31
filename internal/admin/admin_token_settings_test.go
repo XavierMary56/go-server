@@ -13,10 +13,7 @@ import (
 )
 
 func TestIsValidAdminTokenPrefersDatabaseSetting(t *testing.T) {
-	db, err := storage.New(t.TempDir())
-	if err != nil {
-		t.Fatalf("new db failed: %v", err)
-	}
+	db := storage.NewForTest(t)
 	defer db.Close()
 
 	if err := db.SetAdminSetting(adminTokenSettingKey, hashAdminToken("db-token-123456")); err != nil {
@@ -37,10 +34,7 @@ func TestIsValidAdminTokenPrefersDatabaseSetting(t *testing.T) {
 }
 
 func TestHandleAdminTokenSettingsUpdateAndReadback(t *testing.T) {
-	db, err := storage.New(t.TempDir())
-	if err != nil {
-		t.Fatalf("new db failed: %v", err)
-	}
+	db := storage.NewForTest(t)
 	defer db.Close()
 
 	handler := &AdminHandler{
@@ -90,10 +84,7 @@ func TestHandleAdminTokenSettingsUpdateAndReadback(t *testing.T) {
 }
 
 func TestHandleAdminTokenSettingsRejectsInvalidToken(t *testing.T) {
-	db, err := storage.New(t.TempDir())
-	if err != nil {
-		t.Fatalf("new db failed: %v", err)
-	}
+	db := storage.NewForTest(t)
 	defer db.Close()
 
 	handler := &AdminHandler{

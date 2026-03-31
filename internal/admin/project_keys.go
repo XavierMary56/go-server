@@ -79,7 +79,7 @@ func (ah *AdminHandler) addKey(w http.ResponseWriter, r *http.Request) {
 		ah.jsonError(w, http.StatusBadRequest, "请求体解析失败: "+err.Error())
 		return
 	}
-	if req.ProjectID == "" || req.Key == "" {
+	if req.ProjectName == "" || req.Key == "" {
 		ah.jsonError(w, http.StatusBadRequest, "项目 ID 和密钥不能为空")
 		return
 	}
@@ -96,7 +96,7 @@ func (ah *AdminHandler) addKey(w http.ResponseWriter, r *http.Request) {
 	}
 
 	keyInfo := &KeyInfo{
-		ProjectID: req.ProjectID,
+		ProjectName: req.ProjectName,
 		Key:       req.Key,
 		RateLimit: req.RateLimit,
 		CreatedAt: time.Now(),
@@ -115,7 +115,7 @@ func (ah *AdminHandler) addKey(w http.ResponseWriter, r *http.Request) {
 	ah.auditLogger.LogEvent(&audit.AuditEvent{
 		Timestamp:  time.Now(),
 		EventType:  "admin_add_key",
-		ProjectID:  req.ProjectID,
+		ProjectName:  req.ProjectName,
 		Path:       r.RequestURI,
 		Method:     r.Method,
 		StatusCode: http.StatusCreated,
@@ -175,7 +175,7 @@ func (ah *AdminHandler) updateKey(w http.ResponseWriter, r *http.Request, key st
 	ah.auditLogger.LogEvent(&audit.AuditEvent{
 		Timestamp:  time.Now(),
 		EventType:  "admin_update_key",
-		ProjectID:  keyInfo.ProjectID,
+		ProjectName:  keyInfo.ProjectName,
 		Path:       r.RequestURI,
 		Method:     r.Method,
 		StatusCode: http.StatusOK,
@@ -206,7 +206,7 @@ func (ah *AdminHandler) deleteKey(w http.ResponseWriter, r *http.Request, key st
 	ah.auditLogger.LogEvent(&audit.AuditEvent{
 		Timestamp:  time.Now(),
 		EventType:  "admin_delete_key",
-		ProjectID:  keyInfo.ProjectID,
+		ProjectName:  keyInfo.ProjectName,
 		Path:       r.RequestURI,
 		Method:     r.Method,
 		StatusCode: http.StatusOK,
@@ -248,7 +248,7 @@ func (ah *AdminHandler) loadKeysFromEnv() {
 		}
 		if key != "" {
 			ah.keys[key] = &KeyInfo{
-				ProjectID: projectID,
+				ProjectName: projectID,
 				Key:       key,
 				RateLimit: rateLimit,
 				CreatedAt: time.Now(),
@@ -274,7 +274,7 @@ func (ah *AdminHandler) updateEnvFile() {
 	var keys []string
 	for _, keyInfo := range ah.keys {
 		if keyInfo.Enabled {
-			entry := fmt.Sprintf("%s|%s|%d", keyInfo.ProjectID, keyInfo.Key, keyInfo.RateLimit)
+			entry := fmt.Sprintf("%s|%s|%d", keyInfo.ProjectName, keyInfo.Key, keyInfo.RateLimit)
 			keys = append(keys, entry)
 		}
 	}
@@ -295,10 +295,10 @@ func (ah *AdminHandler) loadKeysFromDB() {
 		ah.keysMu.RLock()
 		defer ah.keysMu.RUnlock()
 		for _, k := range ah.keys {
-			if _, err := ah.db.AddProjectKey(k.ProjectID, k.Key, k.RateLimit); err != nil {
-				ah.log.Error(fmt.Sprintf("添加项目密钥到数据库失败 [%s|%s]: %v", k.ProjectID, k.Key, err))
+			if _, err := ah.db.AddProjectKey(k.ProjectName, k.Key, k.RateLimit); err != nil {
+				ah.log.Error(fmt.Sprintf("添加项目密钥到数据库失败 [%s|%s]: %v", k.ProjectName, k.Key, err))
 			} else {
-				ah.log.Info(fmt.Sprintf("项目密钥已导入数据库: %s|%s", k.ProjectID, k.Key), nil)
+				ah.log.Info(fmt.Sprintf("项目密钥已导入数据库: %s|%s", k.ProjectName, k.Key), nil)
 			}
 		}
 		return
@@ -308,7 +308,7 @@ func (ah *AdminHandler) loadKeysFromDB() {
 	defer ah.keysMu.Unlock()
 	for _, k := range keys {
 		ah.keys[k.Key] = &KeyInfo{
-			ProjectID: k.ProjectID,
+			ProjectName: k.ProjectName,
 			Key:       k.Key,
 			RateLimit: k.RateLimit,
 			Enabled:   k.Enabled,

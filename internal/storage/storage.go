@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"os"
 	"time"
 
 	_ "github.com/go-sql-driver/mysql"
@@ -16,14 +17,14 @@ type DB struct {
 
 // ProjectKey 项目密钥
 type ProjectKey struct {
-	ID        int64      `json:"id"`
-	ProjectID string     `json:"project_id"`
-	Key       string     `json:"key"`
-	RateLimit int        `json:"rate_limit"`
-	Enabled   bool       `json:"enabled"`
-	DeletedAt *time.Time `json:"deleted_at,omitempty"`
-	CreatedAt time.Time  `json:"created_at"`
-	UpdatedAt time.Time  `json:"updated_at"`
+	ID          int64      `json:"id"`
+	ProjectName string     `json:"project_name"`
+	Key         string     `json:"key"`
+	RateLimit   int        `json:"rate_limit"`
+	Enabled     bool       `json:"enabled"`
+	DeletedAt   *time.Time `json:"deleted_at,omitempty"`
+	CreatedAt   time.Time  `json:"created_at"`
+	UpdatedAt   time.Time  `json:"updated_at"`
 }
 
 // AnthropicKey Anthropic API Key
@@ -71,6 +72,24 @@ type AdminSetting struct {
 	UpdatedAt *time.Time `json:"updated_at,omitempty"`
 }
 
+// NewForTest creates a DB for use in tests. It reads TEST_DB_DSN from the
+// environment and skips the test if the variable is not set.
+func NewForTest(t interface {
+	Helper()
+	Skipf(format string, args ...interface{})
+}) *DB {
+	t.Helper()
+	dsn := os.Getenv("TEST_DB_DSN")
+	if dsn == "" {
+		t.Skipf("TEST_DB_DSN not set, skipping database test")
+	}
+	db, err := New(dsn)
+	if err != nil {
+		panic("NewForTest: " + err.Error())
+	}
+	return db
+}
+
 // New 初始化数据库
 func New(dsn string) (*DB, error) {
 	db, err := sql.Open("mysql", dsn)
@@ -99,14 +118,14 @@ func (s *DB) migrateV2() {}
 func (s *DB) migrate() error {
 	statements := []string{
 		`CREATE TABLE IF NOT EXISTS project_keys (
-			id         BIGINT AUTO_INCREMENT PRIMARY KEY,
-			project_id VARCHAR(128) NOT NULL,
+			id           BIGINT AUTO_INCREMENT PRIMARY KEY,
+			project_name VARCHAR(128) NOT NULL DEFAULT '',
 			` + "`key`" + ` VARCHAR(256) NOT NULL UNIQUE,
-			rate_limit INT         NOT NULL DEFAULT 60,
-			enabled    TINYINT(1)  NOT NULL DEFAULT 1,
-			deleted_at DATETIME    DEFAULT NULL,
-			created_at DATETIME    NOT NULL DEFAULT CURRENT_TIMESTAMP,
-			updated_at DATETIME    NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+			rate_limit   INT         NOT NULL DEFAULT 60,
+			enabled      TINYINT(1)  NOT NULL DEFAULT 1,
+			deleted_at   DATETIME    DEFAULT NULL,
+			created_at   DATETIME    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			updated_at   DATETIME    NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 		)`,
 		`CREATE TABLE IF NOT EXISTS anthropic_keys (
 			id           BIGINT AUTO_INCREMENT PRIMARY KEY,
@@ -157,7 +176,7 @@ func (s *DB) migrate() error {
 // ── Project Keys ──────────────────────────────────────────
 
 func (s *DB) ListProjectKeys() ([]*ProjectKey, error) {
-	rows, err := s.db.Query("SELECT id, project_id, `key`, rate_limit, enabled, deleted_at, created_at, updated_at FROM project_keys WHERE deleted_at IS NULL ORDER BY created_at DESC")
+	rows, err := s.db.Query("SELECT id, project_name, `key`, rate_limit, enabled, deleted_at, created_at, updated_at FROM project_keys WHERE deleted_at IS NULL ORDER BY created_at DESC")
 	if err != nil {
 		return nil, err
 	}
@@ -167,7 +186,7 @@ func (s *DB) ListProjectKeys() ([]*ProjectKey, error) {
 	for rows.Next() {
 		k := &ProjectKey{}
 		var enabled int
-		err := rows.Scan(&k.ID, &k.ProjectID, &k.Key, &k.RateLimit, &enabled, &k.DeletedAt, &k.CreatedAt, &k.UpdatedAt)
+		err := rows.Scan(&k.ID, &k.ProjectName, &k.Key, &k.RateLimit, &enabled, &k.DeletedAt, &k.CreatedAt, &k.UpdatedAt)
 		if err != nil {
 			return nil, err
 		}
@@ -178,13 +197,13 @@ func (s *DB) ListProjectKeys() ([]*ProjectKey, error) {
 }
 
 func (s *DB) GetEnabledProjectKey(key string) (*ProjectKey, error) {
-	row := s.db.QueryRow("SELECT id, project_id, `key`, rate_limit, enabled, deleted_at, created_at, updated_at FROM project_keys WHERE `key`=? AND enabled=1 AND deleted_at IS NULL LIMIT 1", key)
+	row := s.db.QueryRow("SELECT id, project_name, `key`, rate_limit, enabled, deleted_at, created_at, updated_at FROM project_keys WHERE `key`=? AND enabled=1 AND deleted_at IS NULL LIMIT 1", key)
 
 	projectKey := &ProjectKey{}
 	var enabled int
 	err := row.Scan(
 		&projectKey.ID,
-		&projectKey.ProjectID,
+		&projectKey.ProjectName,
 		&projectKey.Key,
 		&projectKey.RateLimit,
 		&enabled,
@@ -203,22 +222,22 @@ func (s *DB) GetEnabledProjectKey(key string) (*ProjectKey, error) {
 	return projectKey, nil
 }
 
-func (s *DB) AddProjectKey(projectID, key string, rateLimit int) (*ProjectKey, error) {
+func (s *DB) AddProjectKey(projectName, key string, rateLimit int) (*ProjectKey, error) {
 	now := time.Now()
 	result, err := s.db.Exec(
-		"INSERT INTO project_keys (project_id, `key`, rate_limit, enabled, deleted_at, created_at, updated_at) VALUES (?, ?, ?, 1, NULL, ?, ?)",
-		projectID, key, rateLimit, now, now,
+		"INSERT INTO project_keys (project_name, `key`, rate_limit, enabled, deleted_at, created_at, updated_at) VALUES (?, ?, ?, 1, NULL, ?, ?)",
+		projectName, key, rateLimit, now, now,
 	)
 	if err != nil {
 		return nil, err
 	}
 	id, _ := result.LastInsertId()
-	return &ProjectKey{ID: id, ProjectID: projectID, Key: key, RateLimit: rateLimit, Enabled: true, CreatedAt: now, UpdatedAt: now}, nil
+	return &ProjectKey{ID: id, ProjectName: projectName, Key: key, RateLimit: rateLimit, Enabled: true, CreatedAt: now, UpdatedAt: now}, nil
 }
 
-func (s *DB) UpdateProjectKey(currentKey string, projectID *string, newKey *string, enabled *bool, rateLimit *int) error {
-	if projectID != nil {
-		_, err := s.db.Exec("UPDATE project_keys SET project_id=?, updated_at=? WHERE `key`=? AND deleted_at IS NULL", *projectID, time.Now(), currentKey)
+func (s *DB) UpdateProjectKey(currentKey string, projectName *string, newKey *string, enabled *bool, rateLimit *int) error {
+	if projectName != nil {
+		_, err := s.db.Exec("UPDATE project_keys SET project_name=?, updated_at=? WHERE `key`=? AND deleted_at IS NULL", *projectName, time.Now(), currentKey)
 		if err != nil {
 			return err
 		}

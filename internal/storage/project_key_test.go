@@ -3,10 +3,7 @@ package storage
 import "testing"
 
 func TestDeleteProjectKeyIsSoftDelete(t *testing.T) {
-	db, err := New(t.TempDir())
-	if err != nil {
-		t.Fatalf("new db failed: %v", err)
-	}
+	db := NewForTest(t)
 	defer db.Close()
 
 	if _, err := db.AddProjectKey("project-a", "key-a", 0); err != nil {

@@ -35,24 +35,24 @@
 ## 高层架构
 
 ### 运行时结构
-- `cmd/server/main.go` 是组装入口。它负责加载基于环境变量的配置、初始化结构化日志、按需打开位于 `/data` 的 SQLite 管理/鉴权数据库、组装审核服务和审计日志器、注册公开与管理端路由，并启动 HTTP 服务。
+- `cmd/server/main.go` 是组装入口。它负责加载基于环境变量的配置、初始化结构化日志、按需连接 MariaDB 管理/鉴权数据库、组装审核服务和审计日志器、注册公开与管理端路由，并启动 HTTP 服务。
 - 公共 API 实现在 `internal/handler/handler.go`。这一层负责路由、请求校验、鉴权/限流中间逻辑、异步任务状态管理，以及 JSON 响应。
 - 核心审核引擎位于 `internal/service/`。`moderation.go` 负责请求默认值、硬阻断规则短路、缓存查询、并发请求去重、模型队列与故障切换、供应商 API 调用，以及内存态统计信息。
 
 ### 模型与供应商流程
-- 服务采用“模型队列”设计，而不是绑定单一供应商。供应商选择由模型 ID 推导，Anthropic/OpenAI/Grok 的密钥优先从 SQLite 管理数据中读取，环境变量作为兜底。
-- `internal/storage/storage.go` 是运行时状态的持久化层：保存项目密钥、供应商密钥、模型配置以及轻量级管理设置。如果启用了鉴权或管理 API，应默认认为运行时状态来自 SQLite，而不是静态 `.env`。
+- 服务采用“模型队列”设计，而不是绑定单一供应商。供应商选择由模型 ID 推导，Anthropic/OpenAI/Grok 的密钥优先从 MariaDB 管理数据中读取，环境变量作为兜底。
+- `internal/storage/storage.go` 是运行时状态的持久化层：保存项目密钥、供应商密钥、模型配置以及轻量级管理设置。如果启用了鉴权或管理 API，应默认认为运行时状态来自 MariaDB，而不是静态 `.env`。
 - `internal/admin/` 提供 `/v1/admin/*` 管理接口，包括项目密钥管理、供应商密钥检查、模型配置管理、项目日志查询、项目统计以及管理 token 设置。同时该包也负责提供嵌入式管理后台 Web UI。
 
 ### 鉴权、审计与监控
-- 公共请求鉴权位于 `internal/handler/handler.go`，而不是单独的中间件包。它会优先根据 SQLite 校验 `X-Project-Key`，只有在数据库鉴权不可用时才回退到配置中的 `ALLOWED_KEYS`。
+- 公共请求鉴权位于 `internal/handler/handler.go`，而不是单独的中间件包。它会优先根据 MariaDB 校验 `X-Project-Key`，只有在数据库鉴权不可用时才回退到配置中的 `ALLOWED_KEYS`。
 - 限流按项目密钥维度进行，并在 handler 层以内存方式跟踪。
-- `internal/audit/audit.go` 会异步把结构化 JSON 审计事件写入配置的审计日志根目录下、按项目分目录存储。管理端项目日志接口直接读取这些文件，而不是从 SQLite 读取。
+- `internal/audit/audit.go` 会异步把结构化 JSON 审计事件写入配置的审计日志根目录下、按项目分目录存储。管理端项目日志接口直接读取这些文件，而不是从 MariaDB 读取。
 - `internal/service` 维护 `/v1/stats` 所需的进程内审核统计；这是轻量级运行时状态，不是持久化报表存储。
 
 ### 配置与部署
 - `internal/config/config.go` 会按需加载 `.env`，再叠加环境变量。关键开关包括 `ENABLE_AUTH`、`ENABLE_ADMIN_API`、`ENABLE_AUDIT` 以及各供应商凭据。
-- `docker-compose.yml` 是本地部署的主要方式。它会启动 Go 服务和 Redis，将 `./logs` 挂载为日志目录，并把 SQLite 数据持久化到挂载到 `/data` 的 `moderation-data` 卷中。
+- `docker-compose.yml` 是本地部署的主要方式。它会启动 Go 服务、MariaDB 和 Redis，将 `./logs` 挂载为日志目录，MariaDB 数据持久化到 `moderation-data` 卷中。数据库连接通过 `DB_HOST / DB_PORT / DB_USER / DB_PASS / DB_NAME` 配置，默认连接 `mariadb:3306`，库名 `moderation`。
 - Docker 镜像由 `Dockerfile` 构建，运行时基于精简 Alpine 环境，仅包含编译后的 `./cmd/server` 二进制文件。
 
 ## 文档导航

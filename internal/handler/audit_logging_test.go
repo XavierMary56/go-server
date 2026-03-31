@@ -15,14 +15,10 @@ import (
 )
 
 func TestAuthenticatedRequestWritesProjectAuditStats(t *testing.T) {
-	dataDir := t.TempDir()
 	auditDir := t.TempDir()
 	logDir := t.TempDir()
 
-	db, err := storage.New(dataDir)
-	if err != nil {
-		t.Fatalf("db init failed: %v", err)
-	}
+	db := storage.NewForTest(t)
 	defer db.Close()
 
 	if _, err := db.AddProjectKey("project-a", "key-a", 60); err != nil {

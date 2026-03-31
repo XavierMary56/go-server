@@ -25,7 +25,7 @@ type AuditLogger struct {
 type AuditEvent struct {
 	Timestamp   time.Time              `json:"timestamp"`
 	EventType   string                 `json:"event_type"` // auth, api_call, error, etc.
-	ProjectID   string                 `json:"project_id"`
+	ProjectName string                 `json:"project_name"`
 	APIKey      string                 `json:"api_key"` // 隐藏的密钥
 	Method      string                 `json:"method"`
 	Path        string                 `json:"path"`
@@ -106,7 +106,7 @@ func (al *AuditLogger) LogAuthAttempt(projectID string, apiKey string, success b
 	event := &AuditEvent{
 		Timestamp:  time.Now(),
 		EventType:  "auth_attempt",
-		ProjectID:  projectID,
+		ProjectName:  projectID,
 		APIKey:     maskKey(apiKey),
 		IPAddress:  ipAddress,
 		StatusCode: 200,
@@ -124,7 +124,7 @@ func (al *AuditLogger) LogAPICall(projectID string, apiKey string, method string
 	event := &AuditEvent{
 		Timestamp:  time.Now(),
 		EventType:  "api_call",
-		ProjectID:  projectID,
+		ProjectName:  projectID,
 		APIKey:     maskKey(apiKey),
 		Method:     method,
 		Path:       path,
@@ -141,7 +141,7 @@ func (al *AuditLogger) LogRateLimitExceeded(projectID string, apiKey string, ipA
 	event := &AuditEvent{
 		Timestamp:  time.Now(),
 		EventType:  "rate_limit_exceeded",
-		ProjectID:  projectID,
+		ProjectName:  projectID,
 		APIKey:     maskKey(apiKey),
 		IPAddress:  ipAddress,
 		StatusCode: 429,
@@ -155,7 +155,7 @@ func (al *AuditLogger) LogConfigChange(projectID string, changeType string, deta
 	event := &AuditEvent{
 		Timestamp: time.Now(),
 		EventType: "config_change",
-		ProjectID: projectID,
+		ProjectName: projectID,
 		Metadata: map[string]interface{}{
 			"change_type": changeType,
 			"details":     details,
@@ -182,7 +182,7 @@ func (al *AuditLogger) writeEvent(event *AuditEvent) {
 	defer al.mu.Unlock()
 
 	// 获取项目日志目录
-	projectLogDir := al.getProjectLogDir(event.ProjectID)
+	projectLogDir := al.getProjectLogDir(event.ProjectName)
 
 	// 按日期创建文件
 	filename := filepath.Join(projectLogDir, fmt.Sprintf("audit_%s.log", time.Now().Format("2006-01-02")))
@@ -339,7 +339,7 @@ func GetProjectStats(baseLogDir string, projectID string) (map[string]interface{
 
 func buildProjectStats(projectID string, totalSize int64, stats map[string]int, errors int) map[string]interface{} {
 	return map[string]interface{}{
-		"project_id":       projectID,
+		"project_name":       projectID,
 		"log_size":         totalSize,
 		"total_size_bytes": totalSize,
 		"total_size_mb":    fmt.Sprintf("%.2f", float64(totalSize)/1024/1024),

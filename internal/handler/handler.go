@@ -105,11 +105,11 @@ func (h *Handler) withMiddleware(next http.HandlerFunc) http.HandlerFunc {
 				return
 			}
 			if h.audit != nil {
-				h.audit.LogAuthAttempt(projectKey.ProjectID, projectKey.Key, true, h.getClientIP(r))
+				h.audit.LogAuthAttempt(projectKey.ProjectName, projectKey.Key, true, h.getClientIP(r))
 			}
 			if err := h.checkRateLimit(projectKey); err != nil {
 				if h.audit != nil {
-					h.audit.LogRateLimitExceeded(projectKey.ProjectID, projectKey.Key, h.getClientIP(r))
+					h.audit.LogRateLimitExceeded(projectKey.ProjectName, projectKey.Key, h.getClientIP(r))
 				}
 				h.jsonError(rec, http.StatusTooManyRequests, err.Error())
 				return
@@ -124,7 +124,7 @@ func (h *Handler) withMiddleware(next http.HandlerFunc) http.HandlerFunc {
 				errorMsg = http.StatusText(rec.StatusCode())
 			}
 			h.audit.LogAPICall(
-				projectKey.ProjectID,
+				projectKey.ProjectName,
 				projectKey.Key,
 				r.Method,
 				r.URL.Path,
@@ -157,9 +157,9 @@ func (h *Handler) validateProjectKey(key string) (*storage.ProjectKey, error) {
 	for _, allowed := range h.cfg.AllowedKeys {
 		if strings.TrimSpace(allowed) == key {
 			return &storage.ProjectKey{
-				ProjectID: key,
-				Key:       key,
-				Enabled:   true,
+				ProjectName: key,
+				Key:         key,
+				Enabled:     true,
 			}, nil
 		}
 	}
@@ -195,7 +195,7 @@ func (h *Handler) checkRateLimit(projectKey *storage.ProjectKey) error {
 	}
 
 	if counter.count >= projectKey.RateLimit {
-		return fmt.Errorf("rate limit exceeded for project %s", projectKey.ProjectID)
+		return fmt.Errorf("rate limit exceeded for project %s", projectKey.ProjectName)
 	}
 
 	counter.count++

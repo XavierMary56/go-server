@@ -3,10 +3,7 @@ package storage
 import "testing"
 
 func TestAdminSettingRoundTrip(t *testing.T) {
-	db, err := New(t.TempDir())
-	if err != nil {
-		t.Fatalf("new db failed: %v", err)
-	}
+	db := NewForTest(t)
 	defer db.Close()
 
 	setting, err := db.GetAdminSetting("admin_token_hash")

@@ -20,7 +20,7 @@ function renderProjectLogs() {
     var index = start + i;
     var details = formatLogDetails(event.details);
     var time = escapeHtml(formatDate(event.ts));
-    var projectIdText = escapeHtml(event.project_id || '-');
+    var projectIdText = escapeHtml(event.project_name || '-');
     var eventTypeText = escapeHtml(event.event_type || '-');
     var clientIpText = escapeHtml(event.client_ip || '-');
     var resultText = escapeHtml(formatLogResult(event));
@@ -71,7 +71,7 @@ async function loadStats() {
   const stats = (await statsResp.json()).data || {};
   const projectsData = (await projectsResp.json()).data || {};
   statsProjectIds = (projectsData.projects || []).map(function (project) {
-    return project.project_id;
+    return project.project_name;
   }).filter(Boolean);
   syncProjectLogProjectOptions();
 
@@ -210,7 +210,7 @@ function openLogDetailModal(index) {
   }
 
   const details = event.details || {};
-  document.getElementById('log-detail-project').value = event.project_id || '-';
+  document.getElementById('log-detail-project').value = event.project_name || '-';
   document.getElementById('log-detail-type').value = event.event_type || '-';
   document.getElementById('log-detail-time').value = formatDate(event.ts);
   document.getElementById('log-detail-ip').value = event.client_ip || '-';

@@ -80,9 +80,9 @@ func (ah *AdminHandler) addProjectKeyV2(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	req.ProjectID = strings.TrimSpace(req.ProjectID)
+	req.ProjectName = strings.TrimSpace(req.ProjectName)
 	req.Key = strings.TrimSpace(req.Key)
-	if req.ProjectID == "" {
+	if req.ProjectName == "" {
 		ah.jsonError(w, http.StatusBadRequest, "椤圭洰 ID 涓嶈兘涓虹┖")
 		return
 	}
@@ -91,7 +91,7 @@ func (ah *AdminHandler) addProjectKeyV2(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	if req.Key == "" {
-		req.Key = ah.generateProjectKey(req.ProjectID)
+		req.Key = ah.generateProjectKey(req.ProjectName)
 	}
 
 	ah.keysMu.Lock()
@@ -103,7 +103,7 @@ func (ah *AdminHandler) addProjectKeyV2(w http.ResponseWriter, r *http.Request) 
 	}
 
 	keyInfo := &KeyInfo{
-		ProjectID: req.ProjectID,
+		ProjectName: req.ProjectName,
 		Key:       req.Key,
 		RateLimit: req.RateLimit,
 		CreatedAt: time.Now(),
@@ -112,12 +112,12 @@ func (ah *AdminHandler) addProjectKeyV2(w http.ResponseWriter, r *http.Request) 
 	}
 
 	if ah.db != nil {
-		dbKey, err := ah.db.AddProjectKey(req.ProjectID, req.Key, req.RateLimit)
+		dbKey, err := ah.db.AddProjectKey(req.ProjectName, req.Key, req.RateLimit)
 		if err != nil {
 			ah.jsonError(w, http.StatusConflict, "瀵嗛挜淇濆瓨澶辫触: "+err.Error())
 			return
 		}
-		keyInfo.ProjectID = dbKey.ProjectID
+		keyInfo.ProjectName = dbKey.ProjectName
 		keyInfo.Key = dbKey.Key
 		keyInfo.RateLimit = dbKey.RateLimit
 		keyInfo.CreatedAt = dbKey.CreatedAt
@@ -137,7 +137,7 @@ func (ah *AdminHandler) addProjectKeyV2(w http.ResponseWriter, r *http.Request) 
 	ah.auditLogger.LogEvent(&audit.AuditEvent{
 		Timestamp:  time.Now(),
 		EventType:  "admin_add_key",
-		ProjectID:  keyInfo.ProjectID,
+		ProjectName:  keyInfo.ProjectName,
 		Path:       r.RequestURI,
 		Method:     r.Method,
 		StatusCode: http.StatusCreated,
@@ -176,13 +176,13 @@ func (ah *AdminHandler) updateProjectKeyV2(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	newProjectID := keyInfo.ProjectID
+	newProjectID := keyInfo.ProjectName
 	newKey := keyInfo.Key
 	newRateLimit := keyInfo.RateLimit
 	newEnabled := keyInfo.Enabled
 
-	if req.ProjectID != nil {
-		value := strings.TrimSpace(*req.ProjectID)
+	if req.ProjectName != nil {
+		value := strings.TrimSpace(*req.ProjectName)
 		if value == "" {
 			ah.jsonError(w, http.StatusBadRequest, "椤圭洰 ID 涓嶈兘涓虹┖")
 			return
@@ -225,7 +225,7 @@ func (ah *AdminHandler) updateProjectKeyV2(w http.ResponseWriter, r *http.Reques
 		delete(ah.keys, currentKey)
 	}
 
-	keyInfo.ProjectID = newProjectID
+	keyInfo.ProjectName = newProjectID
 	keyInfo.Key = newKey
 	keyInfo.RateLimit = newRateLimit
 	keyInfo.Enabled = newEnabled
@@ -242,7 +242,7 @@ func (ah *AdminHandler) updateProjectKeyV2(w http.ResponseWriter, r *http.Reques
 	ah.auditLogger.LogEvent(&audit.AuditEvent{
 		Timestamp:  time.Now(),
 		EventType:  "admin_update_key",
-		ProjectID:  keyInfo.ProjectID,
+		ProjectName:  keyInfo.ProjectName,
 		Path:       r.RequestURI,
 		Method:     r.Method,
 		StatusCode: http.StatusOK,
@@ -280,7 +280,7 @@ func (ah *AdminHandler) deleteProjectKeyV2(w http.ResponseWriter, r *http.Reques
 	ah.auditLogger.LogEvent(&audit.AuditEvent{
 		Timestamp:  time.Now(),
 		EventType:  "admin_delete_key",
-		ProjectID:  keyInfo.ProjectID,
+		ProjectName:  keyInfo.ProjectName,
 		Path:       r.RequestURI,
 		Method:     r.Method,
 		StatusCode: http.StatusOK,
