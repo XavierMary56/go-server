@@ -31,11 +31,11 @@ echo -e "${GREEN}✓ Docker 和 Docker Compose 已安装${NC}"
 # 2. 配置文件准备
 echo -e "${YELLOW}[2/6]${NC} 配置文件准备..."
 if [ ! -f ".env" ]; then
-    if [ -f ".env.production" ]; then
-        cp .env.production .env
-        echo -e "${GREEN}✓ 已复制 .env.production 为 .env${NC}"
+    if [ -f ".env.example" ]; then
+        cp .env.example .env
+        echo -e "${GREEN}✓ 已复制 .env.example 为 .env${NC}"
     else
-        echo -e "${RED}❌ 找不到 .env.production 或 .env${NC}"
+        echo -e "${RED}❌ 找不到 .env.example 或 .env${NC}"
         exit 1
     fi
 fi

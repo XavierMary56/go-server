@@ -38,9 +38,7 @@ go build -o moderation-server ./cmd/server
 
 | 脚本 | 说明 |
 |------|------|
-| `bash manage-keys.sh list` | 列出所有接入密钥 |
 | `bash monitor.sh status` | 查看服务运行状态与指标 |
-| `bash monitor.sh audit` | 查看实时审计日志 |
 | `bash deploy.sh` | 自动化部署脚本 |
 
 ---
