@@ -110,11 +110,11 @@ func (ah *AdminHandler) addProjectKeyV2(w http.ResponseWriter, r *http.Request) 
 
 	keyInfo := &KeyInfo{
 		ProjectName: req.ProjectName,
-		Key:       req.Key,
-		RateLimit: req.RateLimit,
-		CreatedAt: time.Now(),
-		UpdatedAt: time.Now(),
-		Enabled:   true,
+		Key:         req.Key,
+		RateLimit:   req.RateLimit,
+		CreatedAt:   time.Now(),
+		UpdatedAt:   time.Now(),
+		Enabled:     true,
 	}
 
 	if ah.db != nil {
@@ -123,6 +123,7 @@ func (ah *AdminHandler) addProjectKeyV2(w http.ResponseWriter, r *http.Request) 
 			ah.jsonError(w, http.StatusConflict, "密钥保存失败: "+err.Error())
 			return
 		}
+		keyInfo.ID = dbKey.ID
 		keyInfo.ProjectName = dbKey.ProjectName
 		keyInfo.Key = dbKey.Key
 		keyInfo.RateLimit = dbKey.RateLimit

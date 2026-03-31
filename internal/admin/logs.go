@@ -149,36 +149,7 @@ func (ah *AdminHandler) collectProjectIDs() []string {
 	return projectIDs
 }
 
-// collectAllProjectIDs 收集所有项目ID（包括内存中的和日志目录中的）
+// collectAllProjectIDs 收集所有项目ID（仅从内存/数据库中的密钥列表）
 func (ah *AdminHandler) collectAllProjectIDs() []string {
-	projectMap := make(map[string]bool)
-
-	// 从内存中的密钥列表收集项目ID
-	ah.keysMu.RLock()
-	for _, keyInfo := range ah.keys {
-		if keyInfo.ProjectName != "" {
-			projectMap[keyInfo.ProjectName] = true
-		}
-	}
-	ah.keysMu.RUnlock()
-
-	// 从日志目录中动态发现项目ID
-	logProjects, err := audit.ListProjects(ah.cfg.AuditLogDir)
-	if err != nil {
-		// 即使出错也继续，只使用内存中的项目
-	} else {
-		for _, projectID := range logProjects {
-			if projectID != "unknown" { // 过滤掉 "unknown" 目录
-				projectMap[projectID] = true
-			}
-		}
-	}
-
-	projectIDs := make([]string, 0, len(projectMap))
-	for projectID := range projectMap {
-		projectIDs = append(projectIDs, projectID)
-	}
-	sort.Strings(projectIDs)
-
-	return projectIDs
+	return ah.collectProjectIDs()
 }

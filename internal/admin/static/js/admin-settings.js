@@ -4,6 +4,10 @@ function openChangePwdModal() {
   document.getElementById('admin-token-confirm').value = '';
   document.getElementById('change-pwd-modal').classList.add('show');
   loadAdminTokenSettings();
+}
+
+function openSettingsModal() {
+  document.getElementById('settings-modal').classList.add('show');
   loadStaticVersionSettings();
 }
 

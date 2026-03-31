@@ -98,7 +98,7 @@ function renderProjectKeys() {
 
   document.getElementById('keys-count').textContent = `共 ${rows.length} / ${projectKeysData.length} 个项目`;
   if (!rows.length) {
-    tbody.innerHTML = '<tr class="empty-row"><td colspan="6">没有匹配的项目密钥</td></tr>';
+    tbody.innerHTML = '<tr class="empty-row"><td colspan="7">没有匹配的项目</td></tr>';
     return;
   }
 
@@ -106,6 +106,7 @@ function renderProjectKeys() {
     const encodedKey = encodeURIComponent(info.key || '');
     return `
     <tr>
+      <td>${info.id || '-'}</td>
       <td><strong>${info.project_name || '-'}</strong></td>
       <td><span class="key-cell">${info.key || '-'}</span></td>
       <td>${info.rate_limit ? info.rate_limit + ' 次/分钟' : '不限速'}</td>

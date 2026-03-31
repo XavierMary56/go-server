@@ -29,6 +29,7 @@ type AdminHandler struct {
 
 // KeyInfo 密钥信息
 type KeyInfo struct {
+	ID          int64     `json:"id"`
 	ProjectName string    `json:"project_name"`
 	Key         string    `json:"key"`
 	RateLimit   int       `json:"rate_limit"`

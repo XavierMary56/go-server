@@ -308,12 +308,13 @@ func (ah *AdminHandler) loadKeysFromDB() {
 	defer ah.keysMu.Unlock()
 	for _, k := range keys {
 		ah.keys[k.Key] = &KeyInfo{
+			ID:          k.ID,
 			ProjectName: k.ProjectName,
-			Key:       k.Key,
-			RateLimit: k.RateLimit,
-			Enabled:   k.Enabled,
-			CreatedAt: k.CreatedAt,
-			UpdatedAt: k.UpdatedAt,
+			Key:         k.Key,
+			RateLimit:   k.RateLimit,
+			Enabled:     k.Enabled,
+			CreatedAt:   k.CreatedAt,
+			UpdatedAt:   k.UpdatedAt,
 		}
 	}
 	ah.log.Info(fmt.Sprintf("从数据库加载了 %d 个项目密钥", len(keys)), nil)

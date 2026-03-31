@@ -104,6 +104,7 @@ function showDashboard() {
   document.getElementById('dashboard').style.display = 'block';
   document.getElementById('topbar-host').textContent = window.location.host;
   loadProjectKeys();
+  loadStats();
   loadAdminTokenSettings();
 }
 
@@ -113,9 +114,10 @@ function switchTab(name, btn) {
   document.getElementById('tab-' + name).classList.add('active');
   btn.classList.add('active');
 
-  if (name === 'stats') {
-    resetProjectLogFilters();
+  if (name === 'keys') {
+    loadProjectKeys();
     loadStats();
+    resetProjectLogFilters();
   }
   if (name === 'anthropic') loadAnthropicKeys();
   if (name === 'openai') loadProviderKeys('openai');
