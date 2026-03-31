@@ -107,8 +107,7 @@
 - 审计日志: `logs/audit/<project_id>/audit_YYYY-MM-DD.log` (按项目隔离)
 
 ### 5.2 常用脚本
-- `bash manage-keys.sh list`: 命令行查看密钥
+- `bash deploy.sh`: 自动化部署脚本
 - `bash monitor.sh status`: 查看服务健康状态
-- `bash monitor.sh audit --project <id>`: 查看项目审计日志
 
 🤖 Generated with [Claude Code](https://claude.com/claude-code)
