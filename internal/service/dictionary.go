@@ -30,10 +30,9 @@ var hardBlockRules = []moderationRuleSpec{
 		category: "adult",
 		reason:   "命中高风险成人内容",
 		keywords: []string{
-			"约炮", "一夜情", "上门服务", "迷药", "药", "裸聊", "裸照", "强奸", "轮奸",
-			"幼女", "未成年", "儿童", "招嫖", "援交", "包养", "开房", "性服务", "迷奸",
-			"约炮", "一夜情", "上门服务", "迷药", "药", "裸聊", "裸照", "强奸", "轮奸",
-			"幼女", "未成年", "儿童", "招嫖", "援交", "包养", "开房", "性服务", "迷奸",
+			// 移除单字"药"（会误拦"吃药"、"中药"等正常内容），仅保留"迷药"
+			"约炮", "一夜情", "上门服务", "迷药", "裸聊", "裸照", "强奸", "轮奸",
+			"幼女", "未成年儿童", "招嫖", "援交", "包养", "开房", "性服务", "迷奸",
 			"hookup", "onenightstand", "nude", "nudes", "sexvideo", "porn", "rape", "gangrape",
 			"prostitution", "escortservice", "escort", "sexualservice", "paidsex",
 			"underagesex", "minorporn", "childporn",
@@ -87,6 +86,8 @@ var benignNegationPhrases = []string{
 	"不带联系方式", "没有联系方式", "无联系方式", "不含联系方式", "未留联系方式",
 	"没有导流内容", "不含引流", "无引流", "没有导流", "不带导流", "不是引流",
 	"没有站外交易", "不含站外交易", "无站外交易", "不是广告", "非广告",
+	// 弱否定：只是提及或举例
+	"只是提到", "只是举例", "只是说", "只是提及", "只是提起",
 	"nocontactinfo", "nocontactinformation", "nodiversion", "notanad", "noprivatecontact", "nooffplatformdeal",
 	"безконтактов", "безрекламы", "безссылок",
 }
@@ -106,7 +107,15 @@ var directContactKeywords = []string{
 
 var weakTradeDirectPhrases = []string{
 	"去别处看", "主页找我", "看资料", "私下聊", "站外价更低", "外站价更低",
+	// 更精准的词组，避免误拦
 	"资源打包", "完整版资源", "有偿分享", "付费进群", "私聊发你资源", "点击链接领取",
+	"招募代理", "招代理", "代理合作", "寻找代理商",
+	"招盟商", "加盟我们",
+	// 加入单纯的"加Q"、"加微信"等词组（避免单字但保留词组级检测）
+	"加q", "加Q", "加qq", "加QQ", "加微信", "加薇", "加v",
+	// 隐蔽的微信变体（空格分隔或其他形式）
+	"wei xin", "wei xin:", "weixin", "weixinid", "weixinnumber",
+	"飞机号", "飞机",  // Telegram 变体
 	"免费看片", "福利群",
 	"dmme", "contactmeprivately", "addmeonwhatsapp",
 	"addmeontelegram", "clicklinkbelow", "freedownload", "freevideo", "joingroupforfree",
@@ -114,7 +123,9 @@ var weakTradeDirectPhrases = []string{
 }
 
 var weakTradeTokens = []string{
-	"低价", "资源", "完整版", "打包", "有偿", "私下", "别处", "看资料",
+	"低价", "完整版", "打包", "有偿", "私下", "别处",
+	// 移除单字"资源"和"代理"（会误拦"资源丰富"、"正规代理商"等正常内容）
+	// 这些词的检测现在改为在 weakTradeDirectPhrases 的词组级别
 	"free", "download", "video", "group", "telegram", "whatsapp",
 	"скачать", "телеграм", "ссылке", "группу",
 }

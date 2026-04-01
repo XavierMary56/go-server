@@ -201,8 +201,9 @@ func TestLooksLikeAdOrContactDetectsQQVariants(t *testing.T) {
 }
 
 func TestLooksLikeAdOrContactDetectsConsecutiveNumbers(t *testing.T) {
+	// 改进规则：连续数字从5+改为6+，以减少产品ID/订单号的误拦
 	cases := []string{
-		"我的号码 12345",
+		// 6位及以上的数字应该被检测
 		"联系方式 987654321",
 		"QQ号：123456789",
 		"微信：10086888",
@@ -213,6 +214,18 @@ func TestLooksLikeAdOrContactDetectsConsecutiveNumbers(t *testing.T) {
 	for _, content := range cases {
 		if !looksLikeAdOrContact(content) {
 			t.Fatalf("expected consecutive numbers to be detected: %s", content)
+		}
+	}
+
+	// 短数字不应该被检测（降低误拦）
+	shortNumberCases := []string{
+		"我的号码 12345",
+		"价格 1234 元",
+	}
+
+	for _, content := range shortNumberCases {
+		if looksLikeAdOrContact(content) {
+			t.Fatalf("short numbers should not be flagged as ad/contact: %s", content)
 		}
 	}
 }

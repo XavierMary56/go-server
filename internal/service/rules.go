@@ -22,8 +22,10 @@ var (
 		regexp.MustCompile(`[a-z0-9._%+\-]+@[a-z0-9.\-]+\.[a-z]{2,}`),
 		regexp.MustCompile(`([a-z0-9\-]+\.)+[a-z]{2,}`),
 	}
-	// 检查5个或以上连续数字（QQ号、微信号、电话号码等）
-	consecutiveNumbersPattern = regexp.MustCompile(`\d{5,}`)
+	// 检查可能的QQ号或电话号码
+	// QQ号通常5-11位，但与订单号/产品ID混淆时需要提高阈值
+	// 改为检测6位以上的数字（折中方案：从 5+ 改为 6+ 可减少短ID误拦）
+	consecutiveNumbersPattern = regexp.MustCompile(`\d{6,}`)
 	// 内容去掉空格后几乎全是数字（纯数字灌水评论）
 	pureNumberContentPattern = regexp.MustCompile(`^[\d\s]{5,}$`)
 )
@@ -141,6 +143,11 @@ func containsDirectContactSignal(content string) bool {
 		}
 	}
 
+	// 如果有benign negation（如"没有联系方式"），则不认为包含直接联系信号
+	if containsBenignNegation(content) {
+		return false
+	}
+
 	for _, keyword := range directContactKeywords {
 		if strings.Contains(sanitized, keyword) {
 			return true
@@ -153,7 +160,7 @@ func containsDirectContactSignal(content string) bool {
 		}
 	}
 
-	// 检查5个或以上连续数字（QQ号、微信号、电话号码等）
+	// 检查6位或以上连续数字（QQ号、电话号码等，降低从5位）
 	if containsConsecutiveNumbers(rawLower) {
 		return true
 	}
@@ -164,20 +171,23 @@ func containsDirectContactSignal(content string) bool {
 func containsWeakTradeIntent(content string) bool {
 	normalized := normalizeForDetection(content)
 
+	// 先检测明确的导流词组（单个匹配即拦）
 	for _, phrase := range weakTradeDirectPhrases {
 		if strings.Contains(normalized, phrase) {
 			return true
 		}
 	}
 
+	// 弱导流令牌需要更多匹配（从 2 提升到 3）以减少误拦
+	// 因为 "资源" 和 "代理" 已被移除，减少了单词数量
 	hitCount := 0
 	for _, token := range weakTradeTokens {
 		if strings.Contains(normalized, token) {
-		hitCount++
+			hitCount++
 		}
 	}
 
-	return hitCount >= 2
+	return hitCount >= 3
 }
 
 func containsKeyword(normalized string, keywords []string) bool {
