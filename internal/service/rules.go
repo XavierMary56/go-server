@@ -99,17 +99,6 @@ func applyHardBlockRules(content string) *ModerateResult {
 		}
 	}
 
-	// 检查弱导流意图（导流词组）
-	if containsWeakTradeIntent(content) {
-		return &ModerateResult{
-			Verdict:    "rejected",
-			Category:   "spam",
-			Confidence: 0.75,
-			Reason:     "疑似导流内容",
-			ModelUsed:  "hard-rule",
-		}
-	}
-
 	return nil
 }
 
