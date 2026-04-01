@@ -29,3 +29,5 @@
 /.claude
 /.github
 /.idea
+/logs
+/logs/*.log

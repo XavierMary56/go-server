@@ -50,23 +50,15 @@ func normalizeForDetection(content string) string {
 		"微x", "wechat",
 		"微 x", "wechat",
 		"微ｘ", "wechat",
+		"围信", "wechat",
 		"薇信", "wechat",
 		"薇❤", "wechat",
 		"薇心", "wechat",
 		"薇", "wechat",
+		"卫星", "wechat",
+		"v信", "wechat",
+		"加薇", "wechat",
 		"ⅴ", "v",
-		"扣扣", "qq",
-		"球球", "qq",
-		"电报", "telegram",
-		"飞机", "telegram",
-		"微x", "微信",
-		"微 x", "微信",
-		"微ｘ", "微信",
-		"围信", "微信",
-		"薇信", "微信",
-		"卫星", "微信",
-		"v信", "微信",
-		"微❤", "微信",
 		"扣扣", "qq",
 		"球球", "qq",
 		"电报", "telegram",
@@ -78,7 +70,7 @@ func normalizeForDetection(content string) string {
 	var compact strings.Builder
 	compact.Grow(len(normalized))
 	for _, r := range normalized {
-		if unicode.IsSpace(r) || unicode.IsPunct(r) || unicode.IsSymbol(r) {
+		if unicode.IsSpace(r) || (unicode.IsPunct(r) && r != '.' && r != '/' && r != ':') || unicode.IsSymbol(r) {
 			continue
 		}
 		compact.WriteRune(r)

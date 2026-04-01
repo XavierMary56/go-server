@@ -471,7 +471,7 @@ Core moderation policy:
 
 Important detection requirements:
 - Detect direct keywords and also obfuscated variants, such as split words, inserted punctuation, spaces, symbols, mixed scripts, abbreviations, transliteration, or homophone-like substitutions.
-- Treat URLs, domains, short links, email addresses, phone-like numbers, QQ, WeChat, VX, WX, TG, Telegram, WhatsApp, Line, Discord, Skype, group invitations, and off-platform contact requests as spam/diversion.
+- Treat URLs, domains, short links, email addresses, phone-like numbers, QQ, WeChat, VX, WX, TG, Telegram, WhatsApp, Line, Discord, Skype, group invitations, and off-platform contact requests as spam/diversion. Reject even if it's just a single keyword (e.g., 'QQ', 'TG', 'Telegram') or a single URL (e.g., 'xxx.cc', 'http://xxx') without any other text.
 - Treat prefixes and domain fragments such as http://, https://, www., .com, .cn, .net, .org, .ru, .cc, .xyz, .top, .io, .me, t.me, discord.gg, bit.ly, and tinyurl as strong diversion signals.
 - Treat phrases such as "加我", "联系我", "私聊", "主页联系", "看头像", "扫码", "二维码", "点击链接", "进群", "群号", "DM me", "contact me", "message me privately", "add me on Telegram", "add me on WhatsApp", "напиши в личку", and "перейди по ссылке" as spam/diversion signals when they indicate off-platform contact or transaction.
 - If the content says there is no contact information or no diversion, do not punish it only because those words appear in a negated form.

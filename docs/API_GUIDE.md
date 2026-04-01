@@ -6,108 +6,77 @@
 
 ## 1. 基础信息
 
-- **基础 URL**: `https://zyaokkmo.cc` (生产) 或 `http://localhost:8080` (本地)
+- **本地 URL**: `http://localhost:888`
+- **生产 URL**: `https://zyaokkmo.cc`
 - **认证方式**:
-  - **公共 API**: 在请求头中使用 `X-Project-Key`。
-  - **Admin API**: 在请求头中使用 `Authorization: Bearer <ADMIN_TOKEN>`。
+  - **业务 API**: Header 携带 `X-Project-Key`。
+  - **管理 API**: Header 携带 `Authorization: Bearer <ADMIN_TOKEN>`。
 - **数据格式**: `application/json`
 
 ---
 
-## 2. 公共 API (业务对接)
+## 2. 公共审核 API
 
-### 2.1 健康检查
-- **GET** `/v1/health` 或 `/v2/health`
-- **说明**: 检查服务是否存活，无需鉴权。
+系统优先通过本地 **Hard Rules** 规则库进行秒级拦截。如果未触发硬阻断，则进入 AI 模型队列进行深度审核。
 
-### 2.2 内容审核 (同步)
-- **POST** `/v1/moderate` (旧版响应结构)
-- **POST** `/v2/moderations` (推荐，带 `data` 包装)
-- **请求头**:
-  - `X-Project-Key`: 必须，项目接入密钥
+### 2.1 同步审核 (推荐 V2)
+- **POST** `/v2/moderations`
 - **请求体**:
 ```json
 {
-  "content": "待审核的文本内容",
-  "type": "comment",        // comment (默认) | post
-  "strictness": "standard", // loose | standard (默认) | strict
-  "model": "",              // 可选，指定模型 ID
-  "context": {"user_id": "1001"} // 可选，业务上下文
+  "content": "qq我",
+  "type": "comment",
+  "strictness": "standard" // loose | standard | strict
 }
 ```
-- **响应示例 (V2)**:
+- **响应 (拦截示例)**:
 ```json
 {
   "code": 200,
   "message": "ok",
   "data": {
-    "id": "mod_1711900000000000000",
-    "status": "completed",
     "result": {
-      "verdict": "approved", // approved | flagged | rejected
-      "category": "none",     // none | spam | abuse | politics | adult | fraud | violence
-      "reason": "内容正常",
-      "confidence": 0.98,
-      "model_used": "claude-3-5-sonnet-20241022",
-      "latency_ms": 1234,
-      "from_cache": false
+      "verdict": "rejected",
+      "category": "spam",
+      "reason": "命中广告导流或联系方式",
+      "model_used": "hard-rule",
+      "latency_ms": 0
     }
   }
 }
 ```
 
-### 2.3 内容审核 (异步)
-- **POST** `/v1/moderate/async`
-- **POST** `/v2/moderations/async`
-- **参数**: 同同步接口，额外支持 `webhook_url`。
-- **查询结果**: `GET /v1/task/{task_id}` 或 `GET /v2/tasks/{task_id}`。
+### 2.2 同步审核 (兼容 V1)
+- **POST** `/v1/moderate`
+- **说明**: 返回结构为平铺模式，无 `data` 包装。
 
 ---
 
-## 3. 管理 API (Admin API)
+## 3. 管理端接口 (Admin API)
 
-所有管理接口均需 `Authorization: Bearer <ADMIN_TOKEN>` 鉴权。
+### 3.1 密钥管理
+- **GET** `/v1/admin/keys`: 列出所有接入项目。
+- **POST** `/v1/admin/keys`: 动态新增项目密钥 (立即生效，无需重启)。
 
-### 3.1 项目密钥管理
-- **GET** `/v1/admin/keys`: 列出所有项目密钥
-- **POST** `/v1/admin/keys`: 添加密钥
-  - 请求体: `{"project_id": "name", "key": "sk-xxx", "rate_limit": 300}`
-- **PUT** `/v1/admin/keys/:id`: 更新密钥 (包含名称、速率限制、开关状态)
-- **DELETE** `/v1/admin/keys/:id`: 删除密钥
-
-### 3.2 供应商与模型管理
-- **GET** `/v1/admin/anthropic-keys`: Anthropic 密钥列表
-- **GET** `/v1/admin/provider-keys?provider=openai|grok`: 第三方密钥列表
-- **POST** `/v1/admin/provider-keys/check`: 检测密钥可用性 (参数 `{"id": 123}`)
-- **GET** `/v1/admin/models`: 获取所有模型配置
-- **PUT** `/v1/admin/models/:id`: 更新模型权重或优先级
-
-### 3.3 统计与日志
-- **GET** `/v1/admin/projects/stats`: 获取各项目的调用统计 (请求数、限流数、错误数等)
-- **GET** `/v1/admin/projects/logs?project=xxx&start=YYYY-MM-DD&end=YYYY-MM-DD`: 查询特定项目的审计日志
+### 3.2 审计日志查询
+- **GET** `/v1/admin/projects/logs`: 查询指定项目的审核流水。支持 `project`, `start`, `end` 参数。
 
 ---
 
-## 4. 常见错误码
+## 4. 常见问题 (FAQ)
 
-| 状态码 | 含义 | 处理建议 |
-|--------|------|----------|
-| 200    | 成功 | -	|
-| 400    | 参数错误 | 检查请求体格式或必填项 |
-| 401    | 鉴权失败 | 检查 X-Project-Key 或 Admin Token |
-| 429    | 触发限流 | 降低请求频率或联系管理员调优配额 |
-| 500    | 服务错误 | 检查服务日志 |
+**Q: 为什么某些内容在 V1 通过了，在 V2 被拦截？**
+A: 两个接口底层共用一套审核引擎。如果出现不一致，请检查是否是因为 60s 缓存导致的。现在版本已强制统一拦截逻辑。
+
+**Q: 如何新增拦截关键字？**
+A: 核心关键字在 `internal/service/dictionary.go` 中维护，修改后执行 `bash deploy.sh` 即可。
 
 ---
 
 ## 5. 运维指南 (简版)
 
-### 5.1 日志位置
-- 应用日志: `logs/moderation_YYYY-MM-DD.log`
-- 审计日志: `logs/audit/<project_id>/audit_YYYY-MM-DD.log` (按项目隔离)
-
-### 5.2 常用脚本
-- `bash deploy.sh`: 自动化部署脚本
-- `bash monitor.sh status`: 查看服务健康状态
+- **健康检查**: `GET /v1/health`
+- **审计日志路径**: `logs/audit/<project_name>/audit_YYYY-MM-DD.log`
+- **统计指标**: `GET /v1/stats` (查看实时各模型调用占比)
 
 🤖 Generated with [Claude Code](https://claude.com/claude-code)
