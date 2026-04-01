@@ -60,7 +60,7 @@ var hardBlockRules = []moderationRuleSpec{
 		reason:   "命中毒品或违禁品内容",
 		keywords: []string{
 			"冰毒", "海洛因", "摇头丸", "买毒", "出货", "走货", "制毒", "配方",
-			"大麻", "吸毒工具", "k粉", "麻古",
+			"大麻", "吸毒", "吸毒工具", "k粉", "麻古",
 			"drugs", "cocaine", "heroin", "meth", "buydrugs", "selldrugs", "drugrecipe",
 			"howtomakedrugs", "weed", "marijuana", "narcotics", "drugdealer",
 			"ketamine", "fentanyl", "mdma", "lsd",
@@ -101,7 +101,8 @@ var directContactKeywords = []string{
 	"代理", "加盟", "引流", "外链", "网址", "链接", "下载地址", "扫码", "二维码",
 	"主页联系", "看我头像", "站外继续聊", "邮箱",
 	"t.me", "discord.gg", "bit.ly", "tinyurl",
-	".com", ".cn", ".net", ".org", ".ru", ".cc", ".xyz", ".top", ".io", ".me",
+	// 移除域名后缀，改为在 weakTradeDirectPhrases 中检测有导流意图的 URL
+	// ".com", ".cn", ".net", ".org", ".ru", ".cc", ".xyz", ".top", ".io", ".me",
 	"http://", "https://", "www.",
 }
 

@@ -15,19 +15,25 @@ var (
 		regexp.MustCompile(`bit\.ly/[^\s]+`),
 		regexp.MustCompile(`tinyurl\.com/[^\s]+`),
 		regexp.MustCompile(`(?:^|[\s(])@[a-z0-9_]{5,}\b`),
-		regexp.MustCompile(`([a-z0-9\-]+)(?:\.|\[\.\])+(com|cn|net|org|ru|cc|xyz|top|info|io|co|tv|me|biz|vip|app|link|shop|live|site|fun|pro|club|online|store|cloud|test|gg|ly)\b`),
-		regexp.MustCompile(`([a-z0-9\-]+\.)+(com|cn|net|org|ru|cc|xyz|top|info|io|co|tv|me|biz|vip|app|link|shop|live|site|fun|pro|club|online|store|cloud|test|gg|ly)\b`),
+		// 移除过于宽泛的域名后缀检测（如.com、.org等）
+		// 这些单独出现时很可能是合法参考，不应该拦截
+		// 改为在 weakTradeDirectPhrases 中检测有明确导流意图的URL组合
+		// regexp.MustCompile(`([a-z0-9\-]+)(?:\.|\[\.\])+(com|cn|net|org|ru|cc|xyz|top|info|io|co|tv|me|biz|vip|app|link|shop|live|site|fun|pro|club|online|store|cloud|test|gg|ly)\b`),
+		// regexp.MustCompile(`([a-z0-9\-]+\.)+(com|cn|net|org|ru|cc|xyz|top|info|io|co|tv|me|biz|vip|app|link|shop|live|site|fun|pro|club|online|store|cloud|test|gg|ly)\b`),
 	}
 	directContactCompactPatterns = []*regexp.Regexp{
 		regexp.MustCompile(`[a-z0-9._%+\-]+@[a-z0-9.\-]+\.[a-z]{2,}`),
-		regexp.MustCompile(`([a-z0-9\-]+\.)+[a-z]{2,}`),
+		// 移除过于宽泛的域名检测 `([a-z0-9\-]+\.)+[a-z]{2,}`
+		// 这个模式会误拦所有包含点号的域名，如 wikipedia.org、example.com
+		// 改为在 weakTradeDirectPhrases 中检测有明确导流意图的组合
 	}
 	// 检查可能的QQ号或电话号码
 	// QQ号通常5-11位，但与订单号/产品ID混淆时需要提高阈值
 	// 改为检测6位以上的数字（折中方案：从 5+ 改为 6+ 可减少短ID误拦）
 	consecutiveNumbersPattern = regexp.MustCompile(`\d{6,}`)
 	// 内容去掉空格后几乎全是数字（纯数字灌水评论）
-	pureNumberContentPattern = regexp.MustCompile(`^[\d\s]{5,}$`)
+	// 改为检测多个分开的数字块（如"12345 67890 11111"），而不是单个数字
+	pureNumberContentPattern = regexp.MustCompile(`^\d+[\s]+\d+`)
 )
 
 func applyHardBlockRules(content string) *ModerateResult {
@@ -89,6 +95,17 @@ func applyHardBlockRules(content string) *ModerateResult {
 			Category:   "spam",
 			Confidence: 0.85,
 			Reason:     "命中广告导流或联系方式",
+			ModelUsed:  "hard-rule",
+		}
+	}
+
+	// 检查弱导流意图（导流词组）
+	if containsWeakTradeIntent(content) {
+		return &ModerateResult{
+			Verdict:    "rejected",
+			Category:   "spam",
+			Confidence: 0.75,
+			Reason:     "疑似导流内容",
 			ModelUsed:  "hard-rule",
 		}
 	}
