@@ -33,6 +33,7 @@ var (
 func applyHardBlockRules(content string) *ModerateResult {
 	normalized := normalizeForDetection(content)
 
+	// 政治敏感内容：最高优先级，直接拒绝（置信度 0.99）
 	if containsKeyword(normalized, politicsStrongKeywords) {
 		return &ModerateResult{
 			Verdict:    "rejected",
@@ -43,13 +44,27 @@ func applyHardBlockRules(content string) *ModerateResult {
 		}
 	}
 
+	// 核心规则检测（保留原有的直接拒绝逻辑，确保测试兼容性）
 	for _, rule := range hardBlockRules {
 		for _, keyword := range rule.keywords {
 			if strings.Contains(normalized, keyword) {
+				// 阶段 2 改进：添加置信度而不是都使用 0.99
+				confidence := 0.90
+				switch rule.category {
+				case "adult":
+					confidence = 0.85
+				case "fraud":
+					confidence = 0.80
+				case "abuse":
+					confidence = 0.80
+				case "violence":
+					confidence = 0.85
+				}
+
 				return &ModerateResult{
 					Verdict:    "rejected",
 					Category:   rule.category,
-					Confidence: 0.99,
+					Confidence: confidence,
 					Reason:     rule.reason,
 					ModelUsed:  "hard-rule",
 				}
@@ -57,11 +72,12 @@ func applyHardBlockRules(content string) *ModerateResult {
 		}
 	}
 
+	// 纯数字内容检测：直接拒绝（这确实是垃圾/灌水）
 	if pureNumberContentPattern.MatchString(strings.TrimSpace(content)) {
 		return &ModerateResult{
 			Verdict:    "rejected",
 			Category:   "spam",
-			Confidence: 0.99,
+			Confidence: 0.90,
 			Reason:     "纯数字内容，疑似号码或无意义灌水",
 			ModelUsed:  "hard-rule",
 		}
@@ -71,7 +87,7 @@ func applyHardBlockRules(content string) *ModerateResult {
 		return &ModerateResult{
 			Verdict:    "rejected",
 			Category:   "spam",
-			Confidence: 0.99,
+			Confidence: 0.85,
 			Reason:     "命中广告导流或联系方式",
 			ModelUsed:  "hard-rule",
 		}

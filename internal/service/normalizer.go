@@ -28,7 +28,35 @@ func stripBenignNegation(content string) string {
 	return sanitized
 }
 
+// detectLanguage 简单的语言检测：检查是否包含特定语言的字符
+func detectLanguage(content string) string {
+	for _, r := range content {
+		// 韩文范围（Hangul Syllables）
+		if r >= 0xAC00 && r <= 0xD7AF {
+			return "korean"
+		}
+		// 日文范围（Hiragana + Katakana）
+		if (r >= 0x3040 && r <= 0x309F) || (r >= 0x30A0 && r <= 0x30FF) {
+			return "japanese"
+		}
+		// 西里尔字母（俄文等）
+		if r >= 0x0400 && r <= 0x04FF {
+			return "russian"
+		}
+	}
+	// 默认为中文/英文混合
+	return "default"
+}
+
 func normalizeForDetection(content string) string {
+	lang := detectLanguage(content)
+
+	// 韩文和日文：保留原文结构，避免过度规范化导致字符丢失
+	if lang == "korean" || lang == "japanese" {
+		return normalizeMultilingualDefault(content)
+	}
+
+	// 默认规范化路径（中文/英文）
 	normalized := strings.ToLower(content)
 
 	var builder strings.Builder
@@ -74,6 +102,35 @@ func normalizeForDetection(content string) string {
 			continue
 		}
 		compact.WriteRune(r)
+	}
+
+	return compact.String()
+}
+
+// normalizeMultilingualDefault 用于韩文、日文等特殊处理，避免过度规范化
+func normalizeMultilingualDefault(content string) string {
+	// 只做基本的小写转换，不删除字符
+	// 避免删除可能是有意义的多语言字符
+	normalized := strings.ToLower(content)
+
+	// 只替换中文谐音词
+	replacer := strings.NewReplacer(
+		"微信", "wechat",
+		"微x", "wechat",
+		"微ｘ", "wechat",
+		"薇", "wechat",
+		"电报", "telegram",
+		"飞机", "telegram",
+	)
+	normalized = replacer.Replace(normalized)
+
+	// 删除空格但保留字符结构
+	var compact strings.Builder
+	compact.Grow(len(normalized))
+	for _, r := range normalized {
+		if !unicode.IsSpace(r) {
+			compact.WriteRune(r)
+		}
 	}
 
 	return compact.String()

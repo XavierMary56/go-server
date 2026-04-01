@@ -109,16 +109,22 @@ type inflightCall struct {
 }
 
 type Stats struct {
-	mu          sync.RWMutex
-	Total       int64
-	Approved    int64
-	Flagged     int64
-	Rejected    int64
-	ModelCounts map[string]int64
+	mu                sync.RWMutex
+	Total             int64
+	Approved          int64
+	Flagged           int64
+	Rejected          int64
+	ModelCounts       map[string]int64
+	FalsePositives    int64  // 用户反馈的误拦数
+	FalseNegatives    int64  // 用户反馈的漏检数
+	RecentFalseReports []string  // 最近的误拦反馈样本（用于调试）
 }
 
 func newStats() *Stats {
-	return &Stats{ModelCounts: make(map[string]int64)}
+	return &Stats{
+		ModelCounts:       make(map[string]int64),
+		RecentFalseReports: make([]string, 0, 100),
+	}
 }
 
 func (s *Stats) record(verdict, model string) {
@@ -137,6 +143,27 @@ func (s *Stats) record(verdict, model string) {
 	s.ModelCounts[model]++
 }
 
+// RecordFalsePositive 记录用户报告的误拦案例
+func (s *Stats) RecordFalsePositive(content string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	s.FalsePositives++
+
+	// 保存最近的 100 个误拦案例样本（用于分析改进）
+	if len(s.RecentFalseReports) >= 100 {
+		s.RecentFalseReports = s.RecentFalseReports[1:]
+	}
+	s.RecentFalseReports = append(s.RecentFalseReports, content)
+}
+
+// RecordFalseNegative 记录用户报告的漏检案例
+func (s *Stats) RecordFalseNegative() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.FalseNegatives++
+}
+
 func (s *Stats) snapshot() map[string]interface{} {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -147,11 +174,13 @@ func (s *Stats) snapshot() map[string]interface{} {
 	}
 
 	return map[string]interface{}{
-		"total":        s.Total,
-		"approved":     s.Approved,
-		"flagged":      s.Flagged,
-		"rejected":     s.Rejected,
-		"model_counts": counts,
+		"total":             s.Total,
+		"approved":          s.Approved,
+		"flagged":           s.Flagged,
+		"rejected":          s.Rejected,
+		"false_positives":   s.FalsePositives,
+		"false_negatives":   s.FalseNegatives,
+		"model_counts":      counts,
 	}
 }
 
