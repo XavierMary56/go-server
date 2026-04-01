@@ -43,12 +43,6 @@ func applyHardBlockRules(content string) *ModerateResult {
 
 	for _, rule := range hardBlockRules {
 		for _, keyword := range rule.keywords {
-			if rule.category == "fraud" && keyword == "bc" {
-				continue
-			}
-			if rule.category == "violence" && keyword == "ammo" {
-				continue
-			}
 			if strings.Contains(normalized, keyword) {
 				return &ModerateResult{
 					Verdict:    "rejected",
@@ -102,7 +96,7 @@ func normalizeModelDecision(ai *aiResult, auditContent string) *aiResult {
 	if normalized.Category == "politics" {
 		normalized.Verdict = "rejected"
 		if strings.TrimSpace(normalized.Reason) == "" {
-			normalized.Reason = "命中政治类内容，严格拒绝"
+		normalized.Reason = "命中政治类内容，严格拒绝"
 		}
 		return &normalized
 	}
@@ -148,16 +142,9 @@ func containsDirectContactSignal(content string) bool {
 	}
 
 	for _, keyword := range directContactKeywords {
-		if isGenericPlatformKeyword(keyword) {
-			continue
-		}
 		if strings.Contains(sanitized, keyword) {
 			return true
 		}
-	}
-
-	if containsPlatformAccountSignal(sanitized) {
-		return true
 	}
 
 	for _, pattern := range directContactCompactPatterns {
@@ -169,33 +156,6 @@ func containsDirectContactSignal(content string) bool {
 	// 检查5个或以上连续数字（QQ号、微信号、电话号码等）
 	if containsConsecutiveNumbers(rawLower) {
 		return true
-	}
-
-	return false
-}
-
-func isGenericPlatformKeyword(keyword string) bool {
-	switch keyword {
-	case "寰畑", "寰綐", "寰俊", "wechat", "wx", "vx", "qq", "telegram", "tg", "whatsapp", "line", "discord", "skype", "閭", "email":
-		return true
-	default:
-		return false
-	}
-}
-
-func containsPlatformAccountSignal(sanitized string) bool {
-	patterns := []*regexp.Regexp{
-		regexp.MustCompile(`(wechat|weixin|wx|vx|qq|telegram|tg|email|mail)(hao|号)?[a-z0-9_]{4,}`),
-		regexp.MustCompile(`(wechat|weixin|wx|vx|qq|telegram|tg)(hao|号)?[1-9][0-9]{5,}`),
-		regexp.MustCompile(`(微信|薇信|qq|电报|飞机)(号)?[a-z0-9_]{4,}`),
-		regexp.MustCompile(`(微信|薇信|qq|电报|飞机)(号)?[1-9][0-9]{5,}`),
-		regexp.MustCompile(`(telegram|qq)group[1-9][0-9]{5,}`),
-	}
-
-	for _, pattern := range patterns {
-		if pattern.MatchString(sanitized) {
-			return true
-		}
 	}
 
 	return false
@@ -213,7 +173,7 @@ func containsWeakTradeIntent(content string) bool {
 	hitCount := 0
 	for _, token := range weakTradeTokens {
 		if strings.Contains(normalized, token) {
-			hitCount++
+		hitCount++
 		}
 	}
 
@@ -228,17 +188,6 @@ func containsKeyword(normalized string, keywords []string) bool {
 	}
 
 	return false
-}
-
-func countKeywordHits(normalized string, keywords []string) int {
-	hits := 0
-	for _, keyword := range keywords {
-		if strings.Contains(normalized, keyword) {
-			hits++
-		}
-	}
-
-	return hits
 }
 
 func containsConsecutiveNumbers(content string) bool {

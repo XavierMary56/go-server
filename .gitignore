@@ -25,3 +25,7 @@
 /tests/*.md
 /tests/*.ps1
 /.github
+/tests
+/.claude
+/.github
+/.idea
