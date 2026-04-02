@@ -6,31 +6,21 @@ import (
 )
 
 var (
-	directContactRawPatterns = []*regexp.Regexp{
-		regexp.MustCompile(`https?://[^\s]+`),
-		regexp.MustCompile(`hxxps?://[^\s]+`),
-		regexp.MustCompile(`www\.[^\s]+`),
-		regexp.MustCompile(`t\.me/[^\s]+`),
-		regexp.MustCompile(`discord\.gg/[^\s]+`),
-		regexp.MustCompile(`bit\.ly/[^\s]+`),
-		regexp.MustCompile(`tinyurl\.com/[^\s]+`),
-		regexp.MustCompile(`(?:^|[\s(])@[a-z0-9_]{5,}\b`),
-		// 移除过于宽泛的域名后缀检测（如.com、.org等）
-		// 这些单独出现时很可能是合法参考，不应该拦截
-		// 改为在 weakTradeDirectPhrases 中检测有明确导流意图的URL组合
-		// regexp.MustCompile(`([a-z0-9\-]+)(?:\.|\[\.\])+(com|cn|net|org|ru|cc|xyz|top|info|io|co|tv|me|biz|vip|app|link|shop|live|site|fun|pro|club|online|store|cloud|test|gg|ly)\b`),
-		// regexp.MustCompile(`([a-z0-9\-]+\.)+(com|cn|net|org|ru|cc|xyz|top|info|io|co|tv|me|biz|vip|app|link|shop|live|site|fun|pro|club|online|store|cloud|test|gg|ly)\b`),
-	}
-	directContactCompactPatterns = []*regexp.Regexp{
-		regexp.MustCompile(`[a-z0-9._%+\-]+@[a-z0-9.\-]+\.[a-z]{2,}`),
-		// 移除过于宽泛的域名检测 `([a-z0-9\-]+\.)+[a-z]{2,}`
-		// 这个模式会误拦所有包含点号的域名，如 wikipedia.org、example.com
-		// 改为在 weakTradeDirectPhrases 中检测有明确导流意图的组合
-	}
+	// 合并多个正则为单个模式，一次匹配完成所有检测
+	directContactRawPattern = regexp.MustCompile(
+		`https?://[^\s]+` +
+			`|hxxps?://[^\s]+` +
+			`|www\.[^\s]+` +
+			`|t\.me/[^\s]+` +
+			`|discord\.gg/[^\s]+` +
+			`|bit\.ly/[^\s]+` +
+			`|tinyurl\.com/[^\s]+` +
+			`|(?:^|[\s(])@[a-z0-9_]{5,}\b`,
+	)
+	directContactCompactPattern = regexp.MustCompile(`[a-z0-9._%+\-]+@[a-z0-9.\-]+\.[a-z]{2,}`)
 	// 检查可能的QQ号或电话号码
-	// QQ号通常5-11位，但与订单号/产品ID混淆时需要提高阈值
-	// 改为检测6位以上的数字（折中方案：从 5+ 改为 6+ 可减少短ID误拦）
-	consecutiveNumbersPattern = regexp.MustCompile(`\d{6,}`)
+	// 6位数字可能是产品ID、验证码等合法内容，7位起拦更合理
+	consecutiveNumbersPattern = regexp.MustCompile(`\d{7,}`)
 	// 内容去掉空格后几乎全是数字（纯数字灌水评论）
 	// 改为检测多个分开的数字块（如"12345 67890 11111"），而不是单个数字
 	pureNumberContentPattern = regexp.MustCompile(`^\d+[\s]+\d+`)
@@ -159,10 +149,13 @@ func containsDirectContactSignal(content string) bool {
 	rawLower := strings.ToLower(content)
 	sanitized := stripBenignNegation(content)
 
-	for _, pattern := range directContactRawPatterns {
-		if pattern.MatchString(rawLower) {
-			return true
-		}
+	if directContactRawPattern.MatchString(rawLower) {
+		return true
+	}
+
+	// email 检测在 rawLower 上运行（归一化会删除 @ 导致无法匹配）
+	if directContactCompactPattern.MatchString(rawLower) {
+		return true
 	}
 
 	// 如果有benign negation（如"没有联系方式"），则不认为包含直接联系信号
@@ -176,13 +169,7 @@ func containsDirectContactSignal(content string) bool {
 		}
 	}
 
-	for _, pattern := range directContactCompactPatterns {
-		if pattern.MatchString(sanitized) {
-			return true
-		}
-	}
-
-	// 检查6位或以上连续数字（QQ号、电话号码等，降低从5位）
+	// 检查7位或以上连续数字（QQ号、电话号码等）
 	if containsConsecutiveNumbers(rawLower) {
 		return true
 	}

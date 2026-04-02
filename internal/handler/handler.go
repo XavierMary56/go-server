@@ -23,9 +23,8 @@ type Handler struct {
 	cfg   *config.Config
 	db    *storage.DB
 	audit *audit.AuditLogger
-	tasks    sync.Map
-	usageMu  sync.RWMutex
-	usage    map[string]*rateCounter
+	tasks sync.Map
+	usage sync.Map // key -> *rateCounter
 }
 
 type rateCounter struct {
@@ -66,7 +65,6 @@ func New(svc *service.ModerationService, log *logger.Logger, cfg *config.Config,
 		cfg:   cfg,
 		db:    db,
 		audit: auditLogger,
-		usage: make(map[string]*rateCounter),
 	}
 }
 
@@ -172,18 +170,9 @@ func (h *Handler) checkRateLimit(projectKey *storage.ProjectKey) error {
 		return nil
 	}
 
-	h.usageMu.RLock()
-	counter, ok := h.usage[projectKey.Key]
-	h.usageMu.RUnlock()
-
-	if !ok {
-		h.usageMu.Lock()
-		if counter, ok = h.usage[projectKey.Key]; !ok {
-			counter = &rateCounter{resetAt: time.Now().Add(time.Minute)}
-			h.usage[projectKey.Key] = counter
-		}
-		h.usageMu.Unlock()
-	}
+	newCounter := &rateCounter{resetAt: time.Now().Add(time.Minute)}
+	val, _ := h.usage.LoadOrStore(projectKey.Key, newCounter)
+	counter := val.(*rateCounter)
 
 	counter.mu.Lock()
 	defer counter.mu.Unlock()

@@ -56,23 +56,21 @@ func normalizeForDetection(content string) string {
 		return normalizeMultilingualDefault(content)
 	}
 
-	// 默认规范化路径（中文/英文）
-	normalized := strings.ToLower(content)
-
+	// 默认规范化路径（中文/英文）：合并 ToLower + 全角转半角为一次遍历
 	var builder strings.Builder
-	builder.Grow(len(normalized))
-	for _, r := range normalized {
+	builder.Grow(len(content))
+	for _, r := range content {
 		switch {
-		case r == 12288:
+		case r == 12288: // 全角空格
 			builder.WriteRune(' ')
-		case r >= 65281 && r <= 65374:
-			builder.WriteRune(r - 65248)
+		case r >= 65281 && r <= 65374: // 全角字符转半角
+			builder.WriteRune(unicode.ToLower(r - 65248))
 		default:
 			builder.WriteRune(unicode.ToLower(r))
 		}
 	}
 
-	normalized = builder.String()
+	normalized := builder.String()
 	replacer := strings.NewReplacer(
 		"微信", "wechat",
 		"微x", "wechat",

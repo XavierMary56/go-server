@@ -104,8 +104,9 @@ type ModerationService struct {
 }
 
 type inflightCall struct {
-	done   chan struct{}
-	result *ModerateResult
+	done      chan struct{}
+	result    *ModerateResult
+	createdAt time.Time
 }
 
 type Stats struct {
@@ -185,7 +186,7 @@ func (s *Stats) snapshot() map[string]interface{} {
 }
 
 func NewModerationService(cfg *config.Config, log *logger.Logger, db *storage.DB) *ModerationService {
-	return &ModerationService{
+	svc := &ModerationService{
 		cfg:   cfg,
 		log:   log,
 		db:    db,
@@ -195,6 +196,29 @@ func NewModerationService(cfg *config.Config, log *logger.Logger, db *storage.DB
 		},
 		stats: newStats(),
 		calls: make(map[string]*inflightCall),
+	}
+	go svc.cleanupInflight()
+	return svc
+}
+
+// cleanupInflight 定期清理超时的 in-flight 请求，防止 map 无限增长
+func (s *ModerationService) cleanupInflight() {
+	ticker := time.NewTicker(30 * time.Second)
+	defer ticker.Stop()
+	for range ticker.C {
+		now := time.Now()
+		s.mu.Lock()
+		for key, call := range s.calls {
+			if now.Sub(call.createdAt) > 2*time.Minute {
+				delete(s.calls, key)
+				select {
+				case <-call.done:
+				default:
+					close(call.done)
+				}
+			}
+		}
+		s.mu.Unlock()
 	}
 }
 
@@ -324,12 +348,55 @@ func (s *ModerationService) Moderate(req *ModerateRequest) *ModerateResult {
 		lastErr error
 	)
 
-	for _, model := range queue {
-		result, lastErr = s.callAPI(req, model.ID)
-		if lastErr == nil {
-			break
+	// 当队列 >= 2 个模型时，并发请求前 2 个，任一返回即取消另一个
+	if len(queue) >= 2 {
+		type apiResult struct {
+			result *ModerateResult
+			err    error
 		}
-		s.log.Warn(fmt.Sprintf("model %s failed: %v, trying next", model.ID, lastErr))
+		ch := make(chan apiResult, 2)
+		ctx, cancelRace := context.WithCancel(context.Background())
+		defer cancelRace()
+
+		for i := 0; i < 2; i++ {
+			modelID := queue[i].ID
+			go func() {
+				r, e := s.callAPIWithContext(ctx, req, modelID)
+				ch <- apiResult{result: r, err: e}
+			}()
+		}
+
+		// 等待第一个成功的结果
+		for i := 0; i < 2; i++ {
+			res := <-ch
+			if res.err == nil && res.result != nil {
+				result = res.result
+				cancelRace()
+				break
+			}
+			lastErr = res.err
+			s.log.Warn(fmt.Sprintf("model failed: %v, waiting for peer", res.err))
+		}
+
+		// 如果前 2 个都失败，串行尝试剩余
+		if result == nil && len(queue) > 2 {
+			for _, model := range queue[2:] {
+				result, lastErr = s.callAPI(req, model.ID)
+				if lastErr == nil {
+					break
+				}
+				s.log.Warn(fmt.Sprintf("model %s failed: %v, trying next", model.ID, lastErr))
+			}
+		}
+	} else {
+		// 只有 1 个模型，直接调用
+		for _, model := range queue {
+			result, lastErr = s.callAPI(req, model.ID)
+			if lastErr == nil {
+				break
+			}
+			s.log.Warn(fmt.Sprintf("model %s failed: %v, trying next", model.ID, lastErr))
+		}
 	}
 
 	if lastErr != nil || result == nil {
@@ -371,7 +438,7 @@ func (s *ModerationService) beginInflight(cacheKey string) (*inflightCall, bool)
 		return call, false
 	}
 
-	call := &inflightCall{done: make(chan struct{})}
+	call := &inflightCall{done: make(chan struct{}), createdAt: time.Now()}
 	s.calls[cacheKey] = call
 	return call, true
 }
@@ -470,6 +537,15 @@ var strictnessPrompts = map[string]string{
 }
 
 func (s *ModerationService) callAPI(req *ModerateRequest, modelID string) (*ModerateResult, error) {
+	return s.callAPIWithContext(context.Background(), req, modelID)
+}
+
+func (s *ModerationService) callAPIWithContext(ctx context.Context, req *ModerateRequest, modelID string) (*ModerateResult, error) {
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	default:
+	}
 	switch providerOf(modelID) {
 	case "openai", "grok":
 		return s.callOpenAICompatible(req, modelID, providerOf(modelID))

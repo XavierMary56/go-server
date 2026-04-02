@@ -34,8 +34,9 @@ func TestContainsDirectContactSignalCoversShortLinksAndHandles(t *testing.T) {
 func TestContainsDirectContactSignalCoversEmailsAndDomainSuffixes(t *testing.T) {
 	cases := []string{
 		"contact admin@moviehub.ru for access",
-		"mirror is hosted on moviehub.cn now",
-		"open the backup at moviehub.net/archive",
+		// 裸域名（无协议前缀）已有意移除检测以减少误拦
+		// "mirror is hosted on moviehub.cn now",
+		// "open the backup at moviehub.net/archive",
 	}
 
 	for _, content := range cases {

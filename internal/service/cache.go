@@ -30,8 +30,10 @@ func newMemoryCache(ttlSeconds int) Cache {
 		data: make(map[string]*memEntry),
 		ttl:  time.Duration(ttlSeconds) * time.Second,
 	}
-	// 启动定期清理 goroutine
-	go c.cleanup()
+	// TTL > 0 时才启动清理 goroutine，避免禁用缓存时空转
+	if ttlSeconds > 0 {
+		go c.cleanup()
+	}
 	return c
 }
 

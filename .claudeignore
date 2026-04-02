@@ -1,0 +1,34 @@
+# 敏感文件
+.env
+.env.*
+*.pem
+*.key
+*.crt
+*.p12
+
+# 编译产物
+moderation-server
+moderation-server~
+
+# 日志
+logs/
+server.log
+*.log
+
+# 依赖与缓存
+node_modules/
+vendor/
+.tmp-go/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# 数据文件
+*.xlsx
+*.csv
+
+# Docker 数据卷
+moderation-data/

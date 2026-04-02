@@ -201,14 +201,14 @@ func TestLooksLikeAdOrContactDetectsQQVariants(t *testing.T) {
 }
 
 func TestLooksLikeAdOrContactDetectsConsecutiveNumbers(t *testing.T) {
-	// 改进规则：连续数字从5+改为6+，以减少产品ID/订单号的误拦
+	// 改进规则：连续数字从6+改为7+，以减少产品ID/验证码的误拦
 	cases := []string{
-		// 6位及以上的数字应该被检测
+		// 7位及以上的数字应该被检测
 		"联系方式 987654321",
 		"QQ号：123456789",
 		"微信：10086888",
 		"电话 13812345678",
-		"号码是555555",
+		"号码是5555555",
 	}
 
 	for _, content := range cases {

@@ -1,11 +1,13 @@
 package service
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
+	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
-	"strings"
 	"time"
 
 	"github.com/XavierMary56/automatic_review/go-server/internal/storage"
@@ -133,13 +135,19 @@ func (s *ModerationService) MarkProviderKeyUnhealthy(id int64) {
 
 var pingClient = &http.Client{Timeout: 12 * time.Second}
 
-// pingAnthropicKey 用 GET /v1/models 检测 Key 是否有效（不消耗 token）
+// pingAnthropicKey 用最小化 /v1/messages 请求检测 Key 是否有效
+// 使用 max_tokens=1 发送极短请求，兼容代理/中转地址
 func (s *ModerationService) pingAnthropicKey(apiKey string) (ok bool, errMsg string) {
-	baseURL := apiBaseURL(s.cfg.AnthropicAPIURL)
-	req, err := http.NewRequest("GET", baseURL+"/v1/models", nil)
+	payload, _ := json.Marshal(map[string]interface{}{
+		"model":      "claude-sonnet-4-20250514",
+		"max_tokens": 1,
+		"messages":   []map[string]string{{"role": "user", "content": "hi"}},
+	})
+	req, err := http.NewRequest("POST", s.cfg.AnthropicAPIURL, bytes.NewReader(payload))
 	if err != nil {
 		return false, err.Error()
 	}
+	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("x-api-key", apiKey)
 	req.Header.Set("anthropic-version", s.cfg.AnthropicVer)
 
@@ -148,6 +156,7 @@ func (s *ModerationService) pingAnthropicKey(apiKey string) (ok bool, errMsg str
 		return false, "network: " + err.Error()
 	}
 	defer resp.Body.Close()
+	io.Copy(io.Discard, resp.Body)
 
 	if resp.StatusCode == 401 || resp.StatusCode == 403 {
 		return false, fmt.Sprintf("auth failed (HTTP %d)", resp.StatusCode)
@@ -155,7 +164,7 @@ func (s *ModerationService) pingAnthropicKey(apiKey string) (ok bool, errMsg str
 	return true, ""
 }
 
-// pingProviderKey 用 GET /v1/models 检测 OpenAI/Grok Key
+// pingProviderKey 用最小化请求检测 OpenAI/Grok Key
 func (s *ModerationService) pingProviderKey(apiKey, provider string) (ok bool, errMsg string) {
 	var apiURL string
 	switch provider {
@@ -164,11 +173,17 @@ func (s *ModerationService) pingProviderKey(apiKey, provider string) (ok bool, e
 	default:
 		apiURL = s.cfg.OpenAIAPIURL
 	}
-	baseURL := apiBaseURL(apiURL)
-	req, err := http.NewRequest("GET", baseURL+"/v1/models", nil)
+
+	payload, _ := json.Marshal(map[string]interface{}{
+		"model":      "gpt-4o-mini",
+		"max_tokens": 1,
+		"messages":   []map[string]string{{"role": "user", "content": "hi"}},
+	})
+	req, err := http.NewRequest("POST", apiURL, bytes.NewReader(payload))
 	if err != nil {
 		return false, err.Error()
 	}
+	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+apiKey)
 
 	resp, err := pingClient.Do(req)
@@ -176,20 +191,12 @@ func (s *ModerationService) pingProviderKey(apiKey, provider string) (ok bool, e
 		return false, "network: " + err.Error()
 	}
 	defer resp.Body.Close()
+	io.Copy(io.Discard, resp.Body)
 
 	if resp.StatusCode == 401 || resp.StatusCode == 403 {
 		return false, fmt.Sprintf("auth failed (HTTP %d)", resp.StatusCode)
 	}
 	return true, ""
-}
-
-// apiBaseURL 从完整 API URL 提取基础地址
-// "https://api.openai.com/v1/chat/completions" → "https://api.openai.com"
-func apiBaseURL(apiURL string) string {
-	if idx := strings.Index(apiURL, "/v1/"); idx != -1 {
-		return apiURL[:idx]
-	}
-	return apiURL
 }
 
 func statusOf(ok bool) string {

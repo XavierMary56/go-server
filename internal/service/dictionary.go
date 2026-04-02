@@ -93,7 +93,7 @@ var benignNegationPhrases = []string{
 }
 
 var directContactKeywords = []string{
-	"q群", "企鹅号", "qq号", "QQ号", "qq", "QQ", "tg", "TG", "bc", "BC",
+	"q群", "企鹅号", "qq号", "QQ号", "qq", "QQ", "tg", "TG", "t.g", "bc", "BC",
 	"wechat", "telegram", "wechat群",
 	"微x", "微ｘ",
 	"微信", "加我", "联系", "联系我", "私聊", "拉群", "群号", "加群", "入群",

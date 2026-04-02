@@ -17,6 +17,7 @@ type AuditLogger struct {
 	enabled  bool
 	eventCh  chan *AuditEvent
 	stopCh   chan struct{}
+	doneCh   chan struct{} // processEvents 退出确认
 	logDirs  map[string]string // 项目ID -> 日志目录的映射
 	logDirMu sync.RWMutex
 }
@@ -45,6 +46,7 @@ func New(baseDir string, enabled bool) *AuditLogger {
 		enabled: enabled,
 		eventCh: make(chan *AuditEvent, 1000),
 		stopCh:  make(chan struct{}),
+		doneCh:  make(chan struct{}),
 		logDirs: make(map[string]string),
 	}
 
@@ -166,12 +168,21 @@ func (al *AuditLogger) LogConfigChange(projectID string, changeType string, deta
 
 // processEvents 后台处理事件
 func (al *AuditLogger) processEvents() {
+	defer close(al.doneCh)
 	for {
 		select {
 		case event := <-al.eventCh:
 			al.writeEvent(event)
 		case <-al.stopCh:
-			return
+			// 排空 channel 中剩余事件
+			for {
+				select {
+				case event := <-al.eventCh:
+					al.writeEvent(event)
+				default:
+					return
+				}
+			}
 		}
 	}
 }
@@ -203,10 +214,12 @@ func (al *AuditLogger) writeEvent(event *AuditEvent) {
 	f.WriteString(string(data) + "\n")
 }
 
-// Close 关闭审计日志记录器
+// Close 关闭审计日志记录器，等待剩余事件写完
 func (al *AuditLogger) Close() {
 	close(al.stopCh)
-	time.Sleep(100 * time.Millisecond)
+	if al.enabled {
+		<-al.doneCh
+	}
 }
 
 // maskKey 隐藏 API 密钥

@@ -17,8 +17,10 @@ type Metrics struct {
 	FailedRequests  int64   `json:"failed_requests"`
 	CachedRequests  int64   `json:"cached_requests"`
 	AvgLatencyMs    float64 `json:"avg_latency_ms"`
-	latencies       []int64 // 用于计算平均延迟
+	latencies       []int64 // 循环队列
 	latenciesIdx    int     // 循环队列索引
+	latencySum      int64   // 增量求和
+	latencyCount    int64   // 已填充的槽位数（最大 len(latencies)）
 
 	// API 调用
 	APICallsTotal   int64   `json:"api_calls_total"`
@@ -67,11 +69,18 @@ func (m *Metrics) RecordRequest(latencyMs int64, success bool, fromCache bool) {
 		atomic.AddInt64(&m.CachedRequests, 1)
 	}
 
-	// 更新延迟信息
+	// 更新延迟信息（增量公式，O(1)）
 	m.mu.Lock()
+	oldVal := m.latencies[m.latenciesIdx]
 	m.latencies[m.latenciesIdx] = latencyMs
 	m.latenciesIdx = (m.latenciesIdx + 1) % len(m.latencies)
-	m.updateAvgLatency()
+	m.latencySum = m.latencySum - oldVal + latencyMs
+	if m.latencyCount < int64(len(m.latencies)) {
+		m.latencyCount++
+	}
+	if m.latencyCount > 0 {
+		m.AvgLatencyMs = float64(m.latencySum) / float64(m.latencyCount)
+	}
 	m.mu.Unlock()
 }
 
@@ -109,16 +118,6 @@ func (m *Metrics) RecordAuth(success bool) {
 	} else {
 		atomic.AddInt64(&m.AuthFailCount, 1)
 	}
-}
-
-// updateAvgLatency 更新平均延迟（内部调用，需加锁）
-func (m *Metrics) updateAvgLatency() {
-	var sum int64
-	count := len(m.latencies)
-	for _, l := range m.latencies {
-		sum += l
-	}
-	m.AvgLatencyMs = float64(sum) / float64(count)
 }
 
 // GetSnapshot 获取指标快照
@@ -180,6 +179,11 @@ func (m *Metrics) Reset() {
 
 	m.AvgLatencyMs = 0
 	m.AvgAPILatencyMs = 0
+	m.latencySum = 0
+	m.latencyCount = 0
+	for i := range m.latencies {
+		m.latencies[i] = 0
+	}
 
 	m.ModelUsageMu.Lock()
 	m.ModelUsage = make(map[string]int64)

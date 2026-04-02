@@ -2,6 +2,7 @@ package admin
 
 import (
 	"net/http"
+	"os"
 	"sort"
 	"time"
 
@@ -149,7 +150,35 @@ func (ah *AdminHandler) collectProjectIDs() []string {
 	return projectIDs
 }
 
-// collectAllProjectIDs 收集所有项目ID（仅从内存/数据库中的密钥列表）
+// collectAllProjectIDs 收集所有项目ID：密钥配置 + 审计日志目录，排除 unknown
 func (ah *AdminHandler) collectAllProjectIDs() []string {
-	return ah.collectProjectIDs()
+	projectMap := make(map[string]bool)
+
+	// 从密钥配置收集
+	ah.keysMu.RLock()
+	for _, keyInfo := range ah.keys {
+		if keyInfo.ProjectName != "" {
+			projectMap[keyInfo.ProjectName] = true
+		}
+	}
+	ah.keysMu.RUnlock()
+
+	// 从审计日志目录扫描
+	if ah.cfg.AuditLogDir != "" {
+		entries, err := os.ReadDir(ah.cfg.AuditLogDir)
+		if err == nil {
+			for _, entry := range entries {
+				if entry.IsDir() && entry.Name() != "unknown" {
+					projectMap[entry.Name()] = true
+				}
+			}
+		}
+	}
+
+	projectIDs := make([]string, 0, len(projectMap))
+	for pid := range projectMap {
+		projectIDs = append(projectIDs, pid)
+	}
+	sort.Strings(projectIDs)
+	return projectIDs
 }

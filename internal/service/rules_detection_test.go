@@ -277,7 +277,7 @@ func TestContainsDirectContactSignalCoversURLPatterns(t *testing.T) {
 		"https://example.com/free-video",
 		"http://abc.test/path",
 		"www.example.com",
-		"join at moviehub.com right now",
+		// 裸域名 "moviehub.com" 无协议前缀，已有意移除域名后缀检测以减少误拦
 	}
 
 	for _, content := range cases {

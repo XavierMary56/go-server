@@ -1,6 +1,8 @@
 package config
 
 import (
+	"crypto/rand"
+	"fmt"
 	"os"
 	"strconv"
 	"strings"
@@ -106,7 +108,7 @@ func Load() (*Config, error) {
 		RedisPrefix:     getEnv("REDIS_PREFIX", "mod:"),
 		EnableAuth:      getEnvBool("ENABLE_AUTH", false),
 		EnableAdminAPI:  getEnvBool("ENABLE_ADMIN_API", true),
-		AdminToken:      getEnv("ADMIN_TOKEN", "admin-token-default"),
+		AdminToken:      getEnv("ADMIN_TOKEN", ""),
 		EnableAudit:     getEnvBool("ENABLE_AUDIT", false),
 		AuditLogDir:     getEnv("AUDIT_LOG_DIR", "./logs/audit"),
 		EnableMetrics:   getEnvBool("ENABLE_METRICS", false),
@@ -121,6 +123,13 @@ func Load() (*Config, error) {
 		DBRequired:      getEnvBool("DB_REQUIRED", false),
 	}
 
+	// AdminToken 未配置时自动生成随机令牌
+	if cfg.EnableAdminAPI && cfg.AdminToken == "" {
+		token := generateRandomToken()
+		cfg.AdminToken = token
+		fmt.Fprintf(os.Stderr, "[WARN] ADMIN_TOKEN not set, auto-generated: %s\n", token)
+	}
+
 	// 解析项目密钥列表
 	if keys := getEnv("ALLOWED_KEYS", ""); keys != "" {
 		cfg.AllowedKeys = strings.Split(keys, ",")
@@ -130,6 +139,12 @@ func Load() (*Config, error) {
 	}
 
 	return cfg, nil
+}
+
+func generateRandomToken() string {
+	b := make([]byte, 16)
+	_, _ = rand.Read(b)
+	return fmt.Sprintf("%x", b)
 }
 
 // ── 环境变量读取工具 ─────────────────────────────────────────
