@@ -264,6 +264,12 @@ func (s *ModerationService) getActiveModels() []config.ModelConfig {
 			provider = providerOf(m.ModelID)
 		}
 
+		// 跳过没有健康密钥的供应商的模型，避免无意义调用
+		if !s.hasHealthyKey(provider) {
+			s.log.Warn(fmt.Sprintf("skipping model %s: provider %s has no healthy key", m.ModelID, provider))
+			continue
+		}
+
 		models = append(models, config.ModelConfig{
 			ID:       m.ModelID,
 			Name:     m.Name,
@@ -285,13 +291,17 @@ func (s *ModerationService) getProviderKey(provider string) (string, int64) {
 		switch provider {
 		case "openai", "grok":
 			keys, _ := s.db.GetEnabledProviderKeys(provider)
-			if len(keys) > 0 {
-				return keys[0].Key, keys[0].ID
+			for _, k := range keys {
+				if k.Status != "unhealthy" {
+					return k.Key, k.ID
+				}
 			}
 		case "anthropic":
 			keys, _ := s.db.GetEnabledAnthropicKeys()
-			if len(keys) > 0 {
-				return keys[0].Key, keys[0].ID
+			for _, k := range keys {
+				if k.Status != "unhealthy" {
+					return k.Key, k.ID
+				}
 			}
 		}
 	}
@@ -303,6 +313,48 @@ func (s *ModerationService) getProviderKey(provider string) (string, int64) {
 		return s.cfg.GrokAPIKey, 0
 	default:
 		return s.cfg.AnthropicAPIKey, 0
+	}
+}
+
+// hasHealthyKey 检查指定供应商是否有非 unhealthy 的可用密钥
+func (s *ModerationService) hasHealthyKey(provider string) bool {
+	if s.db == nil {
+		// 没有数据库时回退到配置文件，只要配置了就算有
+		switch provider {
+		case "openai":
+			return s.cfg.OpenAIAPIKey != ""
+		case "grok":
+			return s.cfg.GrokAPIKey != ""
+		default:
+			return s.cfg.AnthropicAPIKey != ""
+		}
+	}
+
+	switch provider {
+	case "openai", "grok":
+		keys, _ := s.db.GetEnabledProviderKeys(provider)
+		for _, k := range keys {
+			if k.Status != "unhealthy" {
+				return true
+			}
+		}
+	case "anthropic":
+		keys, _ := s.db.GetEnabledAnthropicKeys()
+		for _, k := range keys {
+			if k.Status != "unhealthy" {
+				return true
+			}
+		}
+	}
+
+	// 数据库无健康 key，回退检查配置文件
+	switch provider {
+	case "openai":
+		return s.cfg.OpenAIAPIKey != ""
+	case "grok":
+		return s.cfg.GrokAPIKey != ""
+	default:
+		return s.cfg.AnthropicAPIKey != ""
 	}
 }
 

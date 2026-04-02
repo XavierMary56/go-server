@@ -58,8 +58,8 @@ fi
 
 # 4. 目录权限设置
 echo -e "${YELLOW}[4/6]${NC} 目录权限设置..."
-mkdir -p logs audit_logs metrics_data
-chmod 755 logs audit_logs metrics_data
+mkdir -p logs/audit logs/metrics
+chmod 755 logs logs/audit logs/metrics
 echo -e "${GREEN}✓ 日志目录已创建${NC}"
 
 # 5. 启动服务
