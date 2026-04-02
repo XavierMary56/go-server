@@ -135,3 +135,23 @@ INSERT IGNORE INTO `model_configs` (`id`, `model_id`, `name`, `provider`, `weigh
 -- 管理设置
 INSERT IGNORE INTO `admin_settings` (`key`, `value`, `updated_at`) VALUES
 ('admin_token_hash', '636fcbfa9864f6ac0ef292b952051ba4e7215dc018f995ced21dcfc8969e497a', '2026-03-31 02:16:29');
+
+-- =============================================================
+-- 用户权限配置
+-- =============================================================
+-- 删除旧用户（如果存在）
+DROP USER IF EXISTS 'moderation'@'localhost';
+DROP USER IF EXISTS 'moderation'@'%';
+DROP USER IF EXISTS 'moderation'@'172.22.0.1';
+DROP USER IF EXISTS 'moderation'@'172.22.0.%';
+
+-- 创建新用户并授予权限
+CREATE USER 'moderation'@'localhost' IDENTIFIED BY 'moderation123';
+CREATE USER 'moderation'@'%' IDENTIFIED BY 'moderation123';
+CREATE USER 'moderation'@'172.22.0.%' IDENTIFIED BY 'moderation123';
+
+GRANT ALL PRIVILEGES ON moderation.* TO 'moderation'@'localhost';
+GRANT ALL PRIVILEGES ON moderation.* TO 'moderation'@'%';
+GRANT ALL PRIVILEGES ON moderation.* TO 'moderation'@'172.22.0.%';
+
+FLUSH PRIVILEGES;

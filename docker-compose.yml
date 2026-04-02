@@ -3,6 +3,8 @@ services:
     image: mariadb:11
     container_name: moderation-mariadb
     restart: unless-stopped
+    ports:
+      - "3307:3306"
     environment:
       MYSQL_ROOT_PASSWORD: root123
       MYSQL_DATABASE: moderation

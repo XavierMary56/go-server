@@ -153,6 +153,15 @@ func (ah *AdminHandler) updateKey(w http.ResponseWriter, r *http.Request, key st
 		return
 	}
 
+	// 检查新密钥是否已存在（排除当前密钥）
+	if req.Key != nil && *req.Key != key {
+		if _, exists := ah.keys[*req.Key]; exists {
+			ah.jsonError(w, http.StatusConflict, "新密钥已存在")
+			return
+		}
+	}
+
+	// 验证速率限制
 	if req.RateLimit != nil {
 		if *req.RateLimit < 0 {
 			ah.jsonError(w, http.StatusBadRequest, "速率限制不能为负数")
@@ -160,10 +169,32 @@ func (ah *AdminHandler) updateKey(w http.ResponseWriter, r *http.Request, key st
 		}
 		keyInfo.RateLimit = *req.RateLimit
 	}
+
+	// 更新启用状态
 	if req.Enabled != nil {
 		keyInfo.Enabled = *req.Enabled
 	}
+
+	// 处理密钥值的修改
+	var newKey string
+	if req.Key != nil && *req.Key != key {
+		newKey = *req.Key
+		// 从内存中删除旧密钥，添加新密钥
+		delete(ah.keys, key)
+		keyInfo.Key = newKey
+		ah.keys[newKey] = keyInfo
+	}
+
 	keyInfo.UpdatedAt = time.Now()
+
+	// 同步到数据库
+	if ah.db != nil {
+		if err := ah.db.UpdateProjectKey(key, req.ProjectName, req.Key, req.Enabled, req.RateLimit); err != nil {
+			ah.jsonError(w, http.StatusInternalServerError, "更新数据库失败: "+err.Error())
+			return
+		}
+	}
+
 	ah.updateEnvFile()
 
 	ah.jsonOK(w, http.StatusOK, map[string]interface{}{

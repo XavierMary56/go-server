@@ -269,6 +269,18 @@ func (s *DB) AddProjectKey(projectName, key string, rateLimit int) (*ProjectKey,
 }
 
 func (s *DB) UpdateProjectKey(currentKey string, projectName *string, newKey *string, enabled *bool, rateLimit *int) error {
+	// 如果要修改密钥值，先检查新密钥是否已存在
+	if newKey != nil && *newKey != currentKey {
+		var count int
+		err := s.db.QueryRow("SELECT COUNT(*) FROM project_keys WHERE `key`=? AND deleted_at IS NULL", *newKey).Scan(&count)
+		if err != nil {
+			return err
+		}
+		if count > 0 {
+			return fmt.Errorf("密钥 %s 已存在", *newKey)
+		}
+	}
+
 	if projectName != nil {
 		_, err := s.db.Exec("UPDATE project_keys SET project_name=?, updated_at=? WHERE `key`=? AND deleted_at IS NULL", *projectName, time.Now(), currentKey)
 		if err != nil {
