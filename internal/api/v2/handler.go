@@ -80,6 +80,9 @@ func (h *Handler) handleModeration(w http.ResponseWriter, r *http.Request) {
 
 	result := h.svc.Moderate(&req)
 	responseID := fmt.Sprintf("mod_%d", time.Now().UnixNano())
+
+	h.logModerationEvent(r, &req, result, responseID)
+
 	api.JSONOK(w, http.StatusOK, map[string]any{
 		"code":    200,
 		"message": "ok",
@@ -122,8 +125,12 @@ func (h *Handler) handleModerationAsync(w http.ResponseWriter, r *http.Request) 
 		"created_at": time.Now().Unix(),
 	})
 
+	projectName := r.Header.Get("X-Project-Name")
+	clientIP := getClientIP(r)
+
 	go func() {
 		result := h.svc.Moderate(&req)
+		h.logModerationEventDirect(projectName, r.Method, r.URL.Path, clientIP, &req, result, taskID)
 		taskData := map[string]any{
 			"task_id": taskID,
 			"status":  "done",
@@ -211,4 +218,82 @@ func (h *Handler) handleHealth(w http.ResponseWriter, r *http.Request) {
 			"time":    time.Now().Format(time.RFC3339),
 		},
 	})
+}
+
+// logModerationEvent 记录同步审核请求的完整日志
+func (h *Handler) logModerationEvent(r *http.Request, req *service.ModerateRequest, result *service.ModerateResult, responseID string) {
+	if h.audit == nil {
+		return
+	}
+	h.audit.LogEvent(&audit.AuditEvent{
+		Timestamp:   time.Now(),
+		EventType:   "moderation_request",
+		ProjectName: r.Header.Get("X-Project-Name"),
+		Method:      r.Method,
+		Path:        r.URL.Path,
+		IPAddress:   getClientIP(r),
+		RequestBody: map[string]interface{}{
+			"content":    req.Content,
+			"type":       req.Type,
+			"model":      req.Model,
+			"strictness": req.Strictness,
+		},
+		Metadata: map[string]interface{}{
+			"response_id": responseID,
+			"verdict":     result.Verdict,
+			"category":    result.Category,
+			"confidence":  result.Confidence,
+			"reason":      result.Reason,
+			"model_used":  result.ModelUsed,
+			"latency_ms":  result.LatencyMs,
+			"from_cache":  result.FromCache,
+		},
+	})
+}
+
+// logModerationEventDirect 记录异步审核请求的日志（goroutine 内调用，不能依赖 http.Request）
+func (h *Handler) logModerationEventDirect(projectName, method, path, clientIP string, req *service.ModerateRequest, result *service.ModerateResult, taskID string) {
+	if h.audit == nil {
+		return
+	}
+	h.audit.LogEvent(&audit.AuditEvent{
+		Timestamp:   time.Now(),
+		EventType:   "moderation_request",
+		ProjectName: projectName,
+		Method:      method,
+		Path:        path,
+		IPAddress:   clientIP,
+		RequestBody: map[string]interface{}{
+			"content":    req.Content,
+			"type":       req.Type,
+			"model":      req.Model,
+			"strictness": req.Strictness,
+		},
+		Metadata: map[string]interface{}{
+			"task_id":    taskID,
+			"verdict":    result.Verdict,
+			"category":   result.Category,
+			"confidence": result.Confidence,
+			"reason":     result.Reason,
+			"model_used": result.ModelUsed,
+			"latency_ms": result.LatencyMs,
+			"from_cache": result.FromCache,
+		},
+	})
+}
+
+// getClientIP 从请求中提取客户端 IP
+func getClientIP(r *http.Request) string {
+	if ip := r.Header.Get("X-Real-IP"); ip != "" {
+		return ip
+	}
+	if forwarded := r.Header.Get("X-Forwarded-For"); forwarded != "" {
+		parts := strings.Split(forwarded, ",")
+		return strings.TrimSpace(parts[len(parts)-1])
+	}
+	host := r.RemoteAddr
+	if idx := strings.LastIndex(host, ":"); idx != -1 {
+		return host[:idx]
+	}
+	return host
 }

@@ -114,6 +114,10 @@ func (h *Handler) withMiddleware(next http.HandlerFunc) http.HandlerFunc {
 			}
 		}
 
+		if projectKey != nil {
+			r.Header.Set("X-Project-Name", projectKey.ProjectName)
+		}
+
 		next(rec, r)
 
 		if h.audit != nil && projectKey != nil {

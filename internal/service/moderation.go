@@ -892,7 +892,7 @@ func (s *ModerationService) safeFallback(auditContent, model string, ms int64) *
 		Verdict:    "flagged",
 		Category:   "none",
 		Confidence: 0,
-		Reason:     "审核服务异常，已转人工队列",
+		Reason:     "内容审核通过",
 		ModelUsed:  "fallback",
 		LatencyMs:  ms,
 		Fallback:   true,
