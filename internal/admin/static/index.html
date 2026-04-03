@@ -5,6 +5,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>审核服务管理后台</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%23334155'/><path d='M50 20 L75 40 V65 L50 80 L25 65 V40Z' fill='none' stroke='%2338bdf8' stroke-width='5'/><path d='M42 50 L48 56 L60 42' fill='none' stroke='%2334d399' stroke-width='5' stroke-linecap='round' stroke-linejoin='round'/></svg>">
 <link rel="stylesheet" href="css/admin-ui.css?v={{STATIC_VERSION}}">
 </head>
 <body>
@@ -45,6 +46,7 @@
     <div class="tabs">
       <button class="tab-btn active" onclick="switchTab('keys',this)">项目管理</button>
       <button class="tab-btn" onclick="switchTab('stats',this)">项目统计</button>
+      <button class="tab-btn" onclick="switchTab('logs',this)">项目日志</button>
       <button class="tab-btn" onclick="switchTab('anthropic',this)">Anthropic 密钥</button>
       <button class="tab-btn" onclick="switchTab('openai',this)">OpenAI 密钥</button>
       <button class="tab-btn" onclick="switchTab('grok',this)">Grok 密钥</button>
@@ -81,6 +83,7 @@
             <tbody id="keys-tbody"><tr class="empty-row"><td colspan="7"><span class="spinner"></span> 加载中...</td></tr></tbody>
           </table>
         </div>
+        <div id="keys-pagination"></div>
       </div>
     </div>
 
@@ -98,11 +101,16 @@
             <tbody id="stats-tbody"><tr class="empty-row"><td colspan="7">加载中...</td></tr></tbody>
           </table>
         </div>
+        <div id="stats-pagination"></div>
       </div>
+    </div>
+
+    <!-- 标签：项目日志 -->
+    <div id="tab-logs" class="tab-panel">
       <div class="card" style="margin-top:16px">
         <div class="card-header">
           <div>
-            <h2>项目日志明细</h2>
+            <h2>项目日志</h2>
             <div class="sub">在线查看审计日志，支持按项目、日期和事件类型筛选。</div>
           </div>
           <button class="btn btn-ghost btn-sm" onclick="loadProjectLogs()">刷新日志</button>
@@ -115,10 +123,16 @@
             <div class="form-group"><label>事件类型</label>
               <select id="log-type">
                 <option value="">全部事件</option>
+                <option value="moderation_request">审核请求</option>
                 <option value="api_call">API 调用</option>
                 <option value="auth_attempt">认证尝试</option>
                 <option value="rate_limit_exceeded">限流事件</option>
                 <option value="config_change">配置变更</option>
+                <option value="admin_list_keys">管理-查看密钥</option>
+                <option value="admin_add_key">管理-添加密钥</option>
+                <option value="admin_update_key">管理-更新密钥</option>
+                <option value="admin_delete_key">管理-删除密钥</option>
+                <option value="admin_auth_failed">管理-认证失败</option>
               </select>
             </div>
           </div>
@@ -319,7 +333,10 @@
       </div>
       <div class="form-group">
         <label>新版本号</label>
-        <input type="text" id="static-version-new" placeholder="如 20260401，留空则使用当前时间戳" />
+        <div style="display:flex;gap:8px;align-items:center">
+          <input type="text" id="static-version-new" placeholder="点击右侧按钮自动生成" style="flex:1" />
+          <button class="btn btn-ghost btn-sm" type="button" onclick="document.getElementById('static-version-new').value=generateVersionNumber()">自动生成</button>
+        </div>
         <div class="helper-text">保存后刷新页面生效，用于强制浏览器加载最新 JS/CSS</div>
       </div>
     </div>
@@ -397,36 +414,46 @@
 </div>
 
 <div class="modal-overlay" id="log-detail-modal">
-  <div class="modal modal-lg">
-    <h3 id="log-detail-title">日志详情</h3>
-    <p id="log-detail-desc">查看当前日志的完整信息。</p>
-    <div class="modal-form">
-      <div class="form-group">
-        <label>项目 ID</label>
-        <input type="text" id="log-detail-project" readonly />
+  <div class="modal modal-lg" style="display:flex;flex-direction:column;max-height:90vh;padding:0;">
+    <!-- 固定顶部 -->
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:20px 24px 12px;border-bottom:1px solid #e2e8f0;flex-shrink:0;">
+      <div>
+        <h3 style="margin:0" id="log-detail-title">日志详情</h3>
+        <p style="margin:4px 0 0;font-size:13px;color:#94a3b8;">审核请求的完整信息</p>
       </div>
-      <div class="form-group">
-        <label>事件类型</label>
-        <input type="text" id="log-detail-type" readonly />
+      <button onclick="closeModal('log-detail-modal')" style="background:none;border:none;font-size:24px;cursor:pointer;color:#94a3b8;padding:0 4px;line-height:1" title="关闭">&times;</button>
+    </div>
+    <!-- 可滚动内容区 -->
+    <div style="overflow-y:auto;padding:16px 24px;flex:1;">
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;">
+        <div class="form-group"><label>项目</label><input type="text" id="log-detail-project" readonly /></div>
+        <div class="form-group"><label>事件类型</label><input type="text" id="log-detail-type" readonly /></div>
+        <div class="form-group"><label>时间</label><input type="text" id="log-detail-time" readonly /></div>
+        <div class="form-group"><label>客户端 IP</label><input type="text" id="log-detail-ip" readonly /></div>
+        <div class="form-group"><label>请求路径</label><input type="text" id="log-detail-path" readonly /></div>
+        <div class="form-group"><label>耗时</label><input type="text" id="log-detail-latency" readonly /></div>
       </div>
+      <div style="margin:14px 0 6px;padding:6px 0;border-top:1px solid #e2e8f0;"><strong style="font-size:13px;">📝 请求内容</strong></div>
       <div class="form-group">
-        <label>时间</label>
-        <input type="text" id="log-detail-time" readonly />
+        <label>审核内容</label>
+        <pre id="log-detail-content" style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:7px;padding:10px;max-height:80px;overflow:auto;font-size:13px;line-height:1.4;white-space:pre-wrap;word-break:break-all;margin:0;"></pre>
       </div>
-      <div class="form-group">
-        <label>客户端 IP</label>
-        <input type="text" id="log-detail-ip" readonly />
+      <div class="form-group"><label>请求参数</label><input type="text" id="log-detail-req-params" readonly /></div>
+      <div style="margin:14px 0 6px;padding:6px 0;border-top:1px solid #e2e8f0;"><strong style="font-size:13px;">📊 审核结果</strong></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:10px;">
+        <div class="form-group"><label>审核结论</label><input type="text" id="log-detail-verdict" readonly /></div>
+        <div class="form-group"><label>置信度</label><input type="text" id="log-detail-confidence" readonly /></div>
+        <div class="form-group"><label>使用模型</label><input type="text" id="log-detail-model" readonly /></div>
+        <div class="form-group"><label>命中缓存</label><input type="text" id="log-detail-cache" readonly /></div>
       </div>
+      <div class="form-group"><label>拒绝原因</label><input type="text" id="log-detail-reason" readonly /></div>
+      <div style="margin:14px 0 6px;padding:6px 0;border-top:1px solid #e2e8f0;"><strong style="font-size:13px;">🔍 完整 JSON</strong></div>
       <div class="form-group">
-        <label>关键信息</label>
-        <input type="text" id="log-detail-summary" readonly />
-      </div>
-      <div class="form-group">
-        <label>完整详情（JSON）</label>
-        <pre id="log-detail-json" style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:7px;padding:12px;max-height:280px;overflow:auto;font-size:12px;line-height:1.5;white-space:pre-wrap;word-break:break-all;"></pre>
+        <pre id="log-detail-json" style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:7px;padding:10px;max-height:200px;overflow:auto;font-size:12px;line-height:1.4;white-space:pre-wrap;word-break:break-all;"></pre>
       </div>
     </div>
-    <div class="modal-actions">
+    <!-- 固定底部 -->
+    <div style="padding:12px 24px;border-top:1px solid #e2e8f0;text-align:right;flex-shrink:0;">
       <button class="btn btn-primary" onclick="closeModal('log-detail-modal')">关闭</button>
     </div>
   </div>
@@ -444,11 +471,19 @@
     'js/admin-stats-logs.js',
     'js/admin-settings.js'
   ];
-  scripts.forEach(function(src) {
+  // 顺序加载脚本，全部完成后初始化应用
+  function loadNext(i) {
+    if (i >= scripts.length) {
+      initProjectKeys();
+      initApp();
+      return;
+    }
     var el = document.createElement('script');
-    el.src = v ? src + '?v=' + v : src;
+    el.src = v ? scripts[i] + '?v=' + v : scripts[i];
+    el.onload = function() { loadNext(i + 1); };
     document.body.appendChild(el);
-  });
+  }
+  loadNext(0);
 })();
 </script>
 </body>

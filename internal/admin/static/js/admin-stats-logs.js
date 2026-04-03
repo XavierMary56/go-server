@@ -1,6 +1,9 @@
 // Project stats and audit log management for the admin web UI.
 var logsPageSize = 20;
 var currentLogsPage = 1;
+var statsPageSize = 10;
+var currentStatsPage = 1;
+var statsEntries = [];
 
 function renderProjectLogs() {
   var tbody = document.getElementById('project-logs-tbody');
@@ -18,43 +21,35 @@ function renderProjectLogs() {
 
   tbody.innerHTML = pageItems.map(function (event, i) {
     var index = start + i;
-    var details = formatLogDetails(event.details);
-    var time = escapeHtml(formatDate(event.ts));
+    var summary = formatLogSummary(event);
+    var time = escapeHtml(formatDate(event.timestamp || event.ts));
     var projectIdText = escapeHtml(event.project_name || '-');
     var eventTypeText = escapeHtml(event.event_type || '-');
-    var clientIpText = escapeHtml(event.client_ip || '-');
+    var clientIpText = escapeHtml(event.ip_address || event.client_ip || '-');
     var resultText = escapeHtml(formatLogResult(event));
-    var detailsText = escapeHtml(details);
+    var summaryText = escapeHtml(summary);
     return '<tr>' +
       '<td>' + time + '</td>' +
       '<td>' + projectIdText + '</td>' +
       '<td>' + eventTypeText + '</td>' +
       '<td>' + clientIpText + '</td>' +
       '<td>' + resultText + '</td>' +
-      '<td title="' + detailsText + '">' + detailsText + '</td>' +
+      '<td title="' + summaryText + '" style="max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + summaryText + '</td>' +
       '<td><button class="btn btn-sm btn-ghost" onclick="openLogDetailModal(' + index + ')">查看详情</button></td>' +
       '</tr>';
   }).join('');
 
-  var pager = document.getElementById('logs-pagination');
-  if (totalPages <= 1) { pager.innerHTML = ''; return; }
-  var html = '<div class="pagination">';
-  html += '<span class="page-info">共 ' + total + ' 条，第 ' + currentLogsPage + ' / ' + totalPages + ' 页</span>';
-  html += '<button class="btn btn-sm btn-ghost" onclick="logsGoPage(1)" ' + (currentLogsPage === 1 ? 'disabled' : '') + '>首页</button>';
-  html += '<button class="btn btn-sm btn-ghost" onclick="logsGoPage(' + (currentLogsPage - 1) + ')" ' + (currentLogsPage === 1 ? 'disabled' : '') + '>上一页</button>';
-  var from = Math.max(1, currentLogsPage - 2);
-  var to = Math.min(totalPages, currentLogsPage + 2);
-  for (var p = from; p <= to; p++) {
-    html += '<button class="btn btn-sm ' + (p === currentLogsPage ? 'btn-primary' : 'btn-ghost') + '" onclick="logsGoPage(' + p + ')">' + p + '</button>';
-  }
-  html += '<button class="btn btn-sm btn-ghost" onclick="logsGoPage(' + (currentLogsPage + 1) + ')" ' + (currentLogsPage === totalPages ? 'disabled' : '') + '>下一页</button>';
-  html += '<button class="btn btn-sm btn-ghost" onclick="logsGoPage(' + totalPages + ')" ' + (currentLogsPage === totalPages ? 'disabled' : '') + '>末页</button>';
-  html += '</div>';
-  pager.innerHTML = html;
+  renderPagination('logs-pagination', total, totalPages, currentLogsPage, 'logsGoPage', 'logsChangePageSize', logsPageSize);
 }
 
 function logsGoPage(p) {
   currentLogsPage = p;
+  renderProjectLogs();
+}
+
+function logsChangePageSize(size) {
+  logsPageSize = size;
+  currentLogsPage = 1;
   renderProjectLogs();
 }
 
@@ -76,22 +71,32 @@ async function loadStats() {
   }).filter(Boolean);
   syncProjectLogProjectOptions();
 
-  const projectCount = projectsData.total_projects || (projectsData.projects || []).length || 0;
-  let totalCalls = 0;
-  let totalAuth = 0;
-  let totalRateLimited = 0;
+  // 区分有密钥和仅日志的项目
+  var keyProjectNames = {};
+  projectKeysData.forEach(function (k) { if (k.project_name) keyProjectNames[k.project_name] = true; });
+  var allProjectIds = Object.keys(stats);
+  var keyedCount = 0;
+  var logOnlyCount = 0;
+  allProjectIds.forEach(function (pid) {
+    if (keyProjectNames[pid]) { keyedCount++; } else { logOnlyCount++; }
+  });
+
+  var totalCalls = 0;
+  var totalAuth = 0;
+  var totalRateLimited = 0;
   Object.values(stats).forEach(function (item) {
     totalCalls += item.api_calls || 0;
     totalAuth += item.auth_attempts || 0;
     totalRateLimited += item.rate_limited || 0;
   });
 
-  const statsSummary = document.getElementById('stats-summary');
-  if (statsSummary) statsSummary.innerHTML = `
-    <div class="stat-card"><div class="label">项目总数</div><div class="value">${projectCount}</div><div class="sub">当前活跃项目</div></div>
-    <div class="stat-card"><div class="label">API 调用</div><div class="value">${totalCalls.toLocaleString()}</div><div class="sub">累计请求次数</div></div>
-    <div class="stat-card"><div class="label">认证次数</div><div class="value">${totalAuth.toLocaleString()}</div><div class="sub">鉴权请求总量</div></div>
-    <div class="stat-card"><div class="label">限流次数</div><div class="value">${totalRateLimited.toLocaleString()}</div><div class="sub">触发速率限制</div></div>`;
+  var statsSummary = document.getElementById('stats-summary');
+  if (statsSummary) statsSummary.innerHTML =
+    '<div class="stat-card"><div class="label">有密钥项目</div><div class="value">' + keyedCount + '</div><div class="sub">已配置密钥</div></div>' +
+    '<div class="stat-card"><div class="label">仅日志项目</div><div class="value">' + logOnlyCount + '</div><div class="sub">仅有审计日志（历史/已移除）</div></div>' +
+    '<div class="stat-card"><div class="label">API 调用</div><div class="value">' + totalCalls.toLocaleString() + '</div><div class="sub">累计请求次数</div></div>' +
+    '<div class="stat-card"><div class="label">认证次数</div><div class="value">' + totalAuth.toLocaleString() + '</div><div class="sub">鉴权请求总量</div></div>' +
+    '<div class="stat-card"><div class="label">限流次数</div><div class="value">' + totalRateLimited.toLocaleString() + '</div><div class="sub">触发速率限制</div></div>';
 
   const tbody = document.getElementById('stats-tbody');
   const entries = Object.entries(stats).sort(function (a, b) {
@@ -105,22 +110,56 @@ async function loadStats() {
     return;
   }
 
-  if (tbody) tbody.innerHTML = entries.map(function (entry) {
-    const pid = entry[0];
-    const statsItem = entry[1];
-    return `
-    <tr>
-      <td><strong>${pid}</strong></td>
-      <td>${(statsItem.api_calls || 0).toLocaleString()}</td>
-      <td>${(statsItem.auth_attempts || 0).toLocaleString()}</td>
-      <td>${(statsItem.rate_limited || 0).toLocaleString()}</td>
-      <td>${(statsItem.errors || 0).toLocaleString()}</td>
-      <td>${formatBytes(statsItem.log_size || 0)}</td>
-      <td><button class="btn btn-sm btn-info" onclick="focusProjectLogs('${pid}')">查看日志</button></td>
-    </tr>`;
+  statsEntries = entries;
+  currentStatsPage = 1;
+  renderStatsPage();
+  resetProjectLogFilters();
+}
+
+function renderStatsPage() {
+  var tbody = document.getElementById('stats-tbody');
+  if (!tbody || !statsEntries.length) return;
+  var total = statsEntries.length;
+  var totalPages = Math.ceil(total / statsPageSize);
+  if (currentStatsPage > totalPages) currentStatsPage = totalPages;
+  if (currentStatsPage < 1) currentStatsPage = 1;
+  var start = (currentStatsPage - 1) * statsPageSize;
+  var pageItems = statsEntries.slice(start, start + statsPageSize);
+
+  // 构建密钥项目名集合用于标识
+  var keyNames = {};
+  projectKeysData.forEach(function (k) { if (k.project_name) keyNames[k.project_name] = true; });
+
+  tbody.innerHTML = pageItems.map(function (entry) {
+    var pid = entry[0];
+    var s = entry[1];
+    var hasKey = keyNames[pid];
+    var badge = hasKey
+      ? '<span class="badge badge-active" style="font-size:11px;margin-left:6px;">有密钥</span>'
+      : '<span class="badge badge-inactive" style="font-size:11px;margin-left:6px;">仅日志</span>';
+    return '<tr>' +
+      '<td><strong>' + escapeHtml(pid) + '</strong>' + badge + '</td>' +
+      '<td>' + (s.api_calls || 0).toLocaleString() + '</td>' +
+      '<td>' + (s.auth_attempts || 0).toLocaleString() + '</td>' +
+      '<td>' + (s.rate_limited || 0).toLocaleString() + '</td>' +
+      '<td>' + (s.errors || 0).toLocaleString() + '</td>' +
+      '<td>' + formatBytes(s.log_size || 0) + '</td>' +
+      '<td><button class="btn btn-sm btn-info" onclick="focusProjectLogs(\'' + escapeHtml(pid) + '\')">查看日志</button></td>' +
+      '</tr>';
   }).join('');
 
-  resetProjectLogFilters();
+  renderPagination('stats-pagination', total, totalPages, currentStatsPage, 'statsGoPage', 'statsChangePageSize', statsPageSize);
+}
+
+function statsGoPage(p) {
+  currentStatsPage = p;
+  renderStatsPage();
+}
+
+function statsChangePageSize(size) {
+  statsPageSize = size;
+  currentStatsPage = 1;
+  renderStatsPage();
 }
 
 function resetProjectLogFilters() {
@@ -136,7 +175,7 @@ function resetProjectLogFilters() {
   const typeEl = document.getElementById('log-type');
   if (startEl) startEl.value = formatDay(start);
   if (endEl) endEl.value = formatDay(today);
-  if (typeEl) typeEl.value = '';
+  if (typeEl) typeEl.value = 'moderation_request';
   syncProjectLogProjectOptions();
 }
 
@@ -159,46 +198,86 @@ function syncProjectLogProjectOptions() {
 }
 
 function focusProjectLogs(projectId) {
-  const select = document.getElementById('log-project');
-  if (select) {
-    select.value = projectId;
-  }
+  // 切换到项目日志标签
+  document.querySelectorAll('.tab-panel').forEach(function (p) { p.classList.remove('active'); });
+  document.querySelectorAll('.tab-btn').forEach(function (b) { b.classList.remove('active'); });
+  document.getElementById('tab-logs').classList.add('active');
+  var btns = document.querySelectorAll('.tab-btn');
+  btns.forEach(function (b) { if (b.textContent.trim() === '项目日志') b.classList.add('active'); });
+
+  // 确保下拉框有选项
+  syncProjectLogProjectOptions();
+  resetProjectLogFilters();
+
+  var select = document.getElementById('log-project');
+  if (select) select.value = projectId;
   loadProjectLogs();
 }
 
-function escapeHtml(value) {
-  return String(value == null ? '' : value)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
-}
-
 function formatLogResult(event) {
-  const details = event.details || {};
+  // 优先从 metadata 中读取审核结果
+  var meta = event.metadata || {};
+  if (meta.verdict) {
+    if (meta.verdict === 'approved') return '✅ 通过';
+    if (meta.verdict === 'rejected' || meta.verdict === 'flagged') return '❌ 拒绝';
+    return meta.verdict;
+  }
+  // 兼容旧格式
+  var details = event.details || {};
   if (Object.prototype.hasOwnProperty.call(details, 'ok')) return details.ok ? '成功' : '失败';
   if (event.event_type === 'rate_limit_exceeded') return '已限流';
   if (event.event_type === 'config_change') return '已记录';
+  if (event.event_type === 'admin_auth_failed') return '❌ 失败';
+  if (event.status_code) {
+    return event.status_code >= 200 && event.status_code < 300 ? '成功' : '失败(' + event.status_code + ')';
+  }
   return '-';
 }
 
-function formatLogDetails(details) {
+function formatLogSummary(event) {
+  var parts = [];
+  var meta = event.metadata || {};
+  var reqBody = event.request_body || {};
+
+  // 审核请求：显示内容摘要 + 结果
+  if (event.event_type === 'moderation_request') {
+    if (reqBody.content) {
+      var content = String(reqBody.content);
+      parts.push('内容: ' + (content.length > 40 ? content.substring(0, 40) + '...' : content));
+    }
+    if (meta.verdict) parts.push('结果: ' + meta.verdict);
+    if (meta.category && meta.category !== 'clean') parts.push('分类: ' + meta.category);
+    if (meta.model_used) parts.push('模型: ' + meta.model_used);
+    if (meta.from_cache) parts.push('(缓存)');
+    if (parts.length) return parts.join(' | ');
+  }
+
+  // 通用：显示路径和方法
+  if (event.path) parts.push(event.method + ' ' + event.path);
+  if (event.status_code) parts.push('状态: ' + event.status_code);
+  if (event.error_msg) parts.push('错误: ' + event.error_msg);
+  if (parts.length) return parts.join(' | ');
+
+  // 兼容旧 details 格式
+  return formatLogDetailsLegacy(event.details);
+}
+
+function formatLogDetailsLegacy(details) {
   if (!details || typeof details !== 'object') return '-';
 
   const parts = [];
-  if (details.path) parts.push(`路径: ${details.path}`);
-  if (details.method) parts.push(`方法: ${details.method}`);
-  if (details.status_code) parts.push(`状态码: ${details.status_code}`);
-  if (details.key_name) parts.push(`键名: ${details.key_name}`);
-  if (details.config_type) parts.push(`配置类型: ${details.config_type}`);
-  if (details.change_type) parts.push(`变更: ${details.change_type}`);
-  if (details.reason) parts.push(`原因: ${details.reason}`);
+  if (details.path) parts.push('路径: ' + details.path);
+  if (details.method) parts.push('方法: ' + details.method);
+  if (details.status_code) parts.push('状态码: ' + details.status_code);
+  if (details.key_name) parts.push('键名: ' + details.key_name);
+  if (details.config_type) parts.push('配置类型: ' + details.config_type);
+  if (details.change_type) parts.push('变更: ' + details.change_type);
+  if (details.reason) parts.push('原因: ' + details.reason);
   if (parts.length) return parts.join(' | ');
 
   try {
     return JSON.stringify(details);
-  } catch {
+  } catch (e) {
     return '-';
   }
 }
@@ -210,12 +289,36 @@ function openLogDetailModal(index) {
     return;
   }
 
-  const details = event.details || {};
+  var meta = event.metadata || {};
+  var reqBody = event.request_body || {};
+
   document.getElementById('log-detail-project').value = event.project_name || '-';
   document.getElementById('log-detail-type').value = event.event_type || '-';
-  document.getElementById('log-detail-time').value = formatDate(event.ts);
-  document.getElementById('log-detail-ip').value = event.client_ip || '-';
-  document.getElementById('log-detail-summary').value = formatLogDetails(details);
+  document.getElementById('log-detail-time').value = formatDate(event.timestamp || event.ts);
+  document.getElementById('log-detail-ip').value = event.ip_address || event.client_ip || '-';
+  document.getElementById('log-detail-path').value = (event.method || '') + ' ' + (event.path || '-');
+  document.getElementById('log-detail-verdict').value = meta.verdict ? (meta.verdict + (meta.category && meta.category !== 'clean' ? ' (' + meta.category + ')' : '')) : '-';
+  document.getElementById('log-detail-confidence').value = meta.confidence != null ? (Math.round(meta.confidence * 100) + '%') : '-';
+  document.getElementById('log-detail-reason').value = meta.reason || '-';
+  document.getElementById('log-detail-model').value = meta.model_used || '-';
+  document.getElementById('log-detail-latency').value = event.latency_ms ? (event.latency_ms + 'ms') : '-';
+  document.getElementById('log-detail-cache').value = meta.from_cache ? '是' : '否';
+
+  // 请求内容
+  var contentEl = document.getElementById('log-detail-content');
+  if (contentEl) contentEl.textContent = reqBody.content || '-';
+
+  // 请求参数
+  var reqParamsEl = document.getElementById('log-detail-req-params');
+  if (reqParamsEl) {
+    var params = [];
+    if (reqBody.type) params.push('type: ' + reqBody.type);
+    if (reqBody.model) params.push('model: ' + reqBody.model);
+    if (reqBody.strictness) params.push('strictness: ' + reqBody.strictness);
+    reqParamsEl.textContent = params.length ? params.join(', ') : '-';
+  }
+
+  // 完整 JSON
   document.getElementById('log-detail-json').textContent = JSON.stringify(event, null, 2);
   document.getElementById('log-detail-modal').classList.add('show');
 }

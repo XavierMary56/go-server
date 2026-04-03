@@ -1,4 +1,8 @@
 // Project key management for the admin web UI.
+var keysPageSize = 10;
+var currentKeysPage = 1;
+var filteredKeysData = [];
+
 function buildProjectKeyDraft(projectId) {
   const slug = (projectId || '')
     .trim()
@@ -89,37 +93,66 @@ async function saveProjectKeyModal() {
 }
 
 function renderProjectKeys() {
-  const keyword = (document.getElementById('keys-search') && document.getElementById('keys-search').value || '').trim().toLowerCase();
-  const tbody = document.getElementById('keys-tbody');
-  const rows = projectKeysData.filter(function (info) {
+  var keyword = (document.getElementById('keys-search') && document.getElementById('keys-search').value || '').trim().toLowerCase();
+  var tbody = document.getElementById('keys-tbody');
+  filteredKeysData = projectKeysData.filter(function (info) {
     if (!keyword) return true;
-    return `${info.project_name || ''} ${info.key || ''}`.toLowerCase().includes(keyword);
+    return (info.project_name + ' ' + info.key).toLowerCase().indexOf(keyword) >= 0;
   });
 
-  document.getElementById('keys-count').textContent = `共 ${rows.length} / ${projectKeysData.length} 个项目`;
-  if (!rows.length) {
+  document.getElementById('keys-count').textContent = '共 ' + filteredKeysData.length + ' / ' + projectKeysData.length + ' 个项目';
+  if (!filteredKeysData.length) {
     tbody.innerHTML = '<tr class="empty-row"><td colspan="7">没有匹配的项目</td></tr>';
+    var pager = document.getElementById('keys-pagination');
+    if (pager) pager.innerHTML = '';
     return;
   }
 
-  tbody.innerHTML = rows.map(function (info) {
-    const encodedKey = encodeURIComponent(info.key || '');
-    return `
-    <tr>
-      <td>${info.id || '-'}</td>
-      <td><strong>${info.project_name || '-'}</strong></td>
-      <td><span class="key-cell">${info.key || '-'}</span></td>
-      <td>${info.rate_limit ? info.rate_limit + ' 次/分钟' : '不限速'}</td>
-      <td>${formatDate(info.created_at)}</td>
-      <td><span class="badge ${info.enabled ? 'badge-active' : 'badge-inactive'}">${info.enabled ? '已启用' : '已停用'}</span></td>
-      <td><div class="actions">
-        <button class="btn btn-sm btn-info" onclick="viewProjectKey('${encodedKey}')">查看</button>
-        <button class="btn btn-sm btn-primary" onclick="editProjectKey('${encodedKey}')">编辑</button>
-        <button class="btn btn-sm ${info.enabled ? 'btn-warning' : 'btn-success'}" onclick="toggleProjectKey('${encodedKey}', ${!info.enabled})">${info.enabled ? '停用' : '启用'}</button>
-        <button class="btn btn-sm btn-danger" onclick="confirmDelete('/v1/admin/keys/${encodedKey}', '项目 ${info.project_name || '-'} 的密钥', loadProjectKeys)">删除</button>
-      </div></td>
-    </tr>`;
+  currentKeysPage = 1;
+  renderKeysPage();
+}
+
+function renderKeysPage() {
+  var tbody = document.getElementById('keys-tbody');
+  if (!tbody || !filteredKeysData.length) return;
+  var total = filteredKeysData.length;
+  var totalPages = Math.ceil(total / keysPageSize);
+  if (currentKeysPage > totalPages) currentKeysPage = totalPages;
+  if (currentKeysPage < 1) currentKeysPage = 1;
+  var start = (currentKeysPage - 1) * keysPageSize;
+  var pageItems = filteredKeysData.slice(start, start + keysPageSize);
+
+  tbody.innerHTML = pageItems.map(function (info) {
+    var encodedKey = encodeURIComponent(info.key || '');
+    var projectName = escapeHtml(info.project_name || '-');
+    return '<tr>' +
+      '<td>' + (info.id || '-') + '</td>' +
+      '<td><strong>' + projectName + '</strong></td>' +
+      '<td><span class="key-cell">' + escapeHtml(info.key || '-') + '</span></td>' +
+      '<td>' + (info.rate_limit ? info.rate_limit + ' 次/分钟' : '不限速') + '</td>' +
+      '<td>' + formatDate(info.created_at) + '</td>' +
+      '<td><span class="badge ' + (info.enabled ? 'badge-active' : 'badge-inactive') + '">' + (info.enabled ? '已启用' : '已停用') + '</span></td>' +
+      '<td><div class="actions">' +
+        '<button class="btn btn-sm btn-info" onclick="viewProjectKey(\'' + encodedKey + '\')">查看</button>' +
+        '<button class="btn btn-sm btn-primary" onclick="editProjectKey(\'' + encodedKey + '\')">编辑</button>' +
+        '<button class="btn btn-sm ' + (info.enabled ? 'btn-warning' : 'btn-success') + '" onclick="toggleProjectKey(\'' + encodedKey + '\', ' + !info.enabled + ')">' + (info.enabled ? '停用' : '启用') + '</button>' +
+        '<button class="btn btn-sm btn-danger" onclick="confirmDelete(\'/v1/admin/keys/' + encodedKey + '\', \'' + projectName + ' 的密钥\', loadProjectKeys)">删除</button>' +
+      '</div></td>' +
+      '</tr>';
   }).join('');
+
+  renderPagination('keys-pagination', total, totalPages, currentKeysPage, 'keysGoPage', 'keysChangePageSize', keysPageSize);
+}
+
+function keysGoPage(p) {
+  currentKeysPage = p;
+  renderKeysPage();
+}
+
+function keysChangePageSize(size) {
+  keysPageSize = size;
+  currentKeysPage = 1;
+  renderKeysPage();
 }
 
 async function loadProjectKeys() {
@@ -216,11 +249,11 @@ async function toggleProjectKey(enc, enable) {
   toast('✗ ' + errorMsg, 'error');
 }
 
-document.addEventListener('DOMContentLoaded', function () {
-  const keyInput = document.getElementById('new-proj-key');
+// 由 initApp 统一触发后即可用，此处仅做事件绑定
+function initProjectKeys() {
+  var keyInput = document.getElementById('new-proj-key');
   if (!keyInput) return;
-
   keyInput.addEventListener('input', function () {
     keyInput.dataset.autoGenerated = keyInput.value.trim() ? '0' : '1';
   });
-});
+}

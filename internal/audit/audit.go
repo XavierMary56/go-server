@@ -365,6 +365,56 @@ func buildProjectStats(projectID string, totalSize int64, stats map[string]int, 
 	}
 }
 
+// RenameProjectLogDir 重命名项目审计日志目录（项目改名时调用）
+func RenameProjectLogDir(baseLogDir, oldProjectID, newProjectID string) error {
+	if baseLogDir == "" || oldProjectID == "" || newProjectID == "" {
+		return nil
+	}
+	oldDir := filepath.Join(baseLogDir, sanitizeProjectID(oldProjectID))
+	newDir := filepath.Join(baseLogDir, sanitizeProjectID(newProjectID))
+
+	// 旧目录不存在则无需操作
+	if _, err := os.Stat(oldDir); os.IsNotExist(err) {
+		return nil
+	}
+
+	// 新目录已存在，将旧目录中的文件合并过去
+	if info, err := os.Stat(newDir); err == nil && info.IsDir() {
+		entries, err := os.ReadDir(oldDir)
+		if err != nil {
+			return fmt.Errorf("读取旧目录失败: %w", err)
+		}
+		for _, entry := range entries {
+			if entry.IsDir() {
+				continue
+			}
+			oldPath := filepath.Join(oldDir, entry.Name())
+			newPath := filepath.Join(newDir, entry.Name())
+			// 如果目标文件已存在，将内容追加
+			if _, err := os.Stat(newPath); err == nil {
+				oldData, err := os.ReadFile(oldPath)
+				if err != nil {
+					continue
+				}
+				f, err := os.OpenFile(newPath, os.O_APPEND|os.O_WRONLY, 0644)
+				if err != nil {
+					continue
+				}
+				f.Write(oldData)
+				f.Close()
+				os.Remove(oldPath)
+			} else {
+				os.Rename(oldPath, newPath)
+			}
+		}
+		// 尝试删除空的旧目录
+		os.Remove(oldDir)
+		return nil
+	}
+
+	return os.Rename(oldDir, newDir)
+}
+
 // sanitizeProjectID 清理项目ID（确保可用作文件夹名）
 func sanitizeProjectID(projectID string) string {
 	// 只允许字母、数字、下划线

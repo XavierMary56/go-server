@@ -74,11 +74,19 @@ func (ah *AdminHandler) handleProjectLogs(w http.ResponseWriter, r *http.Request
 }
 
 // handleProjectStats handles GET /v1/admin/projects/stats and /v1/admin/projects/stats?project={id}
+// source=keys 只统计有密钥配置的项目，source=all 统计所有（含日志目录）
 func (ah *AdminHandler) handleProjectStats(w http.ResponseWriter, r *http.Request) {
 	projectID := r.URL.Query().Get("project")
 	if projectID == "" {
+		source := r.URL.Query().Get("source")
+		var projectIDs []string
+		if source == "keys" {
+			projectIDs = ah.collectProjectIDs()
+		} else {
+			projectIDs = ah.collectAllProjectIDs()
+		}
 		result := make(map[string]interface{})
-		for _, pid := range ah.collectAllProjectIDs() {
+		for _, pid := range projectIDs {
 			stats, err := audit.GetProjectStats(ah.cfg.AuditLogDir, pid)
 			if err != nil {
 				continue

@@ -1,6 +1,6 @@
 // Shared helpers for the admin web UI.
 function getToken() {
-  return sessionStorage.getItem('adminToken');
+  return localStorage.getItem('adminToken');
 }
 
 async function api(method, path, body) {
@@ -72,7 +72,7 @@ function login() {
     headers: { 'Authorization': 'Bearer ' + token }
   }).then(resp => {
     if (resp.ok) {
-      sessionStorage.setItem('adminToken', token);
+      localStorage.setItem('adminToken', token);
       showDashboard();
       return;
     }
@@ -92,7 +92,7 @@ function showLoginError(msg) {
 }
 
 function logout() {
-  sessionStorage.removeItem('adminToken');
+  localStorage.removeItem('adminToken');
   document.getElementById('dashboard').style.display = 'none';
   document.getElementById('login-page').style.display = 'flex';
   document.getElementById('token-input').value = '';
@@ -117,6 +117,9 @@ function switchTab(name, btn) {
     loadProjectKeys();
   }
   if (name === 'stats') {
+    loadStats();
+  }
+  if (name === 'logs') {
     loadStats();
     resetProjectLogFilters();
   }
@@ -148,13 +151,55 @@ var currentProjectLogs = [];
 var akData = [];
 var providerKeyData = { openai: [], grok: [] };
 
-document.addEventListener('DOMContentLoaded', function () {
+function escapeHtml(value) {
+  return String(value == null ? '' : value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+// 通用分页渲染函数
+function renderPagination(containerId, total, totalPages, currentPage, goPageFn, changePageSizeFn, pageSize) {
+  var pager = document.getElementById(containerId);
+  if (!pager) return;
+  var pageSizeOptions = [10, 20, 50, 100];
+  var sizeSelector = '<select class="page-size-select" onchange="' + changePageSizeFn + '(parseInt(this.value,10))">';
+  for (var i = 0; i < pageSizeOptions.length; i++) {
+    var s = pageSizeOptions[i];
+    sizeSelector += '<option value="' + s + '"' + (s === pageSize ? ' selected' : '') + '>' + s + ' 条/页</option>';
+  }
+  sizeSelector += '</select>';
+
+  if (totalPages <= 1) {
+    pager.innerHTML = '<div class="pagination"><span class="page-info">共 ' + total + ' 条</span>' + sizeSelector + '</div>';
+    return;
+  }
+  var html = '<div class="pagination">';
+  html += '<span class="page-info">共 ' + total + ' 条，第 ' + currentPage + ' / ' + totalPages + ' 页</span>';
+  html += '<button class="btn btn-sm btn-ghost" onclick="' + goPageFn + '(1)" ' + (currentPage === 1 ? 'disabled' : '') + '>首页</button>';
+  html += '<button class="btn btn-sm btn-ghost" onclick="' + goPageFn + '(' + (currentPage - 1) + ')" ' + (currentPage === 1 ? 'disabled' : '') + '>上一页</button>';
+  var from = Math.max(1, currentPage - 2);
+  var to = Math.min(totalPages, currentPage + 2);
+  for (var p = from; p <= to; p++) {
+    html += '<button class="btn btn-sm ' + (p === currentPage ? 'btn-primary' : 'btn-ghost') + '" onclick="' + goPageFn + '(' + p + ')">' + p + '</button>';
+  }
+  html += '<button class="btn btn-sm btn-ghost" onclick="' + goPageFn + '(' + (currentPage + 1) + ')" ' + (currentPage === totalPages ? 'disabled' : '') + '>下一页</button>';
+  html += '<button class="btn btn-sm btn-ghost" onclick="' + goPageFn + '(' + totalPages + ')" ' + (currentPage === totalPages ? 'disabled' : '') + '>末页</button>';
+  html += sizeSelector;
+  html += '</div>';
+  pager.innerHTML = html;
+}
+
+// 由 index.html 脚本加载器在所有脚本加载完成后调用
+function initApp() {
   document.getElementById('token-input').addEventListener('keydown', function (e) {
     if (e.key === 'Enter') login();
   });
 
-  const token = getToken();
+  var token = getToken();
   if (token) {
     showDashboard();
   }
-});
+}

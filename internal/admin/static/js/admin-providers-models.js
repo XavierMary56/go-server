@@ -41,9 +41,9 @@ function renderAnthropicKeys() {
       <td><span class="badge ${k.enabled ? 'badge-active' : 'badge-inactive'}">${k.enabled ? '已启用' : '已停用'}</span></td>
       <td><div class="actions">
         <button class="btn btn-sm btn-info" onclick="checkAK(${k.id})">检测</button>
-        <button class="btn btn-sm btn-primary" onclick="editProviderKeyModal('anthropic', ${k.id}, ${JSON.stringify(k.name)})">编辑</button>
+        <button class="btn btn-sm btn-primary" onclick="editProviderKeyModal('anthropic', ${k.id})">编辑</button>
         <button class="btn btn-sm ${k.enabled ? 'btn-warning' : 'btn-success'}" onclick="toggleAK(${k.id}, ${!k.enabled})">${k.enabled ? '停用' : '启用'}</button>
-        <button class="btn btn-sm btn-danger" onclick="confirmDelete('/v1/admin/anthropic-keys/${k.id}', '${k.name} 的密钥', loadAnthropicKeys)">删除</button>
+        <button class="btn btn-sm btn-danger" onclick="confirmDelete('/v1/admin/anthropic-keys/${k.id}', '${escapeHtml(k.name)} 的密钥', loadAnthropicKeys)">删除</button>
       </div></td>
     </tr>`;
   }).join('');
@@ -120,10 +120,20 @@ async function toggleAK(id, enable) {
 
 var editProviderKeyState = { provider: '', id: 0 };
 
-function editProviderKeyModal(provider, id, name) {
+function editProviderKeyModal(provider, id) {
   editProviderKeyState = { provider, id };
-  document.getElementById('edit-provider-key-name').value = name || '';
-  const title = { anthropic: 'Anthropic', openai: 'OpenAI', grok: 'Grok' }[provider] || provider;
+  // 从数据数组中查找 name，避免 HTML 属性转义问题
+  var name = '';
+  if (provider === 'anthropic') {
+    var item = akData.find(function (k) { return k.id === id; });
+    if (item) name = item.name || '';
+  } else {
+    var data = providerKeyData[provider] || [];
+    var item = data.find(function (k) { return k.id === id; });
+    if (item) name = item.name || '';
+  }
+  document.getElementById('edit-provider-key-name').value = name;
+  var title = { anthropic: 'Anthropic', openai: 'OpenAI', grok: 'Grok' }[provider] || provider;
   document.getElementById('edit-provider-key-title').textContent = '编辑 ' + title + ' 密钥备注';
   document.getElementById('edit-provider-key-modal').classList.add('show');
 }
@@ -177,9 +187,9 @@ function renderProviderKeys(provider) {
       <td><span class="badge ${k.enabled ? 'badge-active' : 'badge-inactive'}">${k.enabled ? '已启用' : '已停用'}</span></td>
       <td><div class="actions">
         <button class="btn btn-sm btn-info" onclick="checkPK('${provider}', ${k.id})">检测</button>
-        <button class="btn btn-sm btn-primary" onclick="editProviderKeyModal('${provider}', ${k.id}, ${JSON.stringify(k.name)})">编辑</button>
+        <button class="btn btn-sm btn-primary" onclick="editProviderKeyModal('${provider}', ${k.id})">编辑</button>
         <button class="btn btn-sm ${k.enabled ? 'btn-warning' : 'btn-success'}" onclick="toggleProviderKey('${provider}', ${k.id}, ${!k.enabled})">${k.enabled ? '停用' : '启用'}</button>
-        <button class="btn btn-sm btn-danger" onclick="confirmDelete('/v1/admin/provider-keys/${k.id}', '${k.name} 的密钥', () => loadProviderKeys('${provider}'))">删除</button>
+        <button class="btn btn-sm btn-danger" onclick="confirmDelete('/v1/admin/provider-keys/${k.id}', '${escapeHtml(k.name)} 的密钥', () => loadProviderKeys('${provider}'))">删除</button>
       </div></td>
     </tr>`;
   }).join('');

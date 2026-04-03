@@ -52,7 +52,7 @@ async function updateAdminTokenSettings() {
     return;
   }
 
-  sessionStorage.setItem('adminToken', newToken);
+  localStorage.setItem('adminToken', newToken);
   document.getElementById('admin-token-new').value = '';
   document.getElementById('admin-token-confirm').value = '';
   toast(json.message || '管理员密码已更新');
@@ -70,14 +70,16 @@ async function loadStaticVersionSettings() {
   if (elUpdatedAt) elUpdatedAt.value = formatDate(data.updated_at);
 }
 
+function generateVersionNumber() {
+  var now = new Date();
+  var pad = function(n) { return n < 10 ? '0' + n : '' + n; };
+  return '' + now.getFullYear() + pad(now.getMonth() + 1) + pad(now.getDate()) + pad(now.getHours()) + pad(now.getMinutes()) + pad(now.getSeconds());
+}
+
 async function updateStaticVersionSettings() {
-  var newVersion = document.getElementById('static-version-new').value.trim();
-  if (!newVersion) {
-    // 默认使用当前时间戳 yyyyMMddHHmm
-    var now = new Date();
-    var pad = function(n) { return n < 10 ? '0' + n : '' + n; };
-    newVersion = '' + now.getFullYear() + pad(now.getMonth() + 1) + pad(now.getDate()) + pad(now.getHours()) + pad(now.getMinutes());
-  }
+  var el = document.getElementById('static-version-new');
+  var newVersion = el ? el.value.trim() : '';
+  if (!newVersion) newVersion = generateVersionNumber();
 
   const resp = await api('PUT', '/v1/admin/settings/static-version', { version: newVersion });
   if (!resp) {
@@ -92,7 +94,6 @@ async function updateStaticVersionSettings() {
   }
 
   window.STATIC_VERSION = newVersion;
-  document.getElementById('static-version-new').value = '';
   await loadStaticVersionSettings();
-  toast((json.message || '版本号已更新') + '，刷新页面后生效');
+  toast('版本号已更新为 ' + newVersion + '，刷新页面后生效');
 }

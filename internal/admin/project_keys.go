@@ -175,6 +175,13 @@ func (ah *AdminHandler) updateKey(w http.ResponseWriter, r *http.Request, key st
 		keyInfo.Enabled = *req.Enabled
 	}
 
+	// 处理项目名称的修改，同步重命名审计日志目录
+	var oldProjectName string
+	if req.ProjectName != nil && *req.ProjectName != keyInfo.ProjectName {
+		oldProjectName = keyInfo.ProjectName
+		keyInfo.ProjectName = *req.ProjectName
+	}
+
 	// 处理密钥值的修改
 	var newKey string
 	if req.Key != nil && *req.Key != key {
@@ -197,6 +204,15 @@ func (ah *AdminHandler) updateKey(w http.ResponseWriter, r *http.Request, key st
 
 	ah.updateEnvFile()
 
+	// 项目名称变更时，重命名审计日志目录
+	if oldProjectName != "" && ah.cfg.AuditLogDir != "" {
+		if err := audit.RenameProjectLogDir(ah.cfg.AuditLogDir, oldProjectName, keyInfo.ProjectName); err != nil {
+			ah.log.Error(fmt.Sprintf("重命名审计日志目录失败 [%s -> %s]: %v", oldProjectName, keyInfo.ProjectName, err))
+		} else {
+			ah.log.Info(fmt.Sprintf("审计日志目录已重命名: %s -> %s", oldProjectName, keyInfo.ProjectName), nil)
+		}
+	}
+
 	ah.jsonOK(w, http.StatusOK, map[string]interface{}{
 		"code":    200,
 		"message": "密钥已更新",
@@ -204,12 +220,12 @@ func (ah *AdminHandler) updateKey(w http.ResponseWriter, r *http.Request, key st
 	})
 
 	ah.auditLogger.LogEvent(&audit.AuditEvent{
-		Timestamp:  time.Now(),
-		EventType:  "admin_update_key",
-		ProjectName:  keyInfo.ProjectName,
-		Path:       r.RequestURI,
-		Method:     r.Method,
-		StatusCode: http.StatusOK,
+		Timestamp:   time.Now(),
+		EventType:   "admin_update_key",
+		ProjectName: keyInfo.ProjectName,
+		Path:        r.RequestURI,
+		Method:      r.Method,
+		StatusCode:  http.StatusOK,
 	})
 }
 
