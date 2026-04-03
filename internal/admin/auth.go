@@ -19,6 +19,12 @@ func (ah *AdminHandler) withAdminAuth(next http.HandlerFunc) http.HandlerFunc {
 		w.Header().Set("Content-Type", "application/json")
 
 		authHeader := r.Header.Get("Authorization")
+		// 支持下载请求通过 query 参数传递 token（浏览器下载无法设置 Header）
+		if authHeader == "" {
+			if qToken := r.URL.Query().Get("token"); qToken != "" {
+				authHeader = "Bearer " + qToken
+			}
+		}
 		if authHeader == "" {
 			ah.jsonError(w, http.StatusUnauthorized, "缺少 Authorization 头")
 			return

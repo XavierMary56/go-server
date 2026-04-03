@@ -357,3 +357,25 @@ async function loadProjectLogs() {
   currentLogsPage = 1;
   renderProjectLogs();
 }
+
+function exportTrainingData(format) {
+  var params = new URLSearchParams();
+  params.set('format', format || 'jsonl');
+
+  var project = document.getElementById('log-project') && document.getElementById('log-project').value;
+  var start = document.getElementById('log-start') && document.getElementById('log-start').value;
+  var end = document.getElementById('log-end') && document.getElementById('log-end').value;
+  if (project) params.set('project', project);
+  if (start) params.set('start', start);
+  if (end) params.set('end', end);
+
+  // 通过隐藏 iframe 触发下载，带上认证 token
+  var url = '/v1/admin/export/training-data?' + params.toString() + '&token=' + encodeURIComponent(getToken());
+  var a = document.createElement('a');
+  a.href = url;
+  a.download = '';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  toast('正在导出训练数据...');
+}
