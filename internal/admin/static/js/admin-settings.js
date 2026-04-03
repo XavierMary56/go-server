@@ -95,5 +95,9 @@ async function updateStaticVersionSettings() {
 
   window.STATIC_VERSION = newVersion;
   await loadStaticVersionSettings();
-  toast('版本号已更新为 ' + newVersion + '，刷新页面后生效');
+  toast('版本号已更新为 ' + newVersion);
+  // 保存成功后自动关闭弹窗
+  setTimeout(function() {
+    closeModal('settings-modal');
+  }, 800);
 }

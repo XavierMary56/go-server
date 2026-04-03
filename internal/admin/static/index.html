@@ -436,23 +436,56 @@
         <div class="form-group"><label>请求路径</label><input type="text" id="log-detail-path" readonly /></div>
         <div class="form-group"><label>耗时</label><input type="text" id="log-detail-latency" readonly /></div>
       </div>
-      <div style="margin:14px 0 6px;padding:6px 0;border-top:1px solid #e2e8f0;"><strong style="font-size:13px;">📝 请求内容</strong></div>
-      <div class="form-group">
-        <label>审核内容</label>
-        <pre id="log-detail-content" style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:7px;padding:10px;max-height:80px;overflow:auto;font-size:13px;line-height:1.4;white-space:pre-wrap;word-break:break-all;margin:0;"></pre>
+      <!-- 审核请求专属区块 -->
+      <div id="log-section-request" style="display:none;">
+        <div style="margin:14px 0 6px;padding:6px 0;border-top:1px solid #e2e8f0;"><strong style="font-size:13px;">📝 请求内容</strong></div>
+        <div class="form-group">
+          <label>审核内容</label>
+          <pre id="log-detail-content" style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:7px;padding:10px;max-height:80px;overflow:auto;font-size:13px;line-height:1.4;white-space:pre-wrap;word-break:break-all;margin:0;"></pre>
+        </div>
+        <div class="form-group" id="log-row-req-params"><label>请求参数</label><input type="text" id="log-detail-req-params" readonly /></div>
       </div>
-      <div class="form-group"><label>请求参数</label><input type="text" id="log-detail-req-params" readonly /></div>
-      <div style="margin:14px 0 6px;padding:6px 0;border-top:1px solid #e2e8f0;"><strong style="font-size:13px;">📊 审核结果</strong></div>
-      <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:10px;">
-        <div class="form-group"><label>审核结论</label><input type="text" id="log-detail-verdict" readonly /></div>
-        <div class="form-group"><label>置信度</label><input type="text" id="log-detail-confidence" readonly /></div>
-        <div class="form-group"><label>使用模型</label><input type="text" id="log-detail-model" readonly /></div>
-        <div class="form-group"><label>命中缓存</label><input type="text" id="log-detail-cache" readonly /></div>
+      <!-- 审核结果区块 -->
+      <div id="log-section-result" style="display:none;">
+        <div style="margin:14px 0 6px;padding:6px 0;border-top:1px solid #e2e8f0;"><strong style="font-size:13px;">📊 审核结果</strong></div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:10px;">
+          <div class="form-group"><label>审核结论</label><input type="text" id="log-detail-verdict" readonly /></div>
+          <div class="form-group"><label>置信度</label><input type="text" id="log-detail-confidence" readonly /></div>
+          <div class="form-group"><label>使用模型</label><input type="text" id="log-detail-model" readonly /></div>
+          <div class="form-group"><label>命中缓存</label><input type="text" id="log-detail-cache" readonly /></div>
+        </div>
+        <div class="form-group" id="log-row-reason" style="display:none;"><label>拒绝原因</label><input type="text" id="log-detail-reason" readonly style="color:#ef4444;" /></div>
       </div>
-      <div class="form-group"><label>拒绝原因</label><input type="text" id="log-detail-reason" readonly /></div>
-      <div style="margin:14px 0 6px;padding:6px 0;border-top:1px solid #e2e8f0;"><strong style="font-size:13px;">🔍 完整 JSON</strong></div>
+      <!-- 自动回复区块 -->
+      <div id="log-section-reply" style="display:none;">
+        <div style="margin:14px 0 6px;padding:6px 0;border-top:1px solid #e2e8f0;"><strong style="font-size:13px;">💬 自动回复</strong></div>
+        <div class="form-group">
+          <pre id="log-detail-reply" style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:7px;padding:10px;max-height:60px;overflow:auto;font-size:13px;line-height:1.4;white-space:pre-wrap;word-break:break-all;margin:0;"></pre>
+        </div>
+      </div>
+      <!-- API调用/其他事件区块 -->
+      <div id="log-section-apicall" style="display:none;">
+        <div style="margin:14px 0 6px;padding:6px 0;border-top:1px solid #e2e8f0;"><strong style="font-size:13px;">📡 请求信息</strong></div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+          <div class="form-group"><label>状态码</label><input type="text" id="log-detail-status" readonly /></div>
+          <div class="form-group"><label>API Key</label><input type="text" id="log-detail-apikey" readonly /></div>
+        </div>
+        <div class="form-group" id="log-row-error"><label>错误信息</label><input type="text" id="log-detail-error" readonly /></div>
+      </div>
+      <!-- 认证/限流事件区块 -->
+      <div id="log-section-auth" style="display:none;">
+        <div style="margin:14px 0 6px;padding:6px 0;border-top:1px solid #e2e8f0;"><strong style="font-size:13px;">🔑 认证信息</strong></div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+          <div class="form-group"><label>API Key</label><input type="text" id="log-detail-auth-key" readonly /></div>
+          <div class="form-group"><label>结果</label><input type="text" id="log-detail-auth-result" readonly /></div>
+        </div>
+      </div>
+      <div style="margin:14px 0 6px;padding:6px 0;border-top:1px solid #e2e8f0;display:flex;align-items:center;justify-content:space-between;">
+        <strong style="font-size:13px;">🔍 完整 JSON</strong>
+        <button class="btn btn-sm btn-ghost" onclick="copyLogJson()" style="font-size:12px;padding:2px 10px;">复制</button>
+      </div>
       <div class="form-group">
-        <pre id="log-detail-json" style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:7px;padding:10px;max-height:200px;overflow:auto;font-size:12px;line-height:1.4;white-space:pre-wrap;word-break:break-all;"></pre>
+        <pre id="log-detail-json" style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:7px;padding:10px;max-height:400px;overflow:auto;font-size:12px;line-height:1.5;white-space:pre-wrap;word-break:break-all;cursor:text;user-select:text;"></pre>
       </div>
     </div>
     <!-- 固定底部 -->

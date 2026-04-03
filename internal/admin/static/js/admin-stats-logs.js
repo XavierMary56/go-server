@@ -283,7 +283,7 @@ function formatLogDetailsLegacy(details) {
 }
 
 function openLogDetailModal(index) {
-  const event = currentProjectLogs[index];
+  var event = currentProjectLogs[index];
   if (!event) {
     toast('日志详情不存在', 'error');
     return;
@@ -291,36 +291,140 @@ function openLogDetailModal(index) {
 
   var meta = event.metadata || {};
   var reqBody = event.request_body || {};
+  var eventType = event.event_type || '';
 
+  // 事件类型中文映射
+  var typeLabels = {
+    'moderation_request': '审核请求',
+    'api_call': 'API 调用',
+    'auth_attempt': '认证请求',
+    'rate_limit_exceeded': '限流触发',
+    'config_change': '配置变更',
+    'admin_auth_failed': '管理认证失败'
+  };
+  var subtitleLabels = {
+    'moderation_request': '审核请求的完整信息',
+    'api_call': 'API 调用记录',
+    'auth_attempt': '认证请求记录',
+    'rate_limit_exceeded': '限流触发记录',
+    'config_change': '配置变更记录'
+  };
+
+  // 更新标题和副标题
+  var titleEl = document.getElementById('log-detail-title');
+  var subtitleEl = titleEl ? titleEl.nextElementSibling : null;
+  if (titleEl) titleEl.textContent = typeLabels[eventType] || '日志详情';
+  if (subtitleEl) subtitleEl.textContent = subtitleLabels[eventType] || '事件详细信息';
+
+  // 基础信息
   document.getElementById('log-detail-project').value = event.project_name || '-';
-  document.getElementById('log-detail-type').value = event.event_type || '-';
+  document.getElementById('log-detail-type').value = typeLabels[eventType] || eventType || '-';
   document.getElementById('log-detail-time').value = formatDate(event.timestamp || event.ts);
   document.getElementById('log-detail-ip').value = event.ip_address || event.client_ip || '-';
   document.getElementById('log-detail-path').value = (event.method || '') + ' ' + (event.path || '-');
-  document.getElementById('log-detail-verdict').value = meta.verdict ? (meta.verdict + (meta.category && meta.category !== 'clean' ? ' (' + meta.category + ')' : '')) : '-';
-  document.getElementById('log-detail-confidence').value = meta.confidence != null ? (Math.round(meta.confidence * 100) + '%') : '-';
-  document.getElementById('log-detail-reason').value = meta.reason || '-';
-  document.getElementById('log-detail-model').value = meta.model_used || '-';
-  document.getElementById('log-detail-latency').value = event.latency_ms ? (event.latency_ms + 'ms') : '-';
-  document.getElementById('log-detail-cache').value = meta.from_cache ? '是' : '否';
+  document.getElementById('log-detail-latency').value = event.latency_ms ? (event.latency_ms + 'ms') : (meta.latency_ms ? (meta.latency_ms + 'ms') : '-');
 
-  // 请求内容
-  var contentEl = document.getElementById('log-detail-content');
-  if (contentEl) contentEl.textContent = reqBody.content || '-';
+  // 隐藏所有动态区块
+  var sections = ['log-section-request', 'log-section-result', 'log-section-reply', 'log-section-apicall', 'log-section-auth'];
+  sections.forEach(function(id) {
+    var el = document.getElementById(id);
+    if (el) el.style.display = 'none';
+  });
 
-  // 请求参数
-  var reqParamsEl = document.getElementById('log-detail-req-params');
-  if (reqParamsEl) {
-    var params = [];
-    if (reqBody.type) params.push('type: ' + reqBody.type);
-    if (reqBody.model) params.push('model: ' + reqBody.model);
-    if (reqBody.strictness) params.push('strictness: ' + reqBody.strictness);
-    reqParamsEl.textContent = params.length ? params.join(', ') : '-';
+  // 根据事件类型显示对应区块
+  if (eventType === 'moderation_request') {
+    // 请求内容区块
+    document.getElementById('log-section-request').style.display = '';
+    var contentEl = document.getElementById('log-detail-content');
+    if (contentEl) contentEl.textContent = reqBody.content || '-';
+    var reqParamsEl = document.getElementById('log-detail-req-params');
+    if (reqParamsEl) {
+      var params = [];
+      if (reqBody.type) params.push('type: ' + reqBody.type);
+      if (reqBody.model) params.push('model: ' + reqBody.model);
+      if (reqBody.strictness) params.push('strictness: ' + reqBody.strictness);
+      reqParamsEl.value = params.length ? params.join(', ') : '';
+    }
+    // 请求参数为空时隐藏
+    var reqParamsRow = document.getElementById('log-row-req-params');
+    if (reqParamsRow) reqParamsRow.style.display = reqParamsEl && reqParamsEl.value ? '' : 'none';
+
+    // 审核结果区块
+    document.getElementById('log-section-result').style.display = '';
+    document.getElementById('log-detail-verdict').value = meta.verdict ? (meta.verdict + (meta.category && meta.category !== 'none' && meta.category !== 'clean' ? ' (' + meta.category + ')' : '')) : '-';
+    document.getElementById('log-detail-confidence').value = meta.confidence != null ? (Math.round(meta.confidence * 100) + '%') : '-';
+    document.getElementById('log-detail-model').value = meta.model_used || '-';
+    document.getElementById('log-detail-cache').value = meta.from_cache ? '是' : '否';
+    document.getElementById('log-detail-reason').value = meta.reason || '';
+    // 有原因就显示
+    var reasonRow = document.getElementById('log-row-reason');
+    if (reasonRow) reasonRow.style.display = meta.reason ? '' : 'none';
+
+    // 自动回复区块
+    var replySection = document.getElementById('log-section-reply');
+    var replyEl = document.getElementById('log-detail-reply');
+    if (meta.reply_content) {
+      replySection.style.display = '';
+      replyEl.textContent = meta.reply_content;
+    }
+
+  } else if (eventType === 'api_call') {
+    document.getElementById('log-section-apicall').style.display = '';
+    document.getElementById('log-detail-status').value = event.status_code || '-';
+    document.getElementById('log-detail-apikey').value = event.api_key || '-';
+    var errorRow = document.getElementById('log-row-error');
+    var errorEl = document.getElementById('log-detail-error');
+    if (errorEl) errorEl.value = event.error_msg || '';
+    if (errorRow) errorRow.style.display = event.error_msg ? '' : 'none';
+
+  } else if (eventType === 'auth_attempt' || eventType === 'rate_limit_exceeded' || eventType === 'admin_auth_failed') {
+    document.getElementById('log-section-auth').style.display = '';
+    document.getElementById('log-detail-auth-key').value = event.api_key || '-';
+    var authResult = '-';
+    if (eventType === 'auth_attempt') {
+      authResult = (meta.success === true) ? '✅ 认证成功' : '❌ 认证失败';
+    } else if (eventType === 'rate_limit_exceeded') {
+      authResult = '⚠️ 已限流';
+    } else {
+      authResult = '❌ 管理认证失败';
+    }
+    document.getElementById('log-detail-auth-result').value = authResult;
   }
 
   // 完整 JSON
   document.getElementById('log-detail-json').textContent = JSON.stringify(event, null, 2);
   document.getElementById('log-detail-modal').classList.add('show');
+}
+
+function copyLogJson() {
+  var el = document.getElementById('log-detail-json');
+  if (!el) return;
+  var text = el.textContent || '';
+  if (navigator.clipboard) {
+    navigator.clipboard.writeText(text).then(function() {
+      toast('JSON 已复制到剪贴板');
+    }).catch(function() {
+      fallbackCopyText(text);
+    });
+  } else {
+    fallbackCopyText(text);
+  }
+}
+
+function fallbackCopyText(text) {
+  var ta = document.createElement('textarea');
+  ta.value = text;
+  ta.style.position = 'fixed';
+  ta.style.opacity = '0';
+  document.body.appendChild(ta);
+  ta.select();
+  try {
+    document.execCommand('copy');
+    toast('JSON 已复制到剪贴板');
+  } catch (e) {
+    toast('复制失败，请手动选择复制', 'error');
+  }
+  document.body.removeChild(ta);
 }
 
 async function loadProjectLogs() {

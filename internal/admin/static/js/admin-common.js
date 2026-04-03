@@ -201,5 +201,8 @@ function initApp() {
   var token = getToken();
   if (token) {
     showDashboard();
+  } else {
+    // 没有 token，显示登录页
+    document.getElementById('login-page').style.display = 'flex';
   }
 }

@@ -62,43 +62,79 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux, middleware func(http.Handle
 	mux.HandleFunc("/v2/health", h.handleHealth)
 }
 
+// moderationRequestExt 扩展审核请求，支持 auto_reply 参数
+type moderationRequestExt struct {
+	service.ModerateRequest
+	AutoReply    bool              `json:"auto_reply"`
+	ReplyContext map[string]string `json:"reply_context,omitempty"`
+	ReplyStyle   string            `json:"reply_style,omitempty"`
+}
+
+// autoReplyResult 自动回复结果
+type autoReplyResult struct {
+	Content   string `json:"content"`
+	ModelUsed string `json:"model_used"`
+	LatencyMs int64  `json:"latency_ms"`
+}
+
 func (h *Handler) handleModeration(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		api.JSONError(w, http.StatusMethodNotAllowed, "only POST is supported")
 		return
 	}
 
-	var req service.ModerateRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	var reqExt moderationRequestExt
+	if err := json.NewDecoder(r.Body).Decode(&reqExt); err != nil {
 		api.JSONError(w, http.StatusBadRequest, "invalid request body: "+err.Error())
 		return
 	}
-	if strings.TrimSpace(req.Content) == "" {
+	if strings.TrimSpace(reqExt.Content) == "" {
 		api.JSONError(w, http.StatusBadRequest, "content cannot be empty")
 		return
 	}
 
-	result := h.svc.Moderate(&req)
+	req := &reqExt.ModerateRequest
+	result := h.svc.Moderate(req)
 	responseID := fmt.Sprintf("mod_%d", time.Now().UnixNano())
 
-	h.logModerationEvent(r, &req, result, responseID)
+	data := map[string]any{
+		"id":     responseID,
+		"status": "completed",
+		"result": moderationResult{
+			Verdict:    result.Verdict,
+			Category:   result.Category,
+			Confidence: result.Confidence,
+			Reason:     result.Reason,
+			ModelUsed:  result.ModelUsed,
+			LatencyMs:  result.LatencyMs,
+			FromCache:  result.FromCache,
+		},
+	}
+
+	// 审核通过 + 请求了自动回复 → 生成回复
+	var replyContent string
+	if reqExt.AutoReply && result.Verdict == "approved" {
+		replyResult, err := h.svc.GenerateReply(reqExt.Content, reqExt.ReplyContext, reqExt.ReplyStyle)
+		if err != nil {
+			h.log.Warn(fmt.Sprintf("auto-reply failed: %v", err))
+			data["reply"] = nil
+		} else {
+			replyContent = replyResult.Content
+			data["reply"] = autoReplyResult{
+				Content:   replyResult.Content,
+				ModelUsed: replyResult.ModelUsed,
+				LatencyMs: replyResult.LatencyMs,
+			}
+		}
+	}
+
+	// 日志记录放在 reply 生成之后，包含完整的请求和响应信息
+	h.logModerationEvent(r, req, result, responseID, replyContent)
 
 	api.JSONOK(w, http.StatusOK, map[string]any{
 		"code":    200,
 		"message": "ok",
-		"data": map[string]any{
-			"id":     responseID,
-			"status": "completed",
-			"result": moderationResult{
-				Verdict:    result.Verdict,
-				Category:   result.Category,
-				Confidence: result.Confidence,
-				Reason:     result.Reason,
-				ModelUsed:  result.ModelUsed,
-				LatencyMs:  result.LatencyMs,
-				FromCache:  result.FromCache,
-			},
-		},
+		"data":    data,
 	})
 }
 
@@ -220,10 +256,23 @@ func (h *Handler) handleHealth(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// logModerationEvent 记录同步审核请求的完整日志
-func (h *Handler) logModerationEvent(r *http.Request, req *service.ModerateRequest, result *service.ModerateResult, responseID string) {
+// logModerationEvent 记录同步审核请求的完整日志（含自动回复内容）
+func (h *Handler) logModerationEvent(r *http.Request, req *service.ModerateRequest, result *service.ModerateResult, responseID string, replyContent string) {
 	if h.audit == nil {
 		return
+	}
+	metadata := map[string]interface{}{
+		"response_id": responseID,
+		"verdict":     result.Verdict,
+		"category":    result.Category,
+		"confidence":  result.Confidence,
+		"reason":      result.Reason,
+		"model_used":  result.ModelUsed,
+		"latency_ms":  result.LatencyMs,
+		"from_cache":  result.FromCache,
+	}
+	if replyContent != "" {
+		metadata["reply_content"] = replyContent
 	}
 	h.audit.LogEvent(&audit.AuditEvent{
 		Timestamp:   time.Now(),
@@ -238,16 +287,7 @@ func (h *Handler) logModerationEvent(r *http.Request, req *service.ModerateReque
 			"model":      req.Model,
 			"strictness": req.Strictness,
 		},
-		Metadata: map[string]interface{}{
-			"response_id": responseID,
-			"verdict":     result.Verdict,
-			"category":    result.Category,
-			"confidence":  result.Confidence,
-			"reason":      result.Reason,
-			"model_used":  result.ModelUsed,
-			"latency_ms":  result.LatencyMs,
-			"from_cache":  result.FromCache,
-		},
+		Metadata: metadata,
 	})
 }
 
