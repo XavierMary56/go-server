@@ -34,6 +34,9 @@
 | `strictness` | string | 否 | `standard` | 审核严格程度 |
 | `webhook_url` | string | 否 | - | 异步回调地址（异步模式时使用） |
 | `context` | object | 否 | - | 附加上下文信息，详见下方说明 |
+| `auto_reply` | bool | 否 | `false` | 是否开启自动回复。开启后，当审核结果为 `approved` 时，自动生成一条回复内容 |
+| `reply_context` | object | 否 | - | 回复上下文信息，用于提升回复质量，详见下方说明 |
+| `reply_style` | string | 否 | `friendly` | 回复风格，详见下方可选值 |
 
 #### `type` 可选值
 
@@ -97,7 +100,26 @@
 | `context.payload.title` | string | 标题内容（会拼接进审核文本） |
 | `context.payload.content` | string | 正文内容（会拼接进审核文本） |
 
+#### `reply_style` 可选值
+
+| 值 | 说明 |
+|----|------|
+| `friendly` | 友好、亲切、简短、自然（默认） |
+| `formal` | 正式、礼貌、得体 |
+| `humorous` | 幽默、轻松、有趣 |
+
+#### `reply_context` 回复上下文（可选）
+
+当开启 `auto_reply` 时，可通过 `reply_context` 传入额外信息，帮助 AI 生成更贴合场景的回复：
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `reply_context.type` | string | 评论所属内容类型（如 `article`、`video`、`product`） |
+| `reply_context.content_title` | string | 评论所属内容的标题 |
+
 #### 请求示例
+
+**基础审核请求**：
 
 ```json
 {
@@ -105,6 +127,23 @@
   "type": "comment",
   "model": "auto",
   "strictness": "standard"
+}
+```
+
+**审核 + 自动回复请求**：
+
+```json
+{
+  "content": "这个产品质量真的很好，推荐给大家！",
+  "type": "comment",
+  "model": "auto",
+  "strictness": "standard",
+  "auto_reply": true,
+  "reply_context": {
+    "type": "product",
+    "content_title": "无线蓝牙耳机"
+  },
+  "reply_style": "friendly"
 }
 ```
 
@@ -120,6 +159,10 @@
 | `latency_ms` | int | 审核耗时（毫秒），规则引擎命中时为 0 |
 | `from_cache` | bool | 是否命中缓存 |
 | `fallback` | bool | 是否使用了兜底策略（仅当所有模型均失败时为 true） |
+| `reply` | object/null | 自动回复结果（仅当 `auto_reply=true` 且审核通过时返回） |
+| `reply.content` | string | AI 生成的回复文本 |
+| `reply.model_used` | string | 生成回复使用的模型 |
+| `reply.latency_ms` | int | 回复生成耗时（毫秒） |
 
 #### 响应示例（规则引擎拦截）
 
@@ -164,6 +207,35 @@
   }
 }
 ```
+
+#### 响应示例（AI 审核通过 + 自动回复）
+
+```json
+{
+  "code": 200,
+  "message": "ok",
+  "data": {
+    "id": "mod_1775114354814252945",
+    "result": {
+      "verdict": "approved",
+      "category": "none",
+      "confidence": 0.92,
+      "reason": "内容为正常讨论，未发现违规信息",
+      "model_used": "claude-haiku-4-5",
+      "latency_ms": 1580,
+      "from_cache": false
+    },
+    "reply": {
+      "content": "感谢您的推荐，很高兴您喜欢这款产品！",
+      "model_used": "claude-haiku-4-5",
+      "latency_ms": 250
+    },
+    "status": "completed"
+  }
+}
+```
+
+> **说明**：`reply` 字段仅在请求中 `auto_reply=true` 且审核结果为 `approved` 时返回。审核被拒绝时不会生成回复。如果回复生成失败，`reply` 为 `null`。
 
 ### 2.2 异步审核 V2（推荐用于长文本或高并发）
 
