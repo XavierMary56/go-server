@@ -462,6 +462,29 @@ async function loadProjectLogs() {
   renderProjectLogs();
 }
 
+function exportYesterdayComments(format) {
+  var yesterday = new Date();
+  yesterday.setDate(yesterday.getDate() - 1);
+  var dateStr = yesterday.getFullYear() + '-' + String(yesterday.getMonth() + 1).padStart(2, '0') + '-' + String(yesterday.getDate()).padStart(2, '0');
+
+  var params = new URLSearchParams();
+  params.set('format', format || 'csv');
+  params.set('start', dateStr);
+  params.set('end', dateStr);
+
+  var project = document.getElementById('log-project') && document.getElementById('log-project').value;
+  if (project) params.set('project', project);
+
+  var url = '/v1/admin/export/training-data?' + params.toString() + '&token=' + encodeURIComponent(getToken());
+  var a = document.createElement('a');
+  a.href = url;
+  a.download = '';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  toast('正在导出昨天（' + dateStr + '）的评论数据...');
+}
+
 function exportTrainingData(format) {
   var params = new URLSearchParams();
   params.set('format', format || 'jsonl');
