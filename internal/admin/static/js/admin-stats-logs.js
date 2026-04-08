@@ -26,14 +26,16 @@ function renderProjectLogs() {
     var projectIdText = escapeHtml(event.project_name || '-');
     var eventTypeText = escapeHtml(event.event_type || '-');
     var clientIpText = escapeHtml(event.ip_address || event.client_ip || '-');
-    var resultText = escapeHtml(formatLogResult(event));
+    var resultRaw = formatLogResult(event);
+    var resultClass = resultRaw.indexOf('通过') >= 0 ? 'color:#16a34a;font-weight:600' : resultRaw.indexOf('拒绝') >= 0 ? 'color:#dc2626;font-weight:600' : '';
+    var resultText = escapeHtml(resultRaw);
     var summaryText = escapeHtml(summary);
     return '<tr>' +
       '<td>' + time + '</td>' +
       '<td>' + projectIdText + '</td>' +
       '<td>' + eventTypeText + '</td>' +
       '<td>' + clientIpText + '</td>' +
-      '<td>' + resultText + '</td>' +
+      '<td style="' + resultClass + '">' + resultText + '</td>' +
       '<td title="' + summaryText + '" style="max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + summaryText + '</td>' +
       '<td><button class="btn btn-sm btn-ghost" onclick="openLogDetailModal(' + index + ')">查看详情</button></td>' +
       '</tr>';
