@@ -226,9 +226,11 @@ func (s *DB) migrate() error {
 // ── Project Keys ──────────────────────────────────────────
 
 func (s *DB) ListProjectKeys() ([]*ProjectKey, error) {
+	// 优先查询包含 max_daily_dup 的完整字段，若列不存在则回退到不含该列的查询
 	rows, err := s.db.Query("SELECT id, project_name, `key`, rate_limit, max_daily_dup, enabled, deleted_at, created_at, updated_at FROM project_keys WHERE deleted_at IS NULL ORDER BY created_at DESC")
 	if err != nil {
-		return nil, err
+		// 回退：不查 max_daily_dup 列（兼容未迁移的数据库）
+		return s.listProjectKeysCompat()
 	}
 	defer rows.Close()
 
@@ -237,6 +239,28 @@ func (s *DB) ListProjectKeys() ([]*ProjectKey, error) {
 		k := &ProjectKey{}
 		var enabled int
 		err := rows.Scan(&k.ID, &k.ProjectName, &k.Key, &k.RateLimit, &k.MaxDailyDup, &enabled, &k.DeletedAt, &k.CreatedAt, &k.UpdatedAt)
+		if err != nil {
+			return nil, err
+		}
+		k.Enabled = enabled == 1
+		keys = append(keys, k)
+	}
+	return keys, nil
+}
+
+// listProjectKeysCompat 兼容查询（不含 max_daily_dup 列，用于迁移前的数据库）
+func (s *DB) listProjectKeysCompat() ([]*ProjectKey, error) {
+	rows, err := s.db.Query("SELECT id, project_name, `key`, rate_limit, enabled, deleted_at, created_at, updated_at FROM project_keys WHERE deleted_at IS NULL ORDER BY created_at DESC")
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var keys []*ProjectKey
+	for rows.Next() {
+		k := &ProjectKey{MaxDailyDup: 2} // 默认值
+		var enabled int
+		err := rows.Scan(&k.ID, &k.ProjectName, &k.Key, &k.RateLimit, &enabled, &k.DeletedAt, &k.CreatedAt, &k.UpdatedAt)
 		if err != nil {
 			return nil, err
 		}
@@ -266,9 +290,36 @@ func (s *DB) GetEnabledProjectKey(key string) (*ProjectKey, error) {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, nil
 		}
-		return nil, err
+		// 回退：不查 max_daily_dup 列（兼容未迁移的数据库）
+		return s.getEnabledProjectKeyCompat(key)
 	}
 
+	projectKey.Enabled = enabled == 1
+	return projectKey, nil
+}
+
+// getEnabledProjectKeyCompat 兼容查询（不含 max_daily_dup 列，用于迁移前的数据库）
+func (s *DB) getEnabledProjectKeyCompat(key string) (*ProjectKey, error) {
+	row := s.db.QueryRow("SELECT id, project_name, `key`, rate_limit, enabled, deleted_at, created_at, updated_at FROM project_keys WHERE `key`=? AND enabled=1 AND deleted_at IS NULL LIMIT 1", key)
+
+	projectKey := &ProjectKey{MaxDailyDup: 2} // 默认值
+	var enabled int
+	err := row.Scan(
+		&projectKey.ID,
+		&projectKey.ProjectName,
+		&projectKey.Key,
+		&projectKey.RateLimit,
+		&enabled,
+		&projectKey.DeletedAt,
+		&projectKey.CreatedAt,
+		&projectKey.UpdatedAt,
+	)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, err
+	}
 	projectKey.Enabled = enabled == 1
 	return projectKey, nil
 }
