@@ -21,7 +21,7 @@ func TestAuthenticatedRequestWritesProjectAuditStats(t *testing.T) {
 	db := storage.NewForTest(t)
 	defer db.Close()
 
-	if _, err := db.AddProjectKey("project-a", "key-a", 60); err != nil {
+	if _, err := db.AddProjectKey("project-a", "key-a", 60, 2); err != nil {
 		t.Fatalf("add project key failed: %v", err)
 	}
 
@@ -39,7 +39,7 @@ func TestAuthenticatedRequestWritesProjectAuditStats(t *testing.T) {
 	auditLogger := audit.New(auditDir, true)
 	defer auditLogger.Close()
 
-	h := New(svc, lg, cfg, db, auditLogger)
+	h := New(svc, lg, cfg, db, auditLogger, service.NewDupTracker())
 	mux := http.NewServeMux()
 	h.RegisterRoutes(mux)
 

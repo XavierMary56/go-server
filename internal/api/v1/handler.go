@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -22,16 +23,17 @@ type syncMap interface {
 }
 
 type Handler struct {
-	svc   *service.ModerationService
-	log   *logger.Logger
-	cfg   *config.Config
-	db    *storage.DB
-	audit *audit.AuditLogger
-	tasks syncMap
+	svc        *service.ModerationService
+	log        *logger.Logger
+	cfg        *config.Config
+	db         *storage.DB
+	audit      *audit.AuditLogger
+	tasks      syncMap
+	dupTracker *service.DupTracker
 }
 
-func New(svc *service.ModerationService, log *logger.Logger, cfg *config.Config, db *storage.DB, auditLogger *audit.AuditLogger, tasks syncMap) *Handler {
-	return &Handler{svc: svc, log: log, cfg: cfg, db: db, audit: auditLogger, tasks: tasks}
+func New(svc *service.ModerationService, log *logger.Logger, cfg *config.Config, db *storage.DB, auditLogger *audit.AuditLogger, tasks syncMap, dupTracker *service.DupTracker) *Handler {
+	return &Handler{svc: svc, log: log, cfg: cfg, db: db, audit: auditLogger, tasks: tasks, dupTracker: dupTracker}
 }
 
 func (h *Handler) RegisterRoutes(mux *http.ServeMux, middleware func(http.HandlerFunc) http.HandlerFunc) {
@@ -57,6 +59,28 @@ func (h *Handler) handleModerate(w http.ResponseWriter, r *http.Request) {
 	if strings.TrimSpace(req.Content) == "" {
 		api.JSONError(w, http.StatusBadRequest, "content cannot be empty")
 		return
+	}
+
+	// 检查每日重复内容限制
+	projectName := r.Header.Get("X-Project-Name")
+	if projectName != "" && h.dupTracker != nil {
+		maxDailyDup := 2 // 默认值
+		if v, err := strconv.Atoi(r.Header.Get("X-Max-Daily-Dup")); err == nil && v >= 0 {
+			maxDailyDup = v
+		}
+		if h.dupTracker.CheckAndIncrement(projectName, req.Content, maxDailyDup) {
+			api.JSONOK(w, http.StatusOK, map[string]any{
+				"code":       200,
+				"verdict":    "rejected",
+				"category":   "duplicate",
+				"confidence": 1.0,
+				"reason":     fmt.Sprintf("同一内容在该项目中今日已提交超过%d次", maxDailyDup),
+				"model_used": "system",
+				"latency_ms": 0,
+				"from_cache": false,
+			})
+			return
+		}
 	}
 
 	result := h.svc.Moderate(&req)

@@ -62,10 +62,11 @@
         </div>
         <div class="add-form" id="add-keys-form">
           <div class="add-form-title">添加新项目密钥</div>
-          <div class="form-grid-3 add-form-grid">
+          <div class="form-grid-3 add-form-grid" style="grid-template-columns:repeat(4,1fr)">
             <div class="form-group"><label>项目名称</label><input type="text" id="new-proj-id" placeholder="例如：forum_service" oninput="syncProjectKeyDraft()" /></div>
             <div class="form-group"><label>密钥（Key）</label><input type="text" id="new-proj-key" placeholder="留空时自动生成" data-auto-generated="1" /></div>
             <div class="form-group"><label>速率限制（次/分钟）</label><input type="number" id="new-proj-rate" placeholder="60" min="0" /></div>
+            <div class="form-group"><label>每日重复上限</label><input type="number" id="new-proj-max-dup" placeholder="2（0=不限制）" min="0" /></div>
           </div>
           <div class="helper-text">密钥会根据项目 ID 自动生成，也可以在保存前手动修改。</div>
           <div class="add-form-actions">
@@ -79,8 +80,8 @@
         </div>
         <div class="table-wrap">
           <table>
-            <thead><tr><th>ID</th><th>项目名称</th><th>密钥</th><th>速率限制</th><th>创建时间</th><th>状态</th><th>操作</th></tr></thead>
-            <tbody id="keys-tbody"><tr class="empty-row"><td colspan="7"><span class="spinner"></span> 加载中...</td></tr></tbody>
+            <thead><tr><th>ID</th><th>项目名称</th><th>密钥</th><th>速率限制</th><th>每日重复上限</th><th>创建时间</th><th>状态</th><th>操作</th></tr></thead>
+            <tbody id="keys-tbody"><tr class="empty-row"><td colspan="8"><span class="spinner"></span> 加载中...</td></tr></tbody>
           </table>
         </div>
         <div id="keys-pagination"></div>
@@ -395,6 +396,10 @@
       <div class="form-group">
         <label>速率限制（次/分钟）</label>
         <input type="number" id="project-key-rate-limit" min="0" />
+      </div>
+      <div class="form-group">
+        <label>每日重复上限（0=不限制）</label>
+        <input type="number" id="project-key-max-daily-dup" min="0" />
       </div>
       <div class="form-group">
         <label>状态</label>

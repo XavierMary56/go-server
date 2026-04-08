@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -16,12 +17,13 @@ import (
 )
 
 type Handler struct {
-	svc   *service.ModerationService
-	log   *logger.Logger
-	cfg   *config.Config
-	db    *storage.DB
-	audit *audit.AuditLogger
-	tasks *syncTaskStore
+	svc        *service.ModerationService
+	log        *logger.Logger
+	cfg        *config.Config
+	db         *storage.DB
+	audit      *audit.AuditLogger
+	tasks      *syncTaskStore
+	dupTracker *service.DupTracker
 }
 
 type syncTaskStore struct {
@@ -43,14 +45,15 @@ type moderationResult struct {
 	FromCache  bool    `json:"from_cache"`
 }
 
-func New(svc *service.ModerationService, log *logger.Logger, cfg *config.Config, db *storage.DB, auditLogger *audit.AuditLogger, tasks syncMap) *Handler {
+func New(svc *service.ModerationService, log *logger.Logger, cfg *config.Config, db *storage.DB, auditLogger *audit.AuditLogger, tasks syncMap, dupTracker *service.DupTracker) *Handler {
 	return &Handler{
-		svc:   svc,
-		log:   log,
-		cfg:   cfg,
-		db:    db,
-		audit: auditLogger,
-		tasks: &syncTaskStore{data: tasks},
+		svc:        svc,
+		log:        log,
+		cfg:        cfg,
+		db:         db,
+		audit:      auditLogger,
+		tasks:      &syncTaskStore{data: tasks},
+		dupTracker: dupTracker,
 	}
 }
 
@@ -91,6 +94,33 @@ func (h *Handler) handleModeration(w http.ResponseWriter, r *http.Request) {
 	if strings.TrimSpace(reqExt.Content) == "" {
 		api.JSONError(w, http.StatusBadRequest, "content cannot be empty")
 		return
+	}
+
+	// 检查每日重复内容限制
+	projectName := r.Header.Get("X-Project-Name")
+	if projectName != "" && h.dupTracker != nil {
+		maxDailyDup := 2 // 默认值
+		if v, err := strconv.Atoi(r.Header.Get("X-Max-Daily-Dup")); err == nil && v >= 0 {
+			maxDailyDup = v
+		}
+		if h.dupTracker.CheckAndIncrement(projectName, reqExt.Content, maxDailyDup) {
+			api.JSONOK(w, http.StatusOK, map[string]any{
+				"code":    200,
+				"message": "ok",
+				"data": map[string]any{
+					"id":     fmt.Sprintf("mod_%d", time.Now().UnixNano()),
+					"status": "completed",
+					"result": moderationResult{
+						Verdict:    "rejected",
+						Category:   "duplicate",
+						Confidence: 1.0,
+						Reason:     fmt.Sprintf("同一内容在该项目中今日已提交超过%d次", maxDailyDup),
+						ModelUsed:  "system",
+					},
+				},
+			})
+			return
+		}
 	}
 
 	req := &reqExt.ModerateRequest

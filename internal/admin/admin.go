@@ -33,6 +33,7 @@ type KeyInfo struct {
 	ProjectName string    `json:"project_name"`
 	Key         string    `json:"key"`
 	RateLimit   int       `json:"rate_limit"`
+	MaxDailyDup int       `json:"max_daily_dup"` // 每日重复评论上限，0 表示不限制
 	CreatedAt   time.Time `json:"created_at"`
 	UpdatedAt   time.Time `json:"updated_at"`
 	Enabled     bool      `json:"enabled"`
@@ -44,7 +45,8 @@ type KeyInfo struct {
 type AddKeyRequest struct {
 	ProjectName string `json:"project_name"`
 	Key         string `json:"key"`
-	RateLimit   int    `json:"rate_limit"` // 每分钟请求限制
+	RateLimit   int    `json:"rate_limit"`     // 每分钟请求限制
+	MaxDailyDup int    `json:"max_daily_dup"`  // 每日重复评论上限
 }
 
 // UpdateKeyRequest 更新密钥请求
@@ -52,6 +54,7 @@ type UpdateKeyRequest struct {
 	ProjectName *string `json:"project_name,omitempty"`
 	Key         *string `json:"key,omitempty"`
 	RateLimit   *int    `json:"rate_limit,omitempty"`
+	MaxDailyDup *int    `json:"max_daily_dup,omitempty"`
 	Enabled     *bool   `json:"enabled,omitempty"`
 }
 
@@ -114,10 +117,11 @@ func (ah *AdminHandler) GetAllowedKeys() []string {
 
 	var keys []string
 	for _, keyInfo := range ah.keys {
-		entry := fmt.Sprintf("%s|%s|%d",
+		entry := fmt.Sprintf("%s|%s|%d|%d",
 			keyInfo.ProjectName,
 			keyInfo.Key,
 			keyInfo.RateLimit,
+			keyInfo.MaxDailyDup,
 		)
 		keys = append(keys, entry)
 	}

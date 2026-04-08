@@ -55,9 +55,10 @@ func main() {
 	svc := service.NewModerationService(cfg, lg, db)
 	auditLogger := audit.New(cfg.AuditLogDir, cfg.EnableAudit)
 	defer auditLogger.Close()
+	dupTracker := service.NewDupTracker()
 
 	mux := http.NewServeMux()
-	h := handler.New(svc, lg, cfg, db, auditLogger)
+	h := handler.New(svc, lg, cfg, db, auditLogger, dupTracker)
 	h.RegisterRoutes(mux)
 
 	// 启动后台 Key 健康检测（每 5 分钟一次）

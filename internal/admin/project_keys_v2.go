@@ -112,13 +112,14 @@ func (ah *AdminHandler) addProjectKeyV2(w http.ResponseWriter, r *http.Request) 
 		ProjectName: req.ProjectName,
 		Key:         req.Key,
 		RateLimit:   req.RateLimit,
+		MaxDailyDup: req.MaxDailyDup,
 		CreatedAt:   time.Now(),
 		UpdatedAt:   time.Now(),
 		Enabled:     true,
 	}
 
 	if ah.db != nil {
-		dbKey, err := ah.db.AddProjectKey(req.ProjectName, req.Key, req.RateLimit)
+		dbKey, err := ah.db.AddProjectKey(req.ProjectName, req.Key, req.RateLimit, req.MaxDailyDup)
 		if err != nil {
 			ah.jsonError(w, http.StatusConflict, "密钥保存失败: "+err.Error())
 			return
@@ -127,6 +128,7 @@ func (ah *AdminHandler) addProjectKeyV2(w http.ResponseWriter, r *http.Request) 
 		keyInfo.ProjectName = dbKey.ProjectName
 		keyInfo.Key = dbKey.Key
 		keyInfo.RateLimit = dbKey.RateLimit
+		keyInfo.MaxDailyDup = dbKey.MaxDailyDup
 		keyInfo.CreatedAt = dbKey.CreatedAt
 		keyInfo.UpdatedAt = dbKey.UpdatedAt
 		keyInfo.Enabled = dbKey.Enabled
@@ -186,6 +188,7 @@ func (ah *AdminHandler) updateProjectKeyV2(w http.ResponseWriter, r *http.Reques
 	newProjectID := keyInfo.ProjectName
 	newKey := keyInfo.Key
 	newRateLimit := keyInfo.RateLimit
+	newMaxDailyDup := keyInfo.MaxDailyDup
 	newEnabled := keyInfo.Enabled
 
 	if req.ProjectName != nil {
@@ -225,12 +228,19 @@ func (ah *AdminHandler) updateProjectKeyV2(w http.ResponseWriter, r *http.Reques
 		}
 		newRateLimit = *req.RateLimit
 	}
+	if req.MaxDailyDup != nil {
+		if *req.MaxDailyDup < 0 {
+			ah.jsonError(w, http.StatusBadRequest, "每日重复上限不能为负数")
+			return
+		}
+		newMaxDailyDup = *req.MaxDailyDup
+	}
 	if req.Enabled != nil {
 		newEnabled = *req.Enabled
 	}
 
 	if ah.db != nil {
-		if err := ah.db.UpdateProjectKey(currentKey, &newProjectID, &newKey, &newEnabled, &newRateLimit); err != nil {
+		if err := ah.db.UpdateProjectKey(currentKey, &newProjectID, &newKey, &newEnabled, &newRateLimit, &newMaxDailyDup); err != nil {
 			ah.jsonError(w, http.StatusConflict, "密钥更新失败: "+err.Error())
 			return
 		}
@@ -243,6 +253,7 @@ func (ah *AdminHandler) updateProjectKeyV2(w http.ResponseWriter, r *http.Reques
 	keyInfo.ProjectName = newProjectID
 	keyInfo.Key = newKey
 	keyInfo.RateLimit = newRateLimit
+	keyInfo.MaxDailyDup = newMaxDailyDup
 	keyInfo.Enabled = newEnabled
 	keyInfo.UpdatedAt = time.Now()
 	ah.keys[newKey] = keyInfo

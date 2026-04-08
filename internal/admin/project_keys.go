@@ -170,6 +170,15 @@ func (ah *AdminHandler) updateKey(w http.ResponseWriter, r *http.Request, key st
 		keyInfo.RateLimit = *req.RateLimit
 	}
 
+	// 更新每日重复上限
+	if req.MaxDailyDup != nil {
+		if *req.MaxDailyDup < 0 {
+			ah.jsonError(w, http.StatusBadRequest, "每日重复上限不能为负数")
+			return
+		}
+		keyInfo.MaxDailyDup = *req.MaxDailyDup
+	}
+
 	// 更新启用状态
 	if req.Enabled != nil {
 		keyInfo.Enabled = *req.Enabled
@@ -196,7 +205,7 @@ func (ah *AdminHandler) updateKey(w http.ResponseWriter, r *http.Request, key st
 
 	// 同步到数据库
 	if ah.db != nil {
-		if err := ah.db.UpdateProjectKey(key, req.ProjectName, req.Key, req.Enabled, req.RateLimit); err != nil {
+		if err := ah.db.UpdateProjectKey(key, req.ProjectName, req.Key, req.Enabled, req.RateLimit, req.MaxDailyDup); err != nil {
 			ah.jsonError(w, http.StatusInternalServerError, "更新数据库失败: "+err.Error())
 			return
 		}
@@ -342,7 +351,7 @@ func (ah *AdminHandler) loadKeysFromDB() {
 		ah.keysMu.RLock()
 		defer ah.keysMu.RUnlock()
 		for _, k := range ah.keys {
-			if _, err := ah.db.AddProjectKey(k.ProjectName, k.Key, k.RateLimit); err != nil {
+			if _, err := ah.db.AddProjectKey(k.ProjectName, k.Key, k.RateLimit, k.MaxDailyDup); err != nil {
 				ah.log.Error(fmt.Sprintf("添加项目密钥到数据库失败 [%s|%s]: %v", k.ProjectName, k.Key, err))
 			} else {
 				ah.log.Info(fmt.Sprintf("项目密钥已导入数据库: %s|%s", k.ProjectName, k.Key), nil)
@@ -359,6 +368,7 @@ func (ah *AdminHandler) loadKeysFromDB() {
 			ProjectName: k.ProjectName,
 			Key:         k.Key,
 			RateLimit:   k.RateLimit,
+			MaxDailyDup: k.MaxDailyDup,
 			Enabled:     k.Enabled,
 			CreatedAt:   k.CreatedAt,
 			UpdatedAt:   k.UpdatedAt,

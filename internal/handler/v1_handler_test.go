@@ -21,7 +21,7 @@ func TestV1ModerateReturnsLegacyResponseShape(t *testing.T) {
 	}
 	lg := logger.New(t.TempDir(), "error")
 	svc := service.NewModerationService(cfg, lg, nil)
-	h := New(svc, lg, cfg, nil, nil)
+	h := New(svc, lg, cfg, nil, nil, nil)
 	mux := http.NewServeMux()
 	h.RegisterRoutes(mux)
 
@@ -66,7 +66,7 @@ func TestV1TaskQueryReturnsLegacyTaskPayload(t *testing.T) {
 	}
 	lg := logger.New(t.TempDir(), "error")
 	svc := service.NewModerationService(cfg, lg, nil)
-	h := New(svc, lg, cfg, nil, nil)
+	h := New(svc, lg, cfg, nil, nil, nil)
 	mux := http.NewServeMux()
 	h.RegisterRoutes(mux)
 

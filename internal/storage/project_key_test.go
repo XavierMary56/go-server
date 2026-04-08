@@ -6,7 +6,7 @@ func TestDeleteProjectKeyIsSoftDelete(t *testing.T) {
 	db := NewForTest(t)
 	defer db.Close()
 
-	if _, err := db.AddProjectKey("project-a", "key-a", 0); err != nil {
+	if _, err := db.AddProjectKey("project-a", "key-a", 0, 2); err != nil {
 		t.Fatalf("add project key failed: %v", err)
 	}
 

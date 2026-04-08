@@ -60,7 +60,7 @@ func (ah *AdminHandler) serveIndex(w http.ResponseWriter, r *http.Request, stati
 	}
 
 	// 优先从数据库读取版本号，回退到固定默认值
-	version := "20260403"
+	version := "20260408"
 	if ah.db != nil {
 		if setting, err := ah.db.GetAdminSetting(staticVersionSettingKey); err == nil && setting != nil && strings.TrimSpace(setting.Value) != "" {
 			version = strings.TrimSpace(setting.Value)

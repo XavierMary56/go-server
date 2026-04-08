@@ -21,6 +21,7 @@ type ProjectKey struct {
 	ProjectName string     `json:"project_name"`
 	Key         string     `json:"key"`
 	RateLimit   int        `json:"rate_limit"`
+	MaxDailyDup int        `json:"max_daily_dup"` // 每日重复评论上限，0 表示不限制
 	Enabled     bool       `json:"enabled"`
 	DeletedAt   *time.Time `json:"deleted_at,omitempty"`
 	CreatedAt   time.Time  `json:"created_at"`
@@ -203,13 +204,29 @@ func (s *DB) migrate() error {
 		}
 	}
 
+	// 迁移：project_keys 添加 max_daily_dup 列（幂等）
+	var dupColCount int
+	err = s.db.QueryRow(`
+		SELECT COUNT(*) FROM information_schema.COLUMNS
+		WHERE TABLE_SCHEMA = DATABASE()
+		  AND TABLE_NAME   = 'project_keys'
+		  AND COLUMN_NAME  = 'max_daily_dup'`).Scan(&dupColCount)
+	if err != nil {
+		return fmt.Errorf("检查 max_daily_dup 列失败: %w", err)
+	}
+	if dupColCount == 0 {
+		if _, err := s.db.Exec(`ALTER TABLE project_keys ADD COLUMN max_daily_dup INT NOT NULL DEFAULT 2`); err != nil {
+			return fmt.Errorf("添加 max_daily_dup 列失败: %w", err)
+		}
+	}
+
 	return nil
 }
 
 // ── Project Keys ──────────────────────────────────────────
 
 func (s *DB) ListProjectKeys() ([]*ProjectKey, error) {
-	rows, err := s.db.Query("SELECT id, project_name, `key`, rate_limit, enabled, deleted_at, created_at, updated_at FROM project_keys WHERE deleted_at IS NULL ORDER BY created_at DESC")
+	rows, err := s.db.Query("SELECT id, project_name, `key`, rate_limit, max_daily_dup, enabled, deleted_at, created_at, updated_at FROM project_keys WHERE deleted_at IS NULL ORDER BY created_at DESC")
 	if err != nil {
 		return nil, err
 	}
@@ -219,7 +236,7 @@ func (s *DB) ListProjectKeys() ([]*ProjectKey, error) {
 	for rows.Next() {
 		k := &ProjectKey{}
 		var enabled int
-		err := rows.Scan(&k.ID, &k.ProjectName, &k.Key, &k.RateLimit, &enabled, &k.DeletedAt, &k.CreatedAt, &k.UpdatedAt)
+		err := rows.Scan(&k.ID, &k.ProjectName, &k.Key, &k.RateLimit, &k.MaxDailyDup, &enabled, &k.DeletedAt, &k.CreatedAt, &k.UpdatedAt)
 		if err != nil {
 			return nil, err
 		}
@@ -230,7 +247,7 @@ func (s *DB) ListProjectKeys() ([]*ProjectKey, error) {
 }
 
 func (s *DB) GetEnabledProjectKey(key string) (*ProjectKey, error) {
-	row := s.db.QueryRow("SELECT id, project_name, `key`, rate_limit, enabled, deleted_at, created_at, updated_at FROM project_keys WHERE `key`=? AND enabled=1 AND deleted_at IS NULL LIMIT 1", key)
+	row := s.db.QueryRow("SELECT id, project_name, `key`, rate_limit, max_daily_dup, enabled, deleted_at, created_at, updated_at FROM project_keys WHERE `key`=? AND enabled=1 AND deleted_at IS NULL LIMIT 1", key)
 
 	projectKey := &ProjectKey{}
 	var enabled int
@@ -239,6 +256,7 @@ func (s *DB) GetEnabledProjectKey(key string) (*ProjectKey, error) {
 		&projectKey.ProjectName,
 		&projectKey.Key,
 		&projectKey.RateLimit,
+		&projectKey.MaxDailyDup,
 		&enabled,
 		&projectKey.DeletedAt,
 		&projectKey.CreatedAt,
@@ -255,20 +273,20 @@ func (s *DB) GetEnabledProjectKey(key string) (*ProjectKey, error) {
 	return projectKey, nil
 }
 
-func (s *DB) AddProjectKey(projectName, key string, rateLimit int) (*ProjectKey, error) {
+func (s *DB) AddProjectKey(projectName, key string, rateLimit, maxDailyDup int) (*ProjectKey, error) {
 	now := time.Now()
 	result, err := s.db.Exec(
-		"INSERT INTO project_keys (project_name, `key`, rate_limit, enabled, deleted_at, created_at, updated_at) VALUES (?, ?, ?, 1, NULL, ?, ?)",
-		projectName, key, rateLimit, now, now,
+		"INSERT INTO project_keys (project_name, `key`, rate_limit, max_daily_dup, enabled, deleted_at, created_at, updated_at) VALUES (?, ?, ?, ?, 1, NULL, ?, ?)",
+		projectName, key, rateLimit, maxDailyDup, now, now,
 	)
 	if err != nil {
 		return nil, err
 	}
 	id, _ := result.LastInsertId()
-	return &ProjectKey{ID: id, ProjectName: projectName, Key: key, RateLimit: rateLimit, Enabled: true, CreatedAt: now, UpdatedAt: now}, nil
+	return &ProjectKey{ID: id, ProjectName: projectName, Key: key, RateLimit: rateLimit, MaxDailyDup: maxDailyDup, Enabled: true, CreatedAt: now, UpdatedAt: now}, nil
 }
 
-func (s *DB) UpdateProjectKey(currentKey string, projectName *string, newKey *string, enabled *bool, rateLimit *int) error {
+func (s *DB) UpdateProjectKey(currentKey string, projectName *string, newKey *string, enabled *bool, rateLimit *int, maxDailyDup *int) error {
 	// 如果要修改密钥值，先检查新密钥是否已存在
 	if newKey != nil && *newKey != currentKey {
 		var count int
@@ -306,6 +324,12 @@ func (s *DB) UpdateProjectKey(currentKey string, projectName *string, newKey *st
 	}
 	if rateLimit != nil {
 		_, err := s.db.Exec("UPDATE project_keys SET rate_limit=?, updated_at=? WHERE `key`=? AND deleted_at IS NULL", *rateLimit, time.Now(), currentKey)
+		if err != nil {
+			return err
+		}
+	}
+	if maxDailyDup != nil {
+		_, err := s.db.Exec("UPDATE project_keys SET max_daily_dup=?, updated_at=? WHERE `key`=? AND deleted_at IS NULL", *maxDailyDup, time.Now(), currentKey)
 		if err != nil {
 			return err
 		}

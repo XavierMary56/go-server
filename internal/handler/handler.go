@@ -3,6 +3,7 @@ package handler
 import (
 	"fmt"
 	"net/http"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -18,13 +19,14 @@ import (
 
 // Handler handles all HTTP requests.
 type Handler struct {
-	svc   *service.ModerationService
-	log   *logger.Logger
-	cfg   *config.Config
-	db    *storage.DB
-	audit *audit.AuditLogger
-	tasks sync.Map
-	usage sync.Map // key -> *rateCounter
+	svc        *service.ModerationService
+	log        *logger.Logger
+	cfg        *config.Config
+	db         *storage.DB
+	audit      *audit.AuditLogger
+	dupTracker *service.DupTracker
+	tasks      sync.Map
+	usage      sync.Map // key -> *rateCounter
 }
 
 type rateCounter struct {
@@ -58,22 +60,23 @@ func (r *statusRecorder) StatusCode() int {
 }
 
 // New creates a new handler instance.
-func New(svc *service.ModerationService, log *logger.Logger, cfg *config.Config, db *storage.DB, auditLogger *audit.AuditLogger) *Handler {
+func New(svc *service.ModerationService, log *logger.Logger, cfg *config.Config, db *storage.DB, auditLogger *audit.AuditLogger, dupTracker *service.DupTracker) *Handler {
 	return &Handler{
-		svc:   svc,
-		log:   log,
-		cfg:   cfg,
-		db:    db,
-		audit: auditLogger,
+		svc:        svc,
+		log:        log,
+		cfg:        cfg,
+		db:         db,
+		audit:      auditLogger,
+		dupTracker: dupTracker,
 	}
 }
 
 // RegisterRoutes registers all public API routes.
 func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
-	v1Handler := apiv1.New(h.svc, h.log, h.cfg, h.db, h.audit, &h.tasks)
+	v1Handler := apiv1.New(h.svc, h.log, h.cfg, h.db, h.audit, &h.tasks, h.dupTracker)
 	v1Handler.RegisterRoutes(mux, h.withMiddleware)
 
-	v2Handler := apiv2.New(h.svc, h.log, h.cfg, h.db, h.audit, &h.tasks)
+	v2Handler := apiv2.New(h.svc, h.log, h.cfg, h.db, h.audit, &h.tasks, h.dupTracker)
 	v2Handler.RegisterRoutes(mux, h.withMiddleware)
 }
 
@@ -116,6 +119,7 @@ func (h *Handler) withMiddleware(next http.HandlerFunc) http.HandlerFunc {
 
 		if projectKey != nil {
 			r.Header.Set("X-Project-Name", projectKey.ProjectName)
+			r.Header.Set("X-Max-Daily-Dup", strconv.Itoa(projectKey.MaxDailyDup))
 		}
 
 		next(rec, r)
