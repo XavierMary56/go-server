@@ -109,7 +109,7 @@ func (ah *AdminHandler) handleExportTrainingData(w http.ResponseWriter, r *http.
 	// CSV 头（写入 UTF-8 BOM，确保 Excel 正确识别中文编码）
 	if format == "csv" {
 		w.Write([]byte{0xEF, 0xBB, 0xBF}) // UTF-8 BOM
-		fmt.Fprintf(w, "content,verdict,category,confidence,reason,type,model,project,timestamp\n")
+		fmt.Fprintf(w, "\"content\",\"verdict\",\"category\",\"confidence\",\"reason\",\"type\",\"model\",\"project\",\"timestamp\"\n")
 	}
 
 	var exported int
@@ -122,9 +122,9 @@ func (ah *AdminHandler) handleExportTrainingData(w http.ResponseWriter, r *http.
 			continue
 		}
 
-		// 按文件名排序（日期顺序）
+		// 按文件名倒序排列（最新日期在前）
 		sort.Slice(entries, func(i, j int) bool {
-			return entries[i].Name() < entries[j].Name()
+			return entries[i].Name() > entries[j].Name()
 		})
 
 		for _, entry := range entries {
@@ -233,16 +233,16 @@ func (ah *AdminHandler) streamTrainingRecords(
 		timestamp, _ := event["timestamp"].(string)
 
 		if format == "csv" {
-			fmt.Fprintf(w, "%s,%s,%s,%.4f,%s,%s,%s,%s,%s\n",
-				csvEscape(content),
-				csvEscape(verdict),
-				csvEscape(category),
-				confidence,
-				csvEscape(reason),
-				csvEscape(contentType),
-				csvEscape(model),
-				csvEscape(projectID),
-				csvEscape(timestamp),
+			fmt.Fprintf(w, "%s,%s,%s,%s,%s,%s,%s,%s,%s\n",
+				csvQuote(content),
+				csvQuote(verdict),
+				csvQuote(category),
+				csvQuote(fmt.Sprintf("%.4f", confidence)),
+				csvQuote(reason),
+				csvQuote(contentType),
+				csvQuote(model),
+				csvQuote(projectID),
+				csvQuote(timestamp),
 			)
 		} else {
 			rec := trainingRecord{
@@ -275,10 +275,8 @@ func (ah *AdminHandler) streamTrainingRecords(
 	return count
 }
 
-// csvEscape 转义 CSV 字段
-func csvEscape(s string) string {
-	if strings.ContainsAny(s, ",\"\n\r") {
-		return "\"" + strings.ReplaceAll(s, "\"", "\"\"") + "\""
-	}
-	return s
+// csvQuote 强制给所有 CSV 字段加双引号并转义内部双引号
+// 确保 Excel 在中文 Windows 下正确识别 UTF-8 编码的中文内容
+func csvQuote(s string) string {
+	return "\"" + strings.ReplaceAll(s, "\"", "\"\"") + "\""
 }
