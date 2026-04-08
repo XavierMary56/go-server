@@ -60,6 +60,11 @@ func (ah *AdminHandler) handleProjectLogs(w http.ResponseWriter, r *http.Request
 		events = filtered
 	}
 
+	// 按时间倒序排列，最新的显示在最前面
+	sort.Slice(events, func(i, j int) bool {
+		return events[i].Timestamp.After(events[j].Timestamp)
+	})
+
 	ah.jsonOK(w, http.StatusOK, map[string]interface{}{
 		"code": 200,
 		"data": map[string]interface{}{

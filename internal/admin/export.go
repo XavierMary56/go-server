@@ -106,8 +106,9 @@ func (ah *AdminHandler) handleExportTrainingData(w http.ResponseWriter, r *http.
 
 	flusher, canFlush := w.(http.Flusher)
 
-	// CSV 头
+	// CSV 头（写入 UTF-8 BOM，确保 Excel 正确识别中文编码）
 	if format == "csv" {
+		w.Write([]byte{0xEF, 0xBB, 0xBF}) // UTF-8 BOM
 		fmt.Fprintf(w, "content,verdict,category,confidence,reason,type,model,project,timestamp\n")
 	}
 
